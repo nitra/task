@@ -1,0 +1,118 @@
+.github/workflows/lint-text.yml
+  s_ee7b7d210b90b5::t_cdeb3044a1ea2c 1-61
+tasks/open-in-editor-local/task.md
+  s_1c2fb57046aab9::t_ff460859ae63eb 1-6,8-11,13-21,26-42,46-61
+  s_1c2fb57046aab9::t_27e29de0252bcd 22-25
+  s_1c2fb57046aab9::t_5c5ba4a26fab7a 43-45
+  s_1c2fb57046aab9::t_c6ea0e806c4cac 7,12
+k8s/teleport/ingress.yaml
+  s_4c5d14c8e44b05::t_c5bbacba5d28e3 1-22
+app/src/App.vue
+  s_ee7b7d210b90b5::t_2d465ac1356a34 15-18
+  s_039312c8317d0c::t_5681cffc94023c 9-10
+app/src/components/TaskNodeItem.vue
+  s_ee7b7d210b90b5::t_2d465ac1356a34 9,49-70
+  s_039312c8317d0c::t_a10a8847ef907d 10
+  s_039312c8317d0c::t_bbc471b8c49ceb 1-8,11-48,71-81
+k8s/teleport/configmap.yaml
+  s_4c5d14c8e44b05::t_1452ddf582fce4 1-65
+app/src/components/TaskGraph.vue
+  s_039312c8317d0c::t_04c4d77b8fc2a0 50-80,84-90,93-99,103-107,110-114
+  s_ee7b7d210b90b5::t_55abeda866b7bd 91-92
+  s_ee7b7d210b90b5::t_23a99a648c4e1f 108-109
+  s_ee7b7d210b90b5::t_2d465ac1356a34 1-49,81-83,100-102
+docs/adr/260607-0717-підтримка-двох-режимів-відкриття-редактора-local-remote.md
+  s_ee7b7d210b90b5::t_cdeb3044a1ea2c 1-31
+k8s/teleport/roles.yaml
+  s_4c5d14c8e44b05::t_042fe89a94695b 1-33
+app/src-tauri/gen/schemas/capabilities.json
+  s_039312c8317d0c::t_11f34c57a52f18 1
+docs/adr/260607-0853-візуалізація-задач-через-tauri-vue-3.md
+  s_ee7b7d210b90b5::t_9c156310388abe 1-36
+app/src-tauri/gen/schemas/acl-manifests.json
+  s_039312c8317d0c::t_11f34c57a52f18 1
+k8s/teleport/rbac.yaml
+  s_4c5d14c8e44b05::t_0c212c27a599d1 1-37
+app/src-tauri/gen/schemas/desktop-schema.json
+  s_039312c8317d0c::t_11f34c57a52f18 1-2771
+k8s/dev-pod/template.yaml
+  s_4c5d14c8e44b05::t_0ee2aaa3f0546e 1-60
+k8s/teleport/service.yaml
+  s_4c5d14c8e44b05::t_536a6afd0068f1 1-47
+k8s/dev-pod/rbac.yaml
+  s_4c5d14c8e44b05::t_5c919d5bd3f946 1-62
+.github/workflows/lint-style.yml
+  s_ee7b7d210b90b5::t_cdeb3044a1ea2c 1-39
+.vscode/extensions.json
+  s_ee7b7d210b90b5::t_cdeb3044a1ea2c 1,14
+  s_ee7b7d210b90b5::t_4bb01feded33c9 2-13
+tasks/open-in-editor/task.md
+  s_4c5d14c8e44b05::t_0da6bd0de394a6 7,9-14,18-20,27,38-40,45
+k8s/teleport/pvc.yaml
+  s_4c5d14c8e44b05::t_d8398507eb03ab 1-11
+.github/workflows/lint-js.yml
+  s_ee7b7d210b90b5::t_cdeb3044a1ea2c 1-44
+k8s/namespace.yaml
+  s_4c5d14c8e44b05::t_48cfb4c8f1c4d7 1-4
+k8s/README.md
+  s_4c5d14c8e44b05::t_f39cbfa4eb7843 1-139
+app/src-tauri/gen/schemas/macOS-schema.json
+  s_039312c8317d0c::t_11f34c57a52f18 1-2771
+knip.json
+  s_ee7b7d210b90b5::t_4c9affabcfa04e 48
+  s_ee7b7d210b90b5::t_9ead469073496f 14-16
+app/src-tauri/.cargo/mutants.toml
+  s_ee7b7d210b90b5::t_a01519258afff0 1-21
+app/stryker-vue-macros-ignorer.mjs
+  s_ee7b7d210b90b5::t_a01519258afff0 1-48
+.gitignore
+  s_039312c8317d0c::t_d843fe1935a0b4 58-64
+k8s/teleport/deployment.yaml
+  s_4c5d14c8e44b05::t_310248663ef473 1-66
+app/src-tauri/src/lib.rs
+  s_039312c8317d0c::t_c0a20662fc2803 1-294,300
+.oxlintrc.json
+  s_ee7b7d210b90b5::t_ea96ab774de11f 3-417
+app/stryker.config.mjs
+  s_ee7b7d210b90b5::t_a01519258afff0 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "d2b8b70ff2f7c33e6aa649e1eb452045f908554d",
+  "prompts": {},
+  "sessions": {
+    "s_039312c8317d0c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "039bd8d9-395c-4883-b0a7-f0e4903dc240",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_1c2fb57046aab9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9618a1dd-1e1d-451e-a585-9707e0d4a659",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_4c5d14c8e44b05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bce336cc-aa1a-406e-9d06-59ac3091f37c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ee7b7d210b90b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43607719-391b-42fd-8353-905e3494d931",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
