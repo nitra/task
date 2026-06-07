@@ -1,0 +1,19 @@
+tasks/open-in-zed/task.md
+  s_4c5d14c8e44b05::t_e09155b35d2ce7 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "5392e90caa078527a09d0f06d1d0e162896965d5",
+  "prompts": {},
+  "sessions": {
+    "s_4c5d14c8e44b05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bce336cc-aa1a-406e-9d06-59ac3091f37c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
