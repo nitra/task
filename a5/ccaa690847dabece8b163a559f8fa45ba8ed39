@@ -1,0 +1,59 @@
+app/src/App.vue
+  ai_agent 1-17
+app/src/vite-env.d.ts
+  s_ee7b7d210b90b5::t_9915ffe1085909 1
+app/src/main.js
+  s_ee7b7d210b90b5::t_16be15cb273f1c 1-13
+knip.json
+  s_ee7b7d210b90b5::t_01d1372cd7e439 1-49
+app/src/quasar-variables.sass
+  s_ee7b7d210b90b5::t_2aaa54eb055e97 1-18
+app/src-tauri/build.rs
+  s_ee7b7d210b90b5::t_fb8ab7ff630258 1-3
+app/vitest.config.js
+  s_ee7b7d210b90b5::t_4644b0df839463 1-14
+app/vite.config.js
+  s_ee7b7d210b90b5::t_2d70154237616a 1-46
+package.json
+  s_ee7b7d210b90b5::t_79bc6f015dac0f 1-40
+app/src-tauri/Cargo.toml
+  s_ee7b7d210b90b5::t_9e287d7f685449 1-26
+bunfig.toml
+  s_ee7b7d210b90b5::t_e67a21b2ef4d9f 1-2
+app/src-tauri/src/lib.rs
+  s_ee7b7d210b90b5::t_1ddd757a9b2fa5 1-14
+eslint.config.js
+  ai_agent 1-17
+app/src-tauri/tauri.conf.json
+  s_ee7b7d210b90b5::t_24d0e98af3d368 1-29
+app/jsconfig.json
+  s_ee7b7d210b90b5::t_3b4545caff4b1a 1-16
+app/package.json
+  s_ee7b7d210b90b5::t_7c91425eb3215a 1-45
+.gitignore
+  s_ee7b7d210b90b5::t_10e2ce9366b25f 55-57
+app/src/test-utils/quasar.js
+  ai_agent 1-44
+app/src-tauri/src/main.rs
+  s_ee7b7d210b90b5::t_e8c3d4114f0306 1-6
+app/src-tauri/capabilities/default.json
+  s_ee7b7d210b90b5::t_0872b8ab55daa3 1-17
+app/index.html
+  s_ee7b7d210b90b5::t_4aac9d0a8bd517 1-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a5ccaa690847dabece8b163a559f8fa45ba8ed39",
+  "prompts": {},
+  "sessions": {
+    "s_ee7b7d210b90b5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "43607719-391b-42fd-8353-905e3494d931",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
