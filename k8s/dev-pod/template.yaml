@@ -1,0 +1,60 @@
+# Шаблон dev pod — бекенд (nitra/task API) підставляє змінні та застосовує через k8s API.
+# Змінні для підстановки: ${TASK_NODE_ID}, ${OWNER_EMAIL}, ${TELEPORT_JOIN_TOKEN}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dev-${TASK_NODE_ID}
+  namespace: default
+  labels:
+    app: dev-pod
+    task: ${TASK_NODE_ID}          # Teleport RBAC фільтрує за цим label
+    owner: ${OWNER_EMAIL}          # власник сесії (email із SSO)
+  annotations:
+    # Автоматичне видалення через N хвилин без активної SSH-сесії
+    # Реалізується бекендом через watch на Teleport audit log
+    nitra.com/idle-timeout-min: "30"
+    nitra.com/task-node: ${TASK_NODE_ID}
+spec:
+  serviceAccountName: dev-pod
+  # Pod видаляється бекендом; activeDeadlineSeconds — hard cap на випадок витоку
+  activeDeadlineSeconds: 28800  # 8 годин максимум
+  containers:
+    - name: workspace
+      image: ghcr.io/nitralabs/dev-workspace:latest  # базовий образ: zed-server + git + n-cursor
+      command: [sleep, infinity]
+      volumeMounts:
+        - name: tasks
+          mountPath: /tasks
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          cpu: 2
+          memory: 4Gi
+
+    # Teleport node agent — реєструє pod у Teleport кластері через k8s join method
+    - name: teleport-node
+      image: public.ecr.aws/gravitational/teleport-distroless:16
+      args:
+        - start
+        - --roles=node
+        - --auth-server=teleport-auth.teleport.svc.cluster.local:3025
+        - --nodename=dev-${TASK_NODE_ID}
+        - --labels=task=${TASK_NODE_ID},owner=${OWNER_EMAIL}
+        - --join-method=kubernetes
+        - --token=${TELEPORT_JOIN_TOKEN}
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+
+  volumes:
+    - name: tasks
+      persistentVolumeClaim:
+        claimName: tasks-pvc   # той самий PVC що монтують worker-поди n-cursor graph
+
+  restartPolicy: Never  # pod не перезапускається — бекенд створює новий при необхідності

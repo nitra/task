@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: teleport-web
+  namespace: teleport
+spec:
+  selector:
+    app: teleport
+  ports:
+    - name: web
+      port: 443
+      targetPort: 3080
+  type: ClusterIP
+---
+# SSH proxy — потребує LoadBalancer (TCP, не HTTP)
+# Розробники підключаються сюди через tsh / Zed Remote
+apiVersion: v1
+kind: Service
+metadata:
+  name: teleport-ssh
+  namespace: teleport
+spec:
+  selector:
+    app: teleport
+  ports:
+    - name: ssh
+      port: 3022
+      targetPort: 3022
+    - name: tunnel
+      port: 3024
+      targetPort: 3024
+  type: LoadBalancer
+---
+# Auth service — internal only (для node agents усередині кластера)
+apiVersion: v1
+kind: Service
+metadata:
+  name: teleport-auth
+  namespace: teleport
+spec:
+  selector:
+    app: teleport
+  ports:
+    - name: auth
+      port: 3025
+      targetPort: 3025
+  type: ClusterIP

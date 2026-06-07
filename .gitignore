@@ -55,6 +55,13 @@ reports/stryker/incremental.json
 
 # Playwright MCP screenshots/snapshots
 .playwright-mcp/
+
+# Tauri — Rust build artifacts
+app/src-tauri/target/
+
+# Tauri — mobile platform generated files (if added later)
+app/src-tauri/gen/android/
+app/src-tauri/gen/apple/
 # @nitra/cursor (adr) — локальні артефакти Stop-hook, не коміти
 node_modules/
 dist/

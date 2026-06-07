@@ -11,7 +11,9 @@
     "/@cspell\\/dict-.+/",
     "graphql",
     "@nitra/stylelint-config",
-    "@stryker-mutator/command-runner"
+    "@stryker-mutator/command-runner",
+    "@vue/compiler-sfc",
+    "@vue/test-utils"
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreBinaries": [
@@ -43,7 +45,7 @@
       ]
     },
     "app": {
-      "entry": ["src/**/*.test.js", "test/happy-dom.preload.js"]
+      "entry": ["src/**/*.test.js", "src/test-utils/**/*.js", "test/happy-dom.preload.js"]
     }
   }
 }

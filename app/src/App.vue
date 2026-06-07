@@ -1,6 +1,3 @@
-<script setup>
-</script>
-
 <template>
   <q-layout view="hHh lpR fFf">
     <q-header elevated>
@@ -9,9 +6,13 @@
       </q-toolbar>
     </q-header>
     <q-page-container>
-      <q-page class="column items-center q-pa-lg">
-        <!-- Content here -->
+      <q-page>
+        <TaskGraph />
       </q-page>
     </q-page-container>
   </q-layout>
 </template>
+
+<script setup>
+import TaskGraph from './components/TaskGraph.vue'
+</script>

@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: teleport-config
+  namespace: teleport
+data:
+  teleport.yaml: |
+    teleport:
+      nodename: teleport
+      data_dir: /var/lib/teleport
+      log:
+        output: stderr
+        severity: INFO
+
+    auth_service:
+      enabled: yes
+      cluster_name: nitra
+      # k8s join method — ноди приєднуються через ServiceAccount JWT (без статичних токенів)
+      tokens:
+        - "node,kube:k8s-join-token"
+      authentication:
+        type: github
+
+    proxy_service:
+      enabled: yes
+      public_addr: "teleport.nitra.com:443"
+      ssh_public_addr: "teleport.nitra.com:3022"
+      # ACME (Let's Encrypt) — автоматичний TLS
+      acme:
+        enabled: yes
+        email: vitaliytv@nitralabs.com
+
+    # Auth+Proxy у одному поді — ssh_service вимкнено (потрібен лише proxy)
+    ssh_service:
+      enabled: no
+
+    kubernetes_service:
+      enabled: no
+---
+# GitHub SSO connector
+# Застосовується після першого запуску: kubectl apply -f github-connector.yaml
+# Винесено окремо бо потребує GitHub OAuth credentials із Secret
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: teleport-github-connector
+  namespace: teleport
+data:
+  connector.yaml: |
+    kind: github
+    version: v3
+    metadata:
+      name: github
+    spec:
+      client_id: GITHUB_CLIENT_ID        # замінити на реальне значення
+      client_secret: GITHUB_CLIENT_SECRET # замінити на реальне значення
+      redirect_url: https://teleport.nitra.com/v1/webapi/github/callback
+      display: GitHub
+      teams_to_roles:
+        - organization: nitralabs
+          team: developers
+          roles: [developer]
+        - organization: nitralabs
+          team: admins
+          roles: [editor, access, auditor]

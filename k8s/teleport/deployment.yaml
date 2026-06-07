@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: teleport
+  namespace: teleport
+spec:
+  replicas: 1  # SQLite backend — тільки один екземпляр; для HA перейти на etcd/DynamoDB
+  selector:
+    matchLabels:
+      app: teleport
+  template:
+    metadata:
+      labels:
+        app: teleport
+    spec:
+      serviceAccountName: teleport
+      containers:
+        - name: teleport
+          image: public.ecr.aws/gravitational/teleport-distroless:16
+          args: ["start", "--config=/etc/teleport/teleport.yaml"]
+          ports:
+            - name: web
+              containerPort: 3080
+            - name: auth
+              containerPort: 3025
+            - name: ssh
+              containerPort: 3022
+            - name: tunnel
+              containerPort: 3024
+          volumeMounts:
+            - name: config
+              mountPath: /etc/teleport
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/teleport
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3080
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3080
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: teleport-config
+            items:
+              - key: teleport.yaml
+                path: teleport.yaml
+        - name: data
+          persistentVolumeClaim:
+            claimName: teleport-data

@@ -1,0 +1,16 @@
+{
+  "version": "0.2",
+  "language": "en,uk,nitra",
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/vscode-extension/**",
+    "**/.git/**",
+    ".vscode",
+    "report",
+    "*.svg",
+    "**/k8s/**/*.yaml",
+    "docs/adr/**"
+  ],
+  "import": ["@nitra/cspell-dict/cspell-ext.json"],
+  "words": []
+}
