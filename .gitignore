@@ -55,3 +55,7 @@ reports/stryker/incremental.json
 
 # Playwright MCP screenshots/snapshots
 .playwright-mcp/
+# @nitra/cursor (adr) — локальні артефакти Stop-hook, не коміти
+node_modules/
+dist/
+.claude/scheduled_tasks.lock

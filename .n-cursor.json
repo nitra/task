@@ -1,0 +1,31 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
+  "rules": [
+    "adr",
+    "bun",
+    "changelog",
+    "flow",
+    "image-avif",
+    "image-compress",
+    "js-lint",
+    "js-lint-ci",
+    "rust",
+    "security",
+    "style-lint",
+    "tauri",
+    "test",
+    "text",
+    "vue"
+  ],
+  "skills": [
+    "adr-normalize",
+    "coverage-fix",
+    "fix",
+    "lint",
+    "llm-patch",
+    "publish-telegram",
+    "start-check",
+    "taze",
+    "worktree"
+  ]
+}
