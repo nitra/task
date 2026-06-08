@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskState {
+    Unassigned,
     HumanPending,
     Waiting,
     Running,
@@ -32,8 +33,6 @@ pub struct TaskNode {
 struct Frontmatter {
     created_at: Option<String>,
     budget_sec: Option<u64>,
-    mode: String,
-    deps: Vec<String>,
 }
 
 fn parse_frontmatter(content: &str) -> Frontmatter {
@@ -50,27 +49,17 @@ fn parse_frontmatter(content: &str) -> Frontmatter {
         .map(|i| i + 1)
         .unwrap_or(lines.len());
 
-    let mut in_deps = false;
     for line in &lines[1..end] {
         let t = line.trim();
         if t == "---" {
             break;
         }
-        if t.starts_with("- ") {
-            if in_deps {
-                fm.deps.push(t[2..].trim().to_string());
-            }
-            continue;
-        }
-        in_deps = false;
         if let Some(pos) = t.find(':') {
             let key = t[..pos].trim();
             let val = t[pos + 1..].trim();
             match key {
                 "created_at" => fm.created_at = Some(val.to_string()),
                 "budget_sec" => fm.budget_sec = val.parse().ok(),
-                "mode" => fm.mode = val.to_string(),
-                "deps" => in_deps = true,
                 _ => {}
             }
         }
@@ -80,7 +69,7 @@ fn parse_frontmatter(content: &str) -> Frontmatter {
 }
 
 fn has_files_matching(dir: &Path, prefix: &str, suffix: &str) -> bool {
-    fs::read_dir(dir).ok().map_or(false, |entries| {
+    fs::read_dir(dir).ok().is_some_and(|entries| {
         entries.flatten().any(|e| {
             let n = e.file_name();
             let s = n.to_string_lossy();
@@ -106,18 +95,56 @@ fn has_pending_audit(dir: &Path) -> bool {
     false
 }
 
+fn has_running_sentinel(dir: &Path) -> bool {
+    fs::read_dir(dir).ok().is_some_and(|entries| {
+        entries
+            .flatten()
+            .any(|e| e.file_name().to_string_lossy().starts_with("running_"))
+    })
+}
+
 fn is_running_worktree(node_path: &str, project_root: &Path) -> bool {
     let worktrees = project_root.join(".worktrees");
     if !worktrees.is_dir() {
         return false;
     }
-    let prefix = node_path.replace('/', "-").replace(' ', "-").to_lowercase();
-    fs::read_dir(&worktrees).ok().map_or(false, |entries| {
+    let prefix = node_path.replace(['/', ' '], "-").to_lowercase();
+    fs::read_dir(&worktrees).ok().is_some_and(|entries| {
         entries.flatten().any(|e| {
             e.file_type().map(|t| t.is_dir()).unwrap_or(false)
                 && e.file_name().to_string_lossy().starts_with(&prefix)
         })
     })
+}
+
+fn collect_deps(deps_root: &Path, current: &Path, result: &mut Vec<String>) {
+    let Ok(entries) = fs::read_dir(current) else {
+        return;
+    };
+    let mut entries: Vec<_> = entries.flatten().collect();
+    entries.sort_by_key(|e| e.file_name());
+    for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_deps(deps_root, &path, result);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("md") {
+            if let Ok(rel) = path.strip_prefix(deps_root) {
+                let dep_str = rel.to_string_lossy().replace('\\', "/");
+                let dep_id = dep_str.strip_suffix(".md").unwrap_or(&dep_str).to_string();
+                result.push(dep_id);
+            }
+        }
+    }
+}
+
+fn read_deps_dir(node_dir: &Path) -> Vec<String> {
+    let deps_dir = node_dir.join("deps");
+    if !deps_dir.is_dir() {
+        return vec![];
+    }
+    let mut result = vec![];
+    collect_deps(&deps_dir, &deps_dir, &mut result);
+    result
 }
 
 fn aggregate_composite_state(children: &[TaskNode]) -> TaskState {
@@ -138,35 +165,29 @@ fn aggregate_composite_state(children: &[TaskNode]) -> TaskState {
     TaskState::Waiting
 }
 
-fn detect_state(
-    dir: &Path,
-    mode: &str,
-    children: &[TaskNode],
-    node_path: &str,
-    project_root: &Path,
-) -> TaskState {
-    if dir.join("invalidated").exists() {
-        return TaskState::Invalidated;
-    }
+fn detect_state(dir: &Path, children: &[TaskNode], node_path: &str, project_root: &Path) -> TaskState {
     if !children.is_empty() {
         return aggregate_composite_state(children);
     }
-    if has_files_matching(dir, "outputs_", ".md") {
+    if has_files_matching(dir, "fact_", ".md") {
         return TaskState::Resolved;
     }
     if has_pending_audit(dir) {
         return TaskState::PendingAudit;
     }
-    if is_running_worktree(node_path, project_root) {
+    if has_running_sentinel(dir) || is_running_worktree(node_path, project_root) {
         return TaskState::Running;
     }
     if has_files_matching(dir, "run_", ".md") {
         return TaskState::Failed;
     }
-    if has_files_matching(dir, "plan_", ".md") || mode == "agent" {
+    if dir.join("a.md").exists() {
         return TaskState::Waiting;
     }
-    TaskState::HumanPending
+    if dir.join("h.md").exists() {
+        return TaskState::HumanPending;
+    }
+    TaskState::Unassigned
 }
 
 fn scan_dir(dir: &Path, tasks_root: &Path, project_root: &Path) -> Option<TaskNode> {
@@ -176,11 +197,16 @@ fn scan_dir(dir: &Path, tasks_root: &Path, project_root: &Path) -> Option<TaskNo
 
     let content = fs::read_to_string(dir.join("task.md")).unwrap_or_default();
     let fm = parse_frontmatter(&content);
-    let mode = if fm.mode.is_empty() {
+
+    let mode = if dir.join("a.md").exists() {
+        "agent".to_string()
+    } else if dir.join("h.md").exists() {
         "human".to_string()
     } else {
-        fm.mode
+        "unassigned".to_string()
     };
+
+    let deps = read_deps_dir(dir);
 
     let mut children: Vec<TaskNode> = Vec::new();
     if let Ok(entries) = fs::read_dir(dir) {
@@ -207,13 +233,13 @@ fn scan_dir(dir: &Path, tasks_root: &Path, project_root: &Path) -> Option<TaskNo
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|_| id.clone());
 
-    let state = detect_state(dir, &mode, &children, &path, project_root);
+    let state = detect_state(dir, &children, &path, project_root);
 
     Some(TaskNode {
         id,
         path,
         state,
-        deps: fm.deps,
+        deps,
         mode,
         budget_sec: fm.budget_sec,
         created_at: fm.created_at,
@@ -258,6 +284,22 @@ fn find_tasks_dir() -> Result<String, String> {
     let mut depth = 0u8;
 
     loop {
+        // .mt.json with mt_dir field
+        let mt_config = dir.join(".mt.json");
+        if mt_config.exists() {
+            if let Ok(content) = fs::read_to_string(&mt_config) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(td) = v.get("mt_dir").and_then(|v| v.as_str()) {
+                        let full = dir.join(td);
+                        if full.is_dir() {
+                            return Ok(full.to_string_lossy().into_owned());
+                        }
+                    }
+                }
+            }
+        }
+
+        // .n-cursor.json with tasks_dir (legacy)
         let config_path = dir.join(".n-cursor.json");
         if config_path.exists() {
             if let Ok(content) = fs::read_to_string(&config_path) {
@@ -272,16 +314,19 @@ fn find_tasks_dir() -> Result<String, String> {
             }
         }
 
-        let tasks = dir.join("tasks");
-        if tasks.is_dir() {
-            let has_task = fs::read_dir(&tasks).ok().map_or(false, |entries| {
-                entries.flatten().any(|e| {
-                    e.file_type().map(|t| t.is_dir()).unwrap_or(false)
-                        && e.path().join("task.md").exists()
-                })
-            });
-            if has_task {
-                return Ok(tasks.to_string_lossy().into_owned());
+        // fallback: scan for mt/ or tasks/ with at least one task node
+        for dirname in &["mt", "tasks"] {
+            let candidate = dir.join(dirname);
+            if candidate.is_dir() {
+                let has_task = fs::read_dir(&candidate).ok().is_some_and(|entries| {
+                    entries.flatten().any(|e| {
+                        e.file_type().map(|t| t.is_dir()).unwrap_or(false)
+                            && e.path().join("task.md").exists()
+                    })
+                });
+                if has_task {
+                    return Ok(candidate.to_string_lossy().into_owned());
+                }
             }
         }
 

@@ -87,6 +87,7 @@ const contentLoading = ref(false)
 const contentError = ref(null)
 
 const STATE_COLOR = {
+  unassigned: 'grey-4',
   human_pending: 'amber-8',
   waiting: 'grey-6',
   running: 'primary',
@@ -97,6 +98,7 @@ const STATE_COLOR = {
 }
 
 const STATE_CFG = {
+  unassigned: { icon: 'sym_o_person_off', color: 'grey-4', label: 'unassigned' },
   human_pending: { icon: 'sym_o_schedule', color: 'amber-8', label: 'human-pending' },
   waiting: { icon: 'sym_o_radio_button_unchecked', color: 'grey-6', label: 'waiting' },
   running: { icon: 'sym_o_radio_button_checked', color: 'primary', label: 'running' },

@@ -60,6 +60,7 @@ defineEmits(['select'])
 const expanded = ref(true)
 
 const STATE = {
+  unassigned: { icon: 'sym_o_person_off', color: 'grey-4', label: 'unassigned' },
   human_pending: { icon: 'sym_o_schedule', color: 'amber-8', label: 'human-pending' },
   waiting: { icon: 'sym_o_radio_button_unchecked', color: 'grey-6', label: 'waiting' },
   running: { icon: 'sym_o_radio_button_checked', color: 'primary', label: 'running' },
