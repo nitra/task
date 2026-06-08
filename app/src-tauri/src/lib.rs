@@ -246,6 +246,12 @@ fn scan_tasks(tasks_dir: String) -> Result<Vec<TaskNode>, String> {
 }
 
 #[tauri::command]
+fn read_task(tasks_dir: String, task_path: String) -> Result<String, String> {
+    let path = PathBuf::from(&tasks_dir).join(&task_path).join("task.md");
+    fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn find_tasks_dir() -> Result<String, String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
     let mut dir: &Path = &cwd;
@@ -297,7 +303,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
-        .invoke_handler(tauri::generate_handler![scan_tasks, find_tasks_dir]);
+        .invoke_handler(tauri::generate_handler![scan_tasks, find_tasks_dir, read_task]);
 
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());

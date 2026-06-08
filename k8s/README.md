@@ -23,12 +23,13 @@ Dev Pod (workspace + teleport-node sidecar)
 ```
 k8s/
   namespace.yaml              — namespace teleport
+  cnpg/
+    cluster.yaml              — PostgreSQL кластер (3 instances, HA) через CloudNativePG
   teleport/
     configmap.yaml            — teleport.yaml конфіг + GitHub connector шаблон
-    deployment.yaml           — Auth + Proxy в одному поді (SQLite backend)
-    service.yaml              — web (ClusterIP), ssh (LoadBalancer), auth (ClusterIP)
+    statefulset.yaml          — Auth + Proxy StatefulSet (2 репліки, PostgreSQL backend)
+    service.yaml              — web (ClusterIP), ssh (LoadBalancer), auth (ClusterIP), headless
     ingress.yaml              — HTTPS ingress з SSL passthrough
-    pvc.yaml                  — 10Gi storage для Teleport даних
     rbac.yaml                 — ServiceAccount + ClusterRole для Teleport
     roles.yaml                — Teleport RBAC ролі (developer, admin)
   dev-pod/
@@ -39,6 +40,7 @@ k8s/
 ## Передумови
 
 - k8s кластер з nginx ingress controller
+- **CloudNativePG operator** встановлено: `kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.23/releases/cnpg-1.23.0.yaml`
 - DNS запис `teleport.nitra.com` → LoadBalancer IP
 - DNS запис `*.teleport.nitra.com` → той самий IP (для ACME wildcard або node subdomains)
 - GitHub OAuth App у nitralabs org (Client ID + Secret)
@@ -50,15 +52,36 @@ k8s/
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/teleport/pvc.yaml
 kubectl apply -f k8s/teleport/rbac.yaml
-kubectl apply -f k8s/teleport/configmap.yaml
-kubectl apply -f k8s/teleport/service.yaml
-kubectl apply -f k8s/teleport/ingress.yaml
 kubectl apply -f k8s/dev-pod/rbac.yaml
 ```
 
-### 2. GitHub OAuth credentials
+### 2. PostgreSQL через CNPG
+
+```bash
+# Встановити CNPG operator (якщо ще не встановлено)
+kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.23/releases/cnpg-1.23.0.yaml
+
+# Створити PostgreSQL кластер (3 instances)
+kubectl apply -f k8s/cnpg/cluster.yaml
+
+# Дочекатись готовності (primary + 2 replicas, ~2 хвилини)
+kubectl wait cluster/teleport-postgres -n teleport \
+  --for=condition=Ready --timeout=300s
+
+# CNPG автоматично створив secret teleport-postgres-app з ключем uri
+kubectl get secret teleport-postgres-app -n teleport
+```
+
+### 3. Teleport конфіг і мережа
+
+```bash
+kubectl apply -f k8s/teleport/configmap.yaml
+kubectl apply -f k8s/teleport/service.yaml
+kubectl apply -f k8s/teleport/ingress.yaml
+```
+
+### 4. GitHub OAuth credentials
 
 ```bash
 kubectl create secret generic teleport-github \
@@ -67,14 +90,14 @@ kubectl create secret generic teleport-github \
   --from-literal=client_secret=<GITHUB_CLIENT_SECRET>
 ```
 
-### 3. Запуск Teleport
+### 5. Запуск Teleport
 
 ```bash
-kubectl apply -f k8s/teleport/deployment.yaml
-kubectl rollout status deployment/teleport -n teleport
+kubectl apply -f k8s/teleport/statefulset.yaml
+kubectl rollout status statefulset/teleport -n teleport
 ```
 
-### 4. Перший адмін (одноразово)
+### 6. Перший адмін (одноразово)
 
 ```bash
 # Зайти у под
@@ -87,7 +110,7 @@ tctl users add vitaliytv --roles=admin --logins=dev
 tctl create -f /etc/teleport/roles.yaml
 ```
 
-### 5. GitHub SSO connector
+### 7. GitHub SSO connector
 
 Замінити `GITHUB_CLIENT_ID` і `GITHUB_CLIENT_SECRET` у `teleport/configmap.yaml`
 або застосувати через tctl:
@@ -132,8 +155,19 @@ EOF
 ## Оновлення Teleport
 
 ```bash
-# Змінити image tag у deployment.yaml, потім:
-kubectl rollout restart deployment/teleport -n teleport
+# Змінити image tag у statefulset.yaml, потім:
+kubectl rollout restart statefulset/teleport -n teleport
 ```
 
-SQLite backend: downtime ~30с під час рестарту. Для zero-downtime перейти на PostgreSQL/etcd.
+PostgreSQL backend + 2 репліки: rolling update без downtime.
+
+## Оновлення PostgreSQL (CNPG)
+
+```bash
+# CNPG виконує rolling update автоматично при зміні image або параметрів
+kubectl patch cluster teleport-postgres -n teleport \
+  --type merge -p '{"spec":{"imageName":"ghcr.io/cloudnative-pg/postgresql:16.3"}}'
+
+# Статус кластера
+kubectl get cluster teleport-postgres -n teleport
+```

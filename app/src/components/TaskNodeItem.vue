@@ -1,12 +1,13 @@
 <template>
   <div>
     <div
-      class="row no-wrap items-center q-py-xs rounded-borders task-row"
+      class="row no-wrap items-center q-py-xs rounded-borders task-row cursor-pointer"
       :style="{ paddingLeft: indent + 'px', paddingRight: '8px' }"
+      @click.stop="$emit('select', node)"
     >
       <q-btn
         v-if="node.is_composite"
-        @click="expanded = !expanded"
+        @click.stop="expanded = !expanded"
         :icon="expanded ? 'sym_o_expand_more' : 'sym_o_chevron_right'"
         flat
         dense
@@ -42,6 +43,7 @@
         :key="child.id"
         :node="child"
         :depth="depth + 1"
+        @select="$emit('select', $event)"
       />
     </template>
   </div>
@@ -52,6 +54,8 @@ const props = defineProps({
   node: { type: Object, required: true },
   depth: { type: Number, default: 0 },
 })
+
+defineEmits(['select'])
 
 const expanded = ref(true)
 
@@ -71,7 +75,7 @@ const indent = computed(() => props.depth * 20 + 8)
 
 <style scoped>
 .task-row:hover {
-  background: rgba(0 0 0 / 4%);
+  background: rgba(0 0 0 / 6%);
 }
 
 .task-id {

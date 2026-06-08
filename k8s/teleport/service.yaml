@@ -45,3 +45,17 @@ spec:
       port: 3025
       targetPort: 3025
   type: ClusterIP
+---
+# Headless service для StatefulSet DNS (teleport-0.teleport-headless, teleport-1.teleport-headless)
+apiVersion: v1
+kind: Service
+metadata:
+  name: teleport-headless
+  namespace: teleport
+spec:
+  clusterIP: None
+  selector:
+    app: teleport
+  ports:
+    - name: auth
+      port: 3025

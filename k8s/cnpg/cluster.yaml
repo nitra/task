@@ -1,0 +1,37 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: teleport-postgres
+  namespace: teleport
+spec:
+  # 3 instances = 1 primary + 2 replicas (мінімум для HA з quorum)
+  instances: 3
+
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "256MB"
+
+  bootstrap:
+    initdb:
+      database: teleport
+      owner: teleport
+      # CNPG автоматично створює secret teleport-postgres-app
+      # з полями: uri, host, port, dbname, username, password
+
+  storage:
+    size: 10Gi
+
+  # Автоматичний failover без ручного втручання
+  primaryUpdateStrategy: unsupervised
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+
+  monitoring:
+    enablePodMonitor: false  # увімкнути якщо є Prometheus operator

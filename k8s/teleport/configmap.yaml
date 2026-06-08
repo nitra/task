@@ -11,6 +11,11 @@ data:
       log:
         output: stderr
         severity: INFO
+      # PostgreSQL backend — дозволяє запускати кілька реплік Auth Server (HA)
+      # PG_CONN_STRING інжектується з CNPG-secret teleport-postgres-app (ключ: uri)
+      storage:
+        type: postgresql
+        conn_string: "${PG_CONN_STRING}"
 
     auth_service:
       enabled: yes

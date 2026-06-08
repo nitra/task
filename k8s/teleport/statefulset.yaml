@@ -1,10 +1,12 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: teleport
   namespace: teleport
 spec:
-  replicas: 1  # SQLite backend — тільки один екземпляр; для HA перейти на etcd/DynamoDB
+  # 2 репліки Auth+Proxy — можливо лише з PostgreSQL backend
+  replicas: 2
+  serviceName: teleport-headless
   selector:
     matchLabels:
       app: teleport
@@ -27,6 +29,13 @@ spec:
               containerPort: 3022
             - name: tunnel
               containerPort: 3024
+          env:
+            # CNPG створює цей secret автоматично при ініціалізації кластера
+            - name: PG_CONN_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: teleport-postgres-app
+                  key: uri
           volumeMounts:
             - name: config
               mountPath: /etc/teleport
@@ -61,6 +70,14 @@ spec:
             items:
               - key: teleport.yaml
                 path: teleport.yaml
-        - name: data
-          persistentVolumeClaim:
-            claimName: teleport-data
+
+  # Кожна репліка отримує власний PV для локальних host-сертифікатів
+  # (основний стан кластера зберігається у PostgreSQL)
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi
