@@ -22,6 +22,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@7n/mt": "^0.1.0",
     "@nitra/cspell-dict": "^2.1.0",
     "@nitra/cursor": "^4.0.0",
     "@nitra/eslint-config": "^3.10.0",

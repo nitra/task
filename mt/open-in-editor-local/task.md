@@ -1,4 +1,5 @@
 ---
+schema_version: 1
 created_at: 2026-06-07T14:00:00Z
 budget_sec: 3600
 ---

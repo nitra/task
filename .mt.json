@@ -1,0 +1,22 @@
+{
+  "mt_dir": "./mt",
+  "worktrees_dir": "./.worktrees",
+  "agent_concurrency": 5,
+  "default_budget_sec": 3600,
+  "default_budget_hard_sec": 10800,
+  "budget_hard_sec_multiplier": 3,
+  "default_mode": "agent",
+  "default_model_tier": "AVG",
+  "plan_temperature": 0,
+  "run_summary_threshold": 5,
+  "claude_model": "claude-sonnet-4-6",
+  "audit_model": "claude-haiku-4-5-20251001",
+  "model_map": {
+    "MIM": "claude-haiku-4-5-20251001",
+    "AVG": "claude-sonnet-4-6",
+    "MAX": "claude-opus-4-8"
+  },
+  "stale_worktree_min": 30,
+  "grace_period": 60,
+  "min_free_disk_gb": 10
+}
