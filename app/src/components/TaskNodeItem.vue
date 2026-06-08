@@ -1,9 +1,9 @@
 <template>
   <div>
     <div
+      @click.stop="$emit('select', node)"
       class="row no-wrap items-center q-py-xs rounded-borders task-row cursor-pointer"
       :style="{ paddingLeft: indent + 'px', paddingRight: '8px' }"
-      @click.stop="$emit('select', node)"
     >
       <q-btn
         v-if="node.is_composite"
@@ -41,9 +41,9 @@
       <TaskNodeItem
         v-for="child in node.children"
         :key="child.id"
+        @select="$emit('select', $event)"
         :node="child"
         :depth="depth + 1"
-        @select="$emit('select', $event)"
       />
     </template>
   </div>

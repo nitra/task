@@ -277,6 +277,109 @@ fn read_task(tasks_dir: String, task_path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceInfo {
+    pub label: String,
+    pub path: String,
+}
+
+fn find_git_root(start: &Path) -> Option<PathBuf> {
+    let mut current = start;
+    loop {
+        if current.join(".git").exists() {
+            return Some(current.to_path_buf());
+        }
+        current = current.parent()?;
+    }
+}
+
+fn workspace_label(git_root: &Path, workspace_dir: &Path) -> String {
+    if workspace_dir == git_root {
+        git_root
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("root")
+            .to_string()
+    } else {
+        workspace_dir
+            .strip_prefix(git_root)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|_| workspace_dir.to_string_lossy().into_owned())
+    }
+}
+
+fn scan_for_workspaces(current: &Path, git_root: &Path, result: &mut Vec<WorkspaceInfo>, depth: u8) {
+    if depth > 6 {
+        return;
+    }
+
+    let mt_config = current.join(".mt.json");
+    if mt_config.exists() {
+        let mt_dir = fs::read_to_string(&mt_config)
+            .ok()
+            .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
+            .and_then(|v| v.get("mt_dir").and_then(|v| v.as_str()).map(|s| current.join(s)))
+            .unwrap_or_else(|| current.join("mt"));
+        if mt_dir.is_dir() && has_task_nodes(&mt_dir) {
+            result.push(WorkspaceInfo {
+                label: workspace_label(git_root, current),
+                path: mt_dir.to_string_lossy().into_owned(),
+            });
+            return;
+        }
+    }
+
+    for dirname in &["mt", "tasks"] {
+        let candidate = current.join(dirname);
+        if candidate.is_dir() && has_task_nodes(&candidate) {
+            result.push(WorkspaceInfo {
+                label: workspace_label(git_root, current),
+                path: candidate.to_string_lossy().into_owned(),
+            });
+            return;
+        }
+    }
+
+    let Ok(entries) = fs::read_dir(current) else {
+        return;
+    };
+    let mut subdirs: Vec<_> = entries
+        .flatten()
+        .filter(|e| {
+            let name = e.file_name();
+            let n = name.to_string_lossy();
+            e.file_type().map(|t| t.is_dir()).unwrap_or(false)
+                && !n.starts_with('.')
+                && n != "node_modules"
+                && n != "target"
+                && n != "dist"
+                && n != "build"
+        })
+        .collect();
+    subdirs.sort_by_key(|e| e.file_name());
+    for sub in subdirs {
+        scan_for_workspaces(&sub.path(), git_root, result, depth + 1);
+    }
+}
+
+fn has_task_nodes(dir: &Path) -> bool {
+    fs::read_dir(dir).ok().is_some_and(|entries| {
+        entries.flatten().any(|e| {
+            e.file_type().map(|t| t.is_dir()).unwrap_or(false)
+                && e.path().join("task.md").exists()
+        })
+    })
+}
+
+#[tauri::command]
+fn find_all_tasks_dirs() -> Result<Vec<WorkspaceInfo>, String> {
+    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
+    let git_root = find_git_root(&cwd).unwrap_or_else(|| cwd.clone());
+    let mut result = vec![];
+    scan_for_workspaces(&git_root, &git_root, &mut result, 0);
+    Ok(result)
+}
+
 #[tauri::command]
 fn find_tasks_dir() -> Result<String, String> {
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
@@ -343,12 +446,13 @@ fn find_tasks_dir() -> Result<String, String> {
     Err("Could not auto-detect tasks directory. Please specify the path manually.".to_string())
 }
 
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
-        .invoke_handler(tauri::generate_handler![scan_tasks, find_tasks_dir, read_task]);
+        .invoke_handler(tauri::generate_handler![scan_tasks, find_tasks_dir, find_all_tasks_dirs, read_task]);
 
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());

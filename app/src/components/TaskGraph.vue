@@ -1,22 +1,16 @@
 <template>
   <div class="q-pa-md">
-    <div class="row items-center q-gutter-sm q-mb-md">
-      <q-input
-        v-model="tasksDir"
-        @keyup.enter="scan"
-        label="Tasks directory"
-        dense
-        outlined
-        class="col"
-      />
+    <div class="row items-center q-mb-md">
+      <span class="text-body2 text-grey-7">Tasks</span>
+      <q-space />
       <q-btn
-        @click="scan"
+        @click="scanAll"
         icon="sym_o_refresh"
         flat
         round
         dense
         :loading="loading"
-        title="Scan"
+        title="Rescan"
       />
     </div>
 
@@ -35,14 +29,27 @@
       </q-badge>
     </div>
 
-    <q-card v-if="tasks.length" flat bordered>
-      <q-card-section class="q-pa-xs">
-        <TaskNodeItem v-for="task in tasks" :key="task.id" :node="task" @select="onSelect" />
-      </q-card-section>
-    </q-card>
+    <div v-if="!loading && workspaces.length === 0 && !error" class="text-center text-grey q-pa-xl">
+      No workspaces found
+    </div>
 
-    <div v-else-if="!loading && !error" class="text-center text-grey q-pa-xl">
-      No tasks found
+    <div v-for="ws in workspaces" :key="ws.path" class="q-mb-lg">
+      <div class="workspace-label text-caption text-weight-medium text-grey-6 q-mb-xs q-px-xs">
+        {{ ws.label }}
+      </div>
+      <q-card v-if="workspaceNodes[ws.path]?.length" flat bordered>
+        <q-card-section class="q-pa-xs">
+          <TaskNodeItem
+            v-for="task in workspaceNodes[ws.path]"
+            :key="task.id"
+            @select="node => onSelect(node, ws.path)"
+            :node="task"
+          />
+        </q-card-section>
+      </q-card>
+      <div v-else-if="!loading" class="text-caption text-grey q-pa-sm q-ml-xs">
+        —
+      </div>
     </div>
 
     <q-dialog v-model="drawerOpen" transition-show="fade" transition-hide="fade">
@@ -52,7 +59,7 @@
           <span class="text-h6" style="font-family: monospace">{{ selectedTask?.id }}</span>
           <q-badge :color="selectedCfg.color" outline class="q-ml-sm">{{ selectedCfg.label }}</q-badge>
           <q-space />
-          <q-btn icon="sym_o_close" flat round dense v-close-popup />
+          <q-btn v-close-popup icon="sym_o_close" flat round dense />
         </q-card-section>
 
         <q-separator class="q-mt-sm" />
@@ -75,13 +82,14 @@ import { marked } from 'marked'
 import { invoke } from '@tauri-apps/api/core'
 import TaskNodeItem from './TaskNodeItem.vue'
 
-const tasksDir = ref('')
-const tasks = ref([])
+const workspaces = ref([])
+const workspaceNodes = ref({})
 const loading = ref(false)
 const error = ref(null)
 
 const drawerOpen = ref(false)
 const selectedTask = ref(null)
+const selectedTasksDir = ref('')
 const taskContent = ref('')
 const contentLoading = ref(false)
 const contentError = ref(null)
@@ -120,57 +128,72 @@ const stateCounts = computed(() => {
       if (n.children?.length) walk(n.children)
     }
   }
-  walk(tasks.value)
+  for (const nodes of Object.values(workspaceNodes.value)) {
+    walk(nodes)
+  }
   return counts
 })
 
-async function onSelect(node) {
+/**
+ *
+ */
+async function onSelect(node, tasksDir) {
   selectedTask.value = node
+  selectedTasksDir.value = tasksDir
   drawerOpen.value = true
   contentLoading.value = true
   contentError.value = null
   taskContent.value = ''
   try {
-    taskContent.value = await invoke('read_task', { tasksDir: tasksDir.value, taskPath: node.path })
+    taskContent.value = await invoke('read_task', { tasksDir, taskPath: node.path })
   }
-  catch (err) {
-    contentError.value = String(err)
+  catch (error) {
+    contentError.value = String(error)
   }
   finally {
     contentLoading.value = false
   }
 }
 
-async function scan() {
-  if (!tasksDir.value) return
+/**
+ *
+ */
+async function scanAll() {
   loading.value = true
   error.value = null
   try {
-    tasks.value = await invoke('scan_tasks', { tasksDir: tasksDir.value })
+    workspaces.value = await invoke('find_all_tasks_dirs')
+    await Promise.all(
+      workspaces.value.map(async (ws) => {
+        try {
+          workspaceNodes.value[ws.path] = await invoke('scan_tasks', { tasksDir: ws.path })
+        }
+        catch {
+          workspaceNodes.value[ws.path] = []
+        }
+      }),
+    )
   }
-  catch (error_) {
-    error.value = String(error_)
-    tasks.value = []
+  catch (error) {
+    error.value = String(error)
   }
   finally {
     loading.value = false
   }
 }
 
-async function autoDetect() {
-  try {
-    tasksDir.value = await invoke('find_tasks_dir')
-    await scan()
-  }
-  catch (error_) {
-    error.value = String(error_)
-  }
-}
-
-onMounted(autoDetect)
+onMounted(scanAll)
 </script>
 
 <style scoped>
+.workspace-label {
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  border-bottom: 1px solid rgba(0 0 0 / 8%);
+  padding-bottom: 2px;
+}
+
 .task-detail-card {
   width: 640px;
   max-width: 92vw;
