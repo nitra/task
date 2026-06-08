@@ -1,0 +1,28 @@
+app/src-tauri/src/lib.rs
+  s_074ba88ac02ada::t_a300deae13af0e 9,98,100-103,120-149,168,172,178,184,187-190,200-203,206,209-210,236,242,287-302,317-320,322-329
+  s_074ba88ac02ada::t_56919bb62a8b81 72,99,111-112,321
+app/src/components/TaskNodeItem.vue
+  s_074ba88ac02ada::t_cd9a07c804314d 63
+docs/adr/260608-1734-прийняття-формату-7n-mt-для-зберігання-задач.md
+  s_074ba88ac02ada::t_2f05e53c183764 1-59
+docs/adr/260608-1736-міграція-формату-задач-tasks-mt-зі-специфікацією-7n-mt.md
+  s_074ba88ac02ada::t_2f05e53c183764 1-46
+app/src/components/TaskGraph.vue
+  s_074ba88ac02ada::t_081d2c2aa3bb3e 90,101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "6944895581b2c23851707a951b6aac46aaec76d2",
+  "prompts": {},
+  "sessions": {
+    "s_074ba88ac02ada": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "523a2d0e-a2db-4ca8-ad75-b13d453965a4",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
