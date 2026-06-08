@@ -1,0 +1,23 @@
+mt/open-in-editor-local/task.md
+  s_074ba88ac02ada::t_627f4c21700aa1 2
+mt/open-in-editor/task.md
+  s_074ba88ac02ada::t_c06d0406169d6e 2
+docs/mt.md
+  s_074ba88ac02ada::t_1f198b4a1fdfc5 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "042a394721183a917d0de480cb7a96844639f765",
+  "prompts": {},
+  "sessions": {
+    "s_074ba88ac02ada": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "523a2d0e-a2db-4ca8-ad75-b13d453965a4",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
