@@ -1,0 +1,30 @@
+app/src/components/TaskGraph.vue
+  s_074ba88ac02ada::t_dc308aad8904b8 3-5,7,13,32-34,36-52,62,85-86,92,131-133,137-140,142,148,150-151,158-161,165-175,185,189-196
+app/src-tauri/src/lib.rs
+  s_98a887ab06c32e::t_4154b89803f1ac 449,455
+  s_074ba88ac02ada::t_30569be2ae2fe8 280-382
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "3ed003e2636b6e0c8d2c8c282baf51659d5693f7",
+  "prompts": {},
+  "sessions": {
+    "s_074ba88ac02ada": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "523a2d0e-a2db-4ca8-ad75-b13d453965a4",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_98a887ab06c32e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd1e2715-04f4-44d7-ac88-200fef9a6e4c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
