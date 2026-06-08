@@ -1,0 +1,47 @@
+app/src/components/TaskNodeItem.vue
+  s_f42b6a7b3fbbbd::t_a0f89dd6ec715c 4,6,10,46,58-59,78
+k8s/teleport/statefulset.yaml
+  s_4c5d14c8e44b05::t_a8ae37fb2f6985 2,7-9,32-38,73-83
+k8s/README.md
+  s_4c5d14c8e44b05::t_d4465210441574 26-27,30-31,43
+  s_4c5d14c8e44b05::t_5a92505dc3e450 76-78,84
+  s_4c5d14c8e44b05::t_f4392e165e34a8 113
+  s_4c5d14c8e44b05::t_f2a54959e764e4 158-159,162-173
+  s_4c5d14c8e44b05::t_f4fe1c3b4a93ee 57-73
+app/src-tauri/src/lib.rs
+  s_f42b6a7b3fbbbd::t_2dcbc42c51e78c 249-253
+k8s/teleport/service.yaml
+  s_4c5d14c8e44b05::t_645e59bde8f40c 48-61
+app/package.json
+  s_f42b6a7b3fbbbd::t_82aa325b10609a 22
+app/src/components/TaskGraph.vue
+  s_f42b6a7b3fbbbd::t_98b39aad39d3fa 40,47,49-69,74,83-88,99-112,125-141,170-172,176-182,184-231
+  s_f42b6a7b3fbbbd::t_8fb76206a5d117 48
+  s_f42b6a7b3fbbbd::t_d089c8317e5df4 173-175,183
+k8s/cnpg/cluster.yaml
+  s_4c5d14c8e44b05::t_89cca4f853a46f 1-2,4,7-27,30-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "bf8dddab9ea6e35a94939333390f1cca6d2caf7a",
+  "prompts": {},
+  "sessions": {
+    "s_4c5d14c8e44b05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bce336cc-aa1a-406e-9d06-59ac3091f37c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_f42b6a7b3fbbbd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4afe071-8235-4897-8904-2816364ba716",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
