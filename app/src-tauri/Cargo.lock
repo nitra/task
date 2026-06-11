@@ -2123,7 +2123,6 @@ dependencies = [
 [[package]]
 name = "mt-scanner"
 version = "0.1.0"
-source = "git+ssh://git@github.com/nitra/mt.git#a41f20e452a3b8f8780a1754ee56e73334969373"
 dependencies = [
  "serde",
  "serde_json",

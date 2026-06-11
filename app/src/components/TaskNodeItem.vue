@@ -21,7 +21,7 @@
 
       <span
         class="task-id text-body2 q-mr-sm"
-        :class="{ 'text-strike text-grey-5': node.state === 'invalidated' }"
+        :class="{ 'text-strike text-grey-5': node.state === 'unresolvable' }"
       >{{ node.id }}</span>
 
       <q-badge :color="cfg.color" outline class="q-mr-sm text-caption">{{ cfg.label }}</q-badge>
@@ -60,14 +60,17 @@ defineEmits(['select'])
 const expanded = ref(true)
 
 const STATE = {
-  unassigned: { icon: 'sym_o_person_off', color: 'grey-4', label: 'unassigned' },
-  human_pending: { icon: 'sym_o_schedule', color: 'amber-8', label: 'human-pending' },
-  waiting: { icon: 'sym_o_radio_button_unchecked', color: 'grey-6', label: 'waiting' },
-  running: { icon: 'sym_o_radio_button_checked', color: 'primary', label: 'running' },
-  pending_audit: { icon: 'sym_o_pending', color: 'deep-purple', label: 'pending-audit' },
-  resolved: { icon: 'sym_o_check_circle', color: 'positive', label: 'resolved' },
-  failed: { icon: 'sym_o_cancel', color: 'negative', label: 'failed' },
-  invalidated: { icon: 'sym_o_block', color: 'grey-5', label: 'invalidated' },
+  unassigned:   { icon: 'sym_o_person_off',             color: 'grey-4',     label: 'unassigned' },
+  pending:      { icon: 'sym_o_schedule',               color: 'amber-8',    label: 'pending' },
+  waiting:      { icon: 'sym_o_radio_button_unchecked', color: 'grey-6',     label: 'waiting' },
+  blocked:      { icon: 'sym_o_do_not_disturb_on',      color: 'orange-8',   label: 'blocked' },
+  plan_review:  { icon: 'sym_o_rate_review',            color: 'blue-6',     label: 'plan-review' },
+  spawned:      { icon: 'sym_o_account_tree',           color: 'teal-6',     label: 'spawned' },
+  running:      { icon: 'sym_o_radio_button_checked',   color: 'primary',    label: 'running' },
+  pending_audit:{ icon: 'sym_o_pending',                color: 'deep-purple', label: 'pending-audit' },
+  resolved:     { icon: 'sym_o_check_circle',           color: 'positive',   label: 'resolved' },
+  failed:       { icon: 'sym_o_cancel',                 color: 'negative',   label: 'failed' },
+  unresolvable: { icon: 'sym_o_error',                  color: 'grey-5',     label: 'unresolvable' },
 }
 
 const cfg = computed(() => STATE[props.node.state] ?? STATE.waiting)
