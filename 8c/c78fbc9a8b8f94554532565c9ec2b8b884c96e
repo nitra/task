@@ -1,0 +1,22 @@
+app/src/components/TaskNodeItem.vue
+  s_45c44550c72f34::t_9874bcaae39ce6 24
+  s_45c44550c72f34::t_4c7ca1ff34e16f 63-73
+app/src-tauri/Cargo.toml
+  s_45c44550c72f34::t_3a1bda52352b80 23-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "8cc78fbc9a8b8f94554532565c9ec2b8b884c96e",
+  "prompts": {},
+  "sessions": {
+    "s_45c44550c72f34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a13ef9f9-0817-4ab2-b8d6-42d8e1a68631",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
