@@ -2,8 +2,8 @@
   <div>
     <div
       @click.stop="$emit('select', node)"
-      class="row no-wrap items-center q-py-xs rounded-borders task-row cursor-pointer"
-      :style="{ paddingLeft: indent + 'px', paddingRight: '8px' }"
+      class="task-row"
+      :style="{ paddingLeft: indent + 'px' }"
     >
       <q-btn
         v-if="node.is_composite"
@@ -13,26 +13,29 @@
         dense
         round
         size="xs"
-        class="q-mr-xs"
+        class="task-row__toggle"
       />
-      <div v-else style="width: 28px" />
+      <span v-else class="task-row__toggle-spacer" />
 
-      <q-icon :name="cfg.icon" :color="cfg.color" size="16px" class="q-mr-sm" />
+      <q-icon :name="cfg.icon" :style="{ color: cfg.color }" size="16px" class="task-row__icon" />
 
       <span
-        class="task-id text-body2 q-mr-sm"
-        :class="{ 'text-strike text-grey-5': node.state === 'unresolvable' }"
+        class="task-row__id"
+        :class="{ 'task-row__id--struck': node.state === 'unresolvable' }"
       >{{ node.id }}</span>
 
-      <q-badge :color="cfg.color" outline class="q-mr-sm text-caption">{{ cfg.label }}</q-badge>
+      <span class="state-pill" :style="{ '--c': cfg.color }">
+        <span class="state-pill__dot" />
+        {{ cfg.label }}
+      </span>
 
-      <span v-if="node.deps.length" class="text-caption text-grey-6 ellipsis">
+      <span v-if="node.deps.length" class="task-row__deps">
         ← {{ node.deps.join(', ') }}
       </span>
 
       <q-space />
 
-      <span v-if="node.budget_sec" class="text-caption text-grey-5 q-ml-sm">
+      <span v-if="node.budget_sec" class="task-row__budget">
         {{ node.budget_sec }}s
       </span>
     </div>
@@ -50,6 +53,8 @@
 </template>
 
 <script setup>
+import { stateConfig } from '../state-config.js'
+
 const props = defineProps({
   node: { type: Object, required: true },
   depth: { type: Number, default: 0 },
@@ -59,31 +64,94 @@ defineEmits(['select'])
 
 const expanded = ref(true)
 
-const STATE = {
-  unassigned:   { icon: 'sym_o_person_off',             color: 'grey-4',     label: 'unassigned' },
-  pending:      { icon: 'sym_o_schedule',               color: 'amber-8',    label: 'pending' },
-  waiting:      { icon: 'sym_o_radio_button_unchecked', color: 'grey-6',     label: 'waiting' },
-  blocked:      { icon: 'sym_o_do_not_disturb_on',      color: 'orange-8',   label: 'blocked' },
-  plan_review:  { icon: 'sym_o_rate_review',            color: 'blue-6',     label: 'plan-review' },
-  spawned:      { icon: 'sym_o_account_tree',           color: 'teal-6',     label: 'spawned' },
-  running:      { icon: 'sym_o_radio_button_checked',   color: 'primary',    label: 'running' },
-  pending_audit:{ icon: 'sym_o_pending',                color: 'deep-purple', label: 'pending-audit' },
-  resolved:     { icon: 'sym_o_check_circle',           color: 'positive',   label: 'resolved' },
-  failed:       { icon: 'sym_o_cancel',                 color: 'negative',   label: 'failed' },
-  unresolvable: { icon: 'sym_o_error',                  color: 'grey-5',     label: 'unresolvable' },
-}
-
-const cfg = computed(() => STATE[props.node.state] ?? STATE.waiting)
+const cfg = computed(() => stateConfig(props.node.state))
 const indent = computed(() => props.depth * 20 + 8)
 </script>
 
 <style scoped>
-.task-row:hover {
-  background: rgba(0 0 0 / 6%);
+.task-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-right: 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s ease;
 }
 
-.task-id {
-  font-family: monospace;
+.task-row:hover {
+  background: rgba(255 255 255 / 6%);
+}
+
+.body--light .task-row:hover {
+  background: rgba(0 0 0 / 5%);
+}
+
+.task-row__toggle {
+  margin-right: -2px;
+}
+
+.task-row__toggle-spacer {
+  width: 24px;
+  flex: 0 0 auto;
+}
+
+.task-row__icon {
+  flex: 0 0 auto;
+}
+
+.task-row__id {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 13px;
   font-weight: 500;
+}
+
+.task-row__id--struck {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+.task-row__deps {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  opacity: 0.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-row__budget {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  opacity: 0.4;
+  flex: 0 0 auto;
+}
+
+/* — state pill: shared visual language with the summary chips — */
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 28%, transparent);
+}
+
+.state-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
 }
 </style>

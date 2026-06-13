@@ -1,7 +1,7 @@
 <template>
-  <div class="q-pa-md">
+  <div class="task-graph q-pa-md">
     <div class="row items-center q-mb-md">
-      <span class="text-body2 text-grey-7">Tasks</span>
+      <span class="section-title">Tasks</span>
       <q-space />
       <q-btn
         @click="scanAll"
@@ -9,60 +9,64 @@
         flat
         round
         dense
+        size="sm"
         :loading="loading"
         title="Rescan"
       />
     </div>
 
-    <q-banner v-if="error" class="bg-red-1 text-red-8 q-mb-md" rounded dense>
+    <q-banner v-if="error" class="error-banner q-mb-md" rounded dense>
       {{ error }}
     </q-banner>
 
-    <div v-if="Object.keys(stateCounts).length" class="row q-gutter-xs q-mb-md">
-      <q-badge
+    <div v-if="Object.keys(stateCounts).length" class="state-summary q-mb-md">
+      <span
         v-for="(count, state) in stateCounts"
         :key="state"
-        :color="STATE_COLOR[state] ?? 'grey'"
-        class="q-px-sm"
+        class="state-pill"
+        :style="{ '--c': stateConfig(state).color }"
       >
-        {{ state.replace('_', '-') }}: {{ count }}
-      </q-badge>
+        <span class="state-pill__dot" />
+        {{ stateConfig(state).label }}
+        <span class="state-pill__count">{{ count }}</span>
+      </span>
     </div>
 
-    <div v-if="!loading && workspaces.length === 0 && !error" class="text-center text-grey q-pa-xl">
+    <div v-if="!loading && workspaces.length === 0 && !error" class="empty-state">
       No workspaces found
     </div>
 
     <div v-for="ws in workspaces" :key="ws.path" class="q-mb-lg">
-      <div class="workspace-label text-caption text-weight-medium text-grey-6 q-mb-xs q-px-xs">
+      <div class="workspace-label">
         {{ ws.label }}
       </div>
-      <q-card v-if="workspaceNodes[ws.path]?.length" flat bordered>
-        <q-card-section class="q-pa-xs">
-          <TaskNodeItem
-            v-for="task in workspaceNodes[ws.path]"
-            :key="task.id"
-            @select="node => onSelect(node, ws.path)"
-            :node="task"
-          />
-        </q-card-section>
-      </q-card>
-      <div v-else-if="!loading" class="text-caption text-grey q-pa-sm q-ml-xs">
+      <div v-if="workspaceNodes[ws.path]?.length" class="task-card">
+        <TaskNodeItem
+          v-for="task in workspaceNodes[ws.path]"
+          :key="task.id"
+          @select="node => onSelect(node, ws.path)"
+          :node="task"
+        />
+      </div>
+      <div v-else-if="!loading" class="workspace-empty">
         —
       </div>
     </div>
 
     <q-dialog v-model="drawerOpen" transition-show="fade" transition-hide="fade">
       <q-card class="task-detail-card">
-        <q-card-section class="row items-center q-pb-none">
-          <q-icon :name="selectedCfg.icon" :color="selectedCfg.color" size="20px" class="q-mr-sm" />
-          <span class="text-h6" style="font-family: monospace">{{ selectedTask?.id }}</span>
-          <q-badge :color="selectedCfg.color" outline class="q-ml-sm">{{ selectedCfg.label }}</q-badge>
+        <q-card-section class="row items-center no-wrap q-pb-sm">
+          <q-icon :name="selectedCfg.icon" :style="{ color: selectedCfg.color }" size="20px" class="q-mr-sm" />
+          <span class="detail-id">{{ selectedTask?.id }}</span>
+          <span class="state-pill q-ml-sm" :style="{ '--c': selectedCfg.color }">
+            <span class="state-pill__dot" />
+            {{ selectedCfg.label }}
+          </span>
           <q-space />
-          <q-btn v-close-popup icon="sym_o_close" flat round dense />
+          <q-btn v-close-popup icon="sym_o_close" flat round dense size="sm" />
         </q-card-section>
 
-        <q-separator class="q-mt-sm" />
+        <q-separator />
 
         <q-card-section class="q-pa-md scroll task-detail-content">
           <div v-if="contentLoading" class="text-center q-pa-xl">
@@ -81,6 +85,7 @@
 import { marked } from 'marked'
 import { invoke } from '@tauri-apps/api/core'
 import TaskNodeItem from './TaskNodeItem.vue'
+import { stateConfig } from '../state-config.js'
 
 const workspaces = ref([])
 const workspaceNodes = ref({})
@@ -94,29 +99,7 @@ const taskContent = ref('')
 const contentLoading = ref(false)
 const contentError = ref(null)
 
-const STATE_COLOR = {
-  unassigned: 'grey-4',
-  human_pending: 'amber-8',
-  waiting: 'grey-6',
-  running: 'primary',
-  pending_audit: 'deep-purple',
-  resolved: 'positive',
-  failed: 'negative',
-  invalidated: 'grey-5',
-}
-
-const STATE_CFG = {
-  unassigned: { icon: 'sym_o_person_off', color: 'grey-4', label: 'unassigned' },
-  human_pending: { icon: 'sym_o_schedule', color: 'amber-8', label: 'human-pending' },
-  waiting: { icon: 'sym_o_radio_button_unchecked', color: 'grey-6', label: 'waiting' },
-  running: { icon: 'sym_o_radio_button_checked', color: 'primary', label: 'running' },
-  pending_audit: { icon: 'sym_o_pending', color: 'deep-purple', label: 'pending-audit' },
-  resolved: { icon: 'sym_o_check_circle', color: 'positive', label: 'resolved' },
-  failed: { icon: 'sym_o_cancel', color: 'negative', label: 'failed' },
-  invalidated: { icon: 'sym_o_block', color: 'grey-5', label: 'invalidated' },
-}
-
-const selectedCfg = computed(() => STATE_CFG[selectedTask.value?.state] ?? STATE_CFG.waiting)
+const selectedCfg = computed(() => stateConfig(selectedTask.value?.state))
 
 const renderedContent = computed(() => marked.parse(taskContent.value))
 
@@ -186,12 +169,100 @@ onMounted(scanAll)
 </script>
 
 <style scoped>
+.task-graph {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  opacity: 0.6;
+}
+
+.error-banner {
+  background: rgba(255 69 58 / 12%);
+  color: #ff6b60;
+  font-size: 13px;
+}
+
+/* — state summary / pill (shared visual language with task rows) — */
+.state-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--c);
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 28%, transparent);
+}
+
+.state-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.state-pill__count {
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 0;
+  font-size: 13px;
+  opacity: 0.4;
+}
+
+/* — workspace grouping — */
 .workspace-label {
-  letter-spacing: 0.03em;
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-size: 0.7rem;
-  border-bottom: 1px solid rgba(0 0 0 / 8%);
-  padding-bottom: 2px;
+  opacity: 0.45;
+  margin-bottom: 6px;
+  padding-left: 4px;
+}
+
+.task-card {
+  border: 1px solid rgba(255 255 255 / 9%);
+  border-radius: 10px;
+  padding: 4px;
+  background: rgba(255 255 255 / 2.5%);
+}
+
+.body--light .task-card {
+  border-color: rgba(0 0 0 / 9%);
+  background: rgba(0 0 0 / 1.5%);
+}
+
+.workspace-empty {
+  font-size: 12px;
+  opacity: 0.35;
+  padding: 6px 0 6px 4px;
+}
+
+.detail-id {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .task-detail-card {
@@ -200,6 +271,7 @@ onMounted(scanAll)
   max-height: 80vh;
   display: flex;
   flex-direction: column;
+  border-radius: 12px;
 }
 
 .task-detail-content {
