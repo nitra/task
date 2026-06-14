@@ -3,5 +3,5 @@
   "exitCode": 1,
   "reporters": ["console"],
   "minLines": 25,
-  "ignore": [".claude/worktrees/**", "**/dist/**", "**/CHANGELOG.md"]
+  "ignore": [".claude/worktrees/**", "**/dist/**", "**/CHANGELOG.md", "**/gen/schemas/**", ".cursor/skills/**", ".pi/skills/**"]
 }

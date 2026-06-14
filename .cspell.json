@@ -9,8 +9,9 @@
     "report",
     "*.svg",
     "**/k8s/**/*.yaml",
-    "docs/adr/**"
+    "docs/adr/**",
+    "docs/specs/**"
   ],
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
-  "words": []
+  "words": ["omlx", "schemars", "OptiQ"]
 }

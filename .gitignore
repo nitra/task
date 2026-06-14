@@ -50,6 +50,9 @@ reports/stryker/incremental.json
 # @nitra/cursor — локальні git-worktree
 .worktrees/
 
+# @nitra/cursor — локальний LLM-trace та стан
+.n-cursor/
+
 # Test artifacts
 **/coverage/
 

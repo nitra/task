@@ -83,11 +83,11 @@ const indent = computed(() => props.depth * 20 + 8)
 }
 
 .task-row:hover {
-  background: rgba(255 255 255 / 6%);
+  background: rgb(255 255 255 / 6%);
 }
 
 .body--light .task-row:hover {
-  background: rgba(0 0 0 / 5%);
+  background: rgb(0 0 0 / 5%);
 }
 
 .task-row__toggle {

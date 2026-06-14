@@ -4,6 +4,24 @@
       <span class="section-title">Tasks</span>
       <q-space />
       <q-btn
+        @click="agentOpen = true"
+        icon="sym_o_smart_toy"
+        flat
+        round
+        dense
+        size="sm"
+        title="Agent"
+      />
+      <q-btn
+        @click="createOpen = true"
+        icon="sym_o_add"
+        flat
+        round
+        dense
+        size="sm"
+        title="New task"
+      />
+      <q-btn
         @click="scanAll"
         icon="sym_o_refresh"
         flat
@@ -11,7 +29,7 @@
         dense
         size="sm"
         :loading="loading"
-        title="Rescan"
+        title="Refresh"
       />
     </div>
 
@@ -53,6 +71,9 @@
       </div>
     </div>
 
+    <CreateTaskDialog v-model="createOpen" @created="onCreated" />
+    <AgentDialog v-model="agentOpen" @ran="scanAll" />
+
     <q-dialog v-model="drawerOpen" transition-show="fade" transition-hide="fade">
       <q-card class="task-detail-card">
         <q-card-section class="row items-center no-wrap q-pb-sm">
@@ -85,8 +106,13 @@
 import { marked } from 'marked'
 import { invoke } from '@tauri-apps/api/core'
 import TaskNodeItem from './TaskNodeItem.vue'
+import CreateTaskDialog from './CreateTaskDialog.vue'
+import AgentDialog from './AgentDialog.vue'
 import { stateConfig } from '../state-config.js'
+import { dispatch } from '../tool/index.js'
 
+const createOpen = ref(false)
+const agentOpen = ref(false)
 const workspaces = ref([])
 const workspaceNodes = ref({})
 const loading = ref(false)
@@ -118,7 +144,9 @@ const stateCounts = computed(() => {
 })
 
 /**
- *
+ * Open the detail dialog for a node and load its task.md.
+ * @param {object} node selected task node
+ * @param {string} tasksDir workspace tasks dir the node belongs to
  */
 async function onSelect(node, tasksDir) {
   selectedTask.value = node
@@ -145,15 +173,13 @@ async function scanAll() {
   loading.value = true
   error.value = null
   try {
-    workspaces.value = await invoke('find_all_tasks_dirs')
+    const wsResult = await dispatch('workspaces', {})
+    if (!wsResult.ok) throw new Error(wsResult.error.message)
+    workspaces.value = wsResult.output
     await Promise.all(
       workspaces.value.map(async (ws) => {
-        try {
-          workspaceNodes.value[ws.path] = await invoke('scan_tasks', { tasksDir: ws.path })
-        }
-        catch {
-          workspaceNodes.value[ws.path] = []
-        }
+        const result = await dispatch('scan', { tasksDir: ws.path })
+        workspaceNodes.value[ws.path] = result.ok ? result.output : []
       }),
     )
   }
@@ -163,6 +189,13 @@ async function scanAll() {
   finally {
     loading.value = false
   }
+}
+
+/**
+ * Refresh the graph after a task was created so the new node shows up.
+ */
+async function onCreated() {
+  await scanAll()
 }
 
 onMounted(scanAll)
@@ -182,7 +215,7 @@ onMounted(scanAll)
 }
 
 .error-banner {
-  background: rgba(255 69 58 / 12%);
+  background: rgb(255 69 58 / 12%);
   color: #ff6b60;
   font-size: 13px;
 }
@@ -242,15 +275,15 @@ onMounted(scanAll)
 }
 
 .task-card {
-  border: 1px solid rgba(255 255 255 / 9%);
+  border: 1px solid rgb(255 255 255 / 9%);
   border-radius: 10px;
   padding: 4px;
-  background: rgba(255 255 255 / 2.5%);
+  background: rgb(255 255 255 / 2.5%);
 }
 
 .body--light .task-card {
-  border-color: rgba(0 0 0 / 9%);
-  background: rgba(0 0 0 / 1.5%);
+  border-color: rgb(0 0 0 / 9%);
+  background: rgb(0 0 0 / 1.5%);
 }
 
 .workspace-empty {
@@ -290,7 +323,7 @@ onMounted(scanAll)
 
 .markdown-body :deep(h2) {
   font-size: 1.1em;
-  border-bottom: 1px solid rgba(0 0 0 / 10%);
+  border-bottom: 1px solid rgb(0 0 0 / 10%);
   padding-bottom: 4px;
 }
 
@@ -311,7 +344,7 @@ onMounted(scanAll)
 }
 
 .markdown-body :deep(code) {
-  background: rgba(0 0 0 / 6%);
+  background: rgb(0 0 0 / 6%);
   padding: 1px 5px;
   border-radius: 3px;
   font-family: monospace;

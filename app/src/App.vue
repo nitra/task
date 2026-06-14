@@ -20,14 +20,14 @@ import TaskGraph from './components/TaskGraph.vue'
 
 <style scoped>
 .app-header {
-  background: transparent;
+  background: #161618;
   color: inherit;
-  border-bottom: 1px solid rgba(255 255 255 / 8%);
-  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
 }
 
 .body--light .app-header {
-  border-bottom-color: rgba(0 0 0 / 8%);
+  background: #fafafa;
+  border-bottom-color: rgb(0 0 0 / 8%);
 }
 
 .app-toolbar {
@@ -40,7 +40,7 @@ import TaskGraph from './components/TaskGraph.vue'
   height: 9px;
   border-radius: 50%;
   background: #0a84ff;
-  box-shadow: 0 0 8px rgba(10 132 255 / 60%);
+  box-shadow: 0 0 8px rgb(10 132 255 / 60%);
   margin-right: 9px;
 }
 
