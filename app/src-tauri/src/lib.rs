@@ -1,11 +1,18 @@
 use std::fs;
 use std::path::PathBuf;
 
-use mt_scanner::{TaskNode, WorkspaceInfo};
+use mt_scanner::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
 
 #[tauri::command]
 fn scan_tasks(tasks_dir: String) -> Result<Vec<TaskNode>, String> {
-    mt_scanner::scan_tasks(tasks_dir)
+    // Виявляємо активні worktree з git, як це робить CLI (`mt-scanner scan`).
+    let worktrees = mt_scanner::discover_worktrees(&PathBuf::from(&tasks_dir));
+    mt_scanner::scan_tasks(tasks_dir, worktrees)
+}
+
+#[tauri::command]
+fn create_task(tasks_dir: String, name: String, opts: CreateOpts) -> Result<CreateOutcome, String> {
+    mt_scanner::create_task(tasks_dir, name, opts)
 }
 
 #[tauri::command]
@@ -31,6 +38,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             scan_tasks,
+            create_task,
             find_tasks_dir,
             find_all_tasks_dirs,
             read_task
