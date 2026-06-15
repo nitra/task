@@ -69,3 +69,6 @@ app/src-tauri/gen/apple/
 node_modules/
 dist/
 .claude/scheduled_tasks.lock
+
+# Agent memory (not project source)
+memory/

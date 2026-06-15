@@ -10,7 +10,9 @@ describe('catalog', () => {
       expect(tool.summary).toBeTruthy()
       expect(tool.input).toBeTypeOf('object')
       expect(tool.tauri).toBeTruthy()
-      expect(tool.cli).toBeTypeOf('function')
+      // Non-destructive tools expose a headless CLI path; destructive ones are
+      // in-app/approval-only (no orchestrator CLI).
+      if (tool.tier !== 'destructive') expect(tool.cli).toBeTypeOf('function')
     }
   })
 

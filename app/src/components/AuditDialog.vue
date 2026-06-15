@@ -28,6 +28,22 @@
 
       <div v-if="expandedId === rec.id" class="audit-body">
         <RequestView @respond="msg => onRespond(rec, msg)" :result="rec" :busy="busyId === rec.id" />
+        <div v-if="rec.status === 'needs_approval' && rec.pendingApproval" class="audit-approval">
+          <div class="audit-pending">
+            Approve action: <code>{{ rec.pendingApproval.tool }}({{ JSON.stringify(rec.pendingApproval.input) }})</code>
+          </div>
+          <div class="row q-gutter-sm">
+            <q-btn
+              @click="onApprove(rec, true)"
+              label="Підтвердити"
+              color="negative"
+              unelevated
+              no-caps
+              :loading="busyId === rec.id"
+            />
+            <q-btn @click="onApprove(rec, false)" label="Відхилити" flat no-caps :disable="busyId === rec.id" />
+          </div>
+        </div>
       </div>
     </div>
   </BaseDialog>
@@ -48,6 +64,7 @@ const STATUS_COLOR = {
   needs_clarification: '#64d2ff',
   needs_approval: '#ff9f0a',
   failed: '#ff453a',
+  rejected: '#8e8e93',
 }
 
 defineProps({
@@ -56,7 +73,7 @@ defineProps({
 const emit = defineEmits(['update:modelValue', 'changed'])
 
 const $q = useQuasar()
-const { journal, respond } = useAgent()
+const { journal, respond, approve } = useAgent()
 
 const records = ref([])
 const loading = ref(false)
@@ -121,6 +138,26 @@ async function onRespond(rec, message) {
     busyId.value = null
   }
 }
+
+/**
+ * Approve or reject a pending destructive action, then refresh.
+ * @param {object} rec the record
+ * @param {boolean} ok true to approve (execute), false to reject
+ */
+async function onApprove(rec, ok) {
+  busyId.value = rec.id
+  try {
+    await approve(rec.id, ok)
+    await refresh()
+    emit('changed')
+  }
+  catch (error) {
+    $q.notify({ type: 'negative', message: String(error?.message ?? error) })
+  }
+  finally {
+    busyId.value = null
+  }
+}
 </script>
 
 <style scoped>
@@ -129,6 +166,21 @@ async function onRespond(rec, message) {
   padding: 40px 0;
   font-size: 13px;
   opacity: 0.4;
+}
+
+.audit-approval {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #ff9f0a 12%, transparent);
+}
+
+.audit-pending {
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .audit-row {

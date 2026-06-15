@@ -106,13 +106,10 @@
         />
 
     <template #actions>
-      <q-btn v-close-popup label="Скасувати" flat no-caps />
-      <q-btn
-        @click="submit"
-        label="Створити"
-        unelevated
-        no-caps
-        color="primary"
+      <DialogActions
+        @submit="submit"
+        cancel-label="Скасувати"
+        submit-label="Створити"
         :disable="!canSubmit"
         :loading="submitting"
       />
@@ -125,6 +122,7 @@ import { reactive, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { open } from '@tauri-apps/plugin-dialog'
 import BaseDialog from './BaseDialog.vue'
+import DialogActions from './DialogActions.vue'
 import { buildCreateOpts, mtDirFor, validateTaskName } from '../task-create.js'
 import { useProjectsDir } from '../composables/use-projects-dir.js'
 import { dispatch } from '../tool/index.js'

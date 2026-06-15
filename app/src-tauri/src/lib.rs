@@ -55,6 +55,24 @@ fn read_task(tasks_dir: String, task_path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
+/// Destructive: remove a task node directory. Executed only with authority
+/// (human directly, or human-approved agent request — never by the agent).
+/// Validates the name and confirms the resolved path stays under `tasks_dir`.
+#[tauri::command]
+fn delete_task(tasks_dir: String, name: String) -> Result<(), String> {
+    if name.is_empty() || name.contains("..") || name.starts_with('/') {
+        return Err(format!("invalid task name: {name}"));
+    }
+    let base = PathBuf::from(&tasks_dir)
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    let target = base.join(&name).canonicalize().map_err(|e| e.to_string())?;
+    if !target.starts_with(&base) {
+        return Err("path escapes tasks dir".to_string());
+    }
+    fs::remove_dir_all(&target).map_err(|e| e.to_string())
+}
+
 /// Конфіг omlx: ключ і базовий URL, щоб не задавати їх окремо в кожній програмі.
 /// Порожні значення → `None`.
 #[derive(serde::Serialize)]
@@ -120,6 +138,7 @@ pub fn run() {
             find_tasks_dir,
             find_all_tasks_dirs,
             read_task,
+            delete_task,
             omlx_config,
             journal_create,
             journal_load,

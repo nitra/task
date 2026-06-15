@@ -58,6 +58,19 @@ export const TOOLS = [
     tauri: 'create_task',
     cli: createArgv,
   },
+  {
+    tier: 'destructive',
+    name: 'delete',
+    summary: 'Delete an mt task node (removes its directory). Destructive — agents need human approval.',
+    input: {
+      tasksDir: { type: 'string', required: true, description: 'Absolute path to the mt/ tasks directory.' },
+      name: { type: 'string', required: true, description: 'Node id to delete.' },
+    },
+    validate: input => validateTaskName(input.name),
+    tauri: 'delete_task',
+    // No `cli`: destructive tools have no headless orchestrator path — they run
+    // in-app only (human directly, or human-approved agent request).
+  },
 ]
 
 /**

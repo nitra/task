@@ -32,9 +32,10 @@ const DEFAULT_SYSTEM = createSystemPrompt()
  * @param {number} [params.maxSteps] safety cap on loop iterations
  * @param {string} [params.system] system prompt override (only used when building fresh from prompt)
  * @param {object[]} [params.tools] LLM tool manifest (default: all; pass a scoped manifest to restrict)
- * @returns {Promise<{content: string, steps: number, trace: object[], messages: object[], stopped?: string}>} loop result
+ * @param {(name: string) => 'allow'|'approval'|'deny'} [params.gate] per-call decision (default: allow)
+ * @returns {Promise<{content: string, steps: number, trace: object[], messages: object[], stopped?: string, pendingApproval?: object}>} loop result
  */
-export async function runAgent({ prompt, messages: initialMessages, dispatch, chat, maxSteps = 6, system = DEFAULT_SYSTEM, tools = toolManifest() }) {
+export async function runAgent({ prompt, messages: initialMessages, dispatch, chat, maxSteps = 6, system = DEFAULT_SYSTEM, tools = toolManifest(), gate = () => 'allow' }) {
   const messages = initialMessages
     ? [...initialMessages]
     : [
@@ -60,7 +61,16 @@ export async function runAgent({ prompt, messages: initialMessages, dispatch, ch
       catch {
         // leave input empty — dispatch's schema validation reports the problem
       }
-      const envelope = await dispatch(call.function.name, input)
+
+      const decision = gate(call.function.name)
+      if (decision === 'approval') {
+        // Destructive request from a non-human: pause for human approval.
+        return { content: reply.content ?? '', steps: step + 1, trace, messages, stopped: 'needs_approval', pendingApproval: { tool: call.function.name, input } }
+      }
+
+      const envelope = decision === 'deny'
+        ? { ok: false, error: { code: 'forbidden', message: `Tool "${call.function.name}" is not allowed.` } }
+        : await dispatch(call.function.name, input)
       trace.push({ tool: call.function.name, input, envelope })
       messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(envelope) })
     }

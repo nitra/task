@@ -16,13 +16,7 @@ const DEFAULT_BASE_URL = 'http://127.0.0.1:8000/v1'
 const DEFAULT_MODEL = 'gemma-4-e4b-it-OptiQ-4bit'
 
 /**
- * @returns {{
- *   baseUrl: import('vue').Ref<string>,
- *   model: import('vue').Ref<string>,
- *   apiKey: import('vue').Ref<string>,
- *   save: () => void,
- *   loadEnv: () => Promise<void>,
- * }} persisted omlx config, an env loader and a saver
+ * @returns {{"baseUrl": import('vue').Ref<string>, "model": import('vue').Ref<string>, "apiKey": import('vue').Ref<string>, "save": () => void, "loadEnv": () => Promise<void>}} persisted omlx config, an env loader and a saver
  */
 export function useOmlx() {
   const baseUrl = ref(localStorage.getItem(BASE_URL_KEY) || DEFAULT_BASE_URL)
@@ -40,8 +34,7 @@ export function useOmlx() {
     let env
     try {
       env = await invoke('omlx_config')
-    }
-    catch {
+    } catch {
       return // not running under Tauri — keep localStorage / defaults
     }
     if (!env) return

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { handleRequest, handleRespond } from '../tool/agent-handler.js'
+import { handleApprove, handleRequest, handleRespond } from '../tool/agent-handler.js'
 
 /**
  * In-memory journal store (same shape as the node/tauri stores).
@@ -96,5 +96,46 @@ describe('handleRespond', () => {
     journal.update(id, { status: 'done', summary: 'ok', actions: [] })
     const res = await handleRespond({ requestId: id, message: 'hi', actor: { kind: 'agent', id: 't' }, chat: vi.fn(), dispatch: vi.fn(), journal })
     expect(res.status).toBe('done')
+  })
+})
+
+describe('destructive approval (D-E2)', () => {
+  it('agent destructive request pauses as needs_approval without executing', async () => {
+    const chat = vi.fn().mockResolvedValueOnce(toolCall('c1', 'delete', { tasksDir: '/p/mt', name: 'x' }))
+    const dispatch = vi.fn()
+    const journal = memJournal()
+
+    const res = await handleRequest({ intent: 'delete x', actor: { kind: 'agent', id: 't' }, chat, dispatch, journal })
+
+    expect(res.status).toBe('needs_approval')
+    expect(res.pendingApproval).toEqual({ tool: 'delete', input: { tasksDir: '/p/mt', name: 'x' } })
+    expect(dispatch).not.toHaveBeenCalled()
+    expect(journal.load(res.requestId).pendingApproval.tool).toBe('delete')
+  })
+
+  it('handleApprove executes the pending action and marks done', async () => {
+    const journal = memJournal()
+    const id = journal.create({ intent: 'delete x', actor: { kind: 'agent', id: 't' } })
+    journal.update(id, { status: 'needs_approval', pendingApproval: { tool: 'delete', input: { tasksDir: '/p/mt', name: 'x' } }, actions: [] })
+    const dispatch = vi.fn().mockResolvedValue({ ok: true, output: {} })
+
+    const res = await handleApprove({ requestId: id, approve: true, dispatch, journal })
+
+    expect(dispatch).toHaveBeenCalledWith('delete', { tasksDir: '/p/mt', name: 'x' })
+    expect(res.status).toBe('done')
+    expect(res.actions).toHaveLength(1)
+    expect(journal.load(id).pendingApproval).toBeNull()
+  })
+
+  it('handleApprove reject marks rejected without executing', async () => {
+    const journal = memJournal()
+    const id = journal.create({ intent: 'delete x', actor: { kind: 'agent', id: 't' } })
+    journal.update(id, { status: 'needs_approval', pendingApproval: { tool: 'delete', input: {} } })
+    const dispatch = vi.fn()
+
+    const res = await handleApprove({ requestId: id, approve: false, dispatch, journal })
+
+    expect(res.status).toBe('rejected')
+    expect(dispatch).not.toHaveBeenCalled()
   })
 })

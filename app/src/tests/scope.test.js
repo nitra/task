@@ -1,51 +1,37 @@
-import { describe, expect, it, vi } from 'vitest'
-import { allowsTier, guardDispatch, scopedManifest, scopedToolNames } from '../tool/scope.js'
+import { describe, expect, it } from 'vitest'
+import { classify, scopedManifest, scopedToolNames } from '../tool/scope.js'
 
-describe('allowsTier', () => {
-  it('humans may use every tier', () => {
-    for (const tier of ['read', 'write', 'destructive']) {
-      expect(allowsTier({ kind: 'human' }, tier)).toBe(true)
-    }
+describe('classify', () => {
+  it('humans execute every tier directly', () => {
+    expect(classify({ kind: 'human' }, 'scan')).toBe('allow') // read
+    expect(classify({ kind: 'human' }, 'create')).toBe('allow') // write
+    expect(classify({ kind: 'human' }, 'delete')).toBe('allow') // destructive
   })
 
-  it('agents may read and write but not destroy', () => {
-    expect(allowsTier({ kind: 'agent' }, 'read')).toBe(true)
-    expect(allowsTier({ kind: 'agent' }, 'write')).toBe(true)
-    expect(allowsTier({ kind: 'agent' }, 'destructive')).toBe(false)
+  it('agents execute read+write, but destructive needs approval', () => {
+    expect(classify({ kind: 'agent' }, 'scan')).toBe('allow')
+    expect(classify({ kind: 'agent' }, 'create')).toBe('allow')
+    expect(classify({ kind: 'agent' }, 'delete')).toBe('approval')
   })
 
-  it('unknown actors get read-only', () => {
-    expect(allowsTier({ kind: 'viewer' }, 'read')).toBe(true)
-    expect(allowsTier({ kind: 'viewer' }, 'write')).toBe(false)
-    expect(allowsTier(undefined, 'write')).toBe(false)
+  it('unknown actors are read-only; everything else denied', () => {
+    expect(classify({ kind: 'viewer' }, 'scan')).toBe('allow')
+    expect(classify({ kind: 'viewer' }, 'create')).toBe('deny')
+    expect(classify({ kind: 'viewer' }, 'delete')).toBe('deny')
+  })
+
+  it('denies unknown tools', () => {
+    expect(classify({ kind: 'human' }, 'nope')).toBe('deny')
   })
 })
 
 describe('scopedManifest / scopedToolNames', () => {
-  it('agents see read+write tools (scan/workspaces/create)', () => {
-    const names = scopedToolNames({ kind: 'agent' })
-    expect(names).toEqual(['scan', 'workspaces', 'create'])
-    expect(scopedManifest({ kind: 'agent' }).map(t => t.function.name)).toEqual(names)
+  it('agents see all tools (destructive visible to request approval)', () => {
+    expect(scopedToolNames({ kind: 'agent' })).toEqual(['scan', 'workspaces', 'create', 'delete'])
+    expect(scopedManifest({ kind: 'agent' }).map(t => t.function.name)).toEqual(['scan', 'workspaces', 'create', 'delete'])
   })
 
-  it('read-only actors do not see the write tool', () => {
+  it('read-only actors see only read tools', () => {
     expect(scopedToolNames({ kind: 'viewer' })).toEqual(['scan', 'workspaces'])
-  })
-})
-
-describe('guardDispatch', () => {
-  it('passes allowed calls through to the underlying dispatch', async () => {
-    const dispatch = vi.fn().mockResolvedValue({ ok: true, output: {} })
-    const guarded = guardDispatch(dispatch, { kind: 'agent' })
-    await guarded('create', { tasksDir: '/p/mt', name: 'x' })
-    expect(dispatch).toHaveBeenCalledWith('create', { tasksDir: '/p/mt', name: 'x' })
-  })
-
-  it('blocks out-of-scope calls without touching dispatch', async () => {
-    const dispatch = vi.fn()
-    const guarded = guardDispatch(dispatch, { kind: 'viewer' })
-    const res = await guarded('create', { tasksDir: '/p/mt', name: 'x' })
-    expect(res).toEqual({ ok: false, error: { code: 'forbidden', message: expect.stringContaining('not allowed') } })
-    expect(dispatch).not.toHaveBeenCalled()
   })
 })

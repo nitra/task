@@ -1,5 +1,5 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
-import { handleRequest, handleRespond } from '../tool/agent-handler.js'
+import { handleApprove, handleRequest, handleRespond } from '../tool/agent-handler.js'
 import { createOpenAiChat } from '../tool/llm.js'
 import { dispatch } from '../tool/index.js'
 import { createTauriJournalStore } from '../tool/journal-store-tauri.js'
@@ -18,6 +18,7 @@ const ACTOR = { kind: 'human', id: 'local' }
  *   journal: object,
  *   request: (intent: string) => Promise<object>,
  *   respond: (requestId: string, message: string) => Promise<object>,
+ *   approve: (requestId: string, approve: boolean) => Promise<object>,
  * }} in-app agent gateway
  */
 export function useAgent() {
@@ -46,5 +47,6 @@ export function useAgent() {
     journal,
     request: intent => handleRequest({ intent, actor: ACTOR, chat: chat(), dispatch, journal }),
     respond: (requestId, message) => handleRespond({ requestId, message, actor: ACTOR, chat: chat(), dispatch, journal }),
+    approve: (requestId, approve) => handleApprove({ requestId, approve, dispatch, journal }),
   }
 }
