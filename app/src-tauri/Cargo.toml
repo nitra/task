@@ -4,10 +4,18 @@ version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
+default-run = "task"
 
 [lib]
 name = "task_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# Headless journal FS binary — spawned by the node MCP bin so that agent-side
+# request journaling also goes through Rust (FS-in-Rust). Shares src/journal.rs
+# with the lib's Tauri commands; avoids linking the Tauri GUI stack.
+[[bin]]
+name = "journal"
+path = "src/bin/journal.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -19,6 +27,7 @@ tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
 mt-scanner = { git = "ssh://git@github.com/nitra/mt.git" }
 
 [patch."ssh://git@github.com/nitra/mt.git"]

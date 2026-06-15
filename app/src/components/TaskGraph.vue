@@ -4,6 +4,15 @@
       <span class="section-title">Tasks</span>
       <q-space />
       <q-btn
+        @click="auditOpen = true"
+        icon="sym_o_history"
+        flat
+        round
+        dense
+        size="sm"
+        title="Request journal"
+      />
+      <q-btn
         @click="agentOpen = true"
         icon="sym_o_smart_toy"
         flat
@@ -73,6 +82,7 @@
 
     <CreateTaskDialog v-model="createOpen" @created="onCreated" />
     <AgentDialog v-model="agentOpen" @ran="scanAll" />
+    <AuditDialog v-model="auditOpen" @changed="scanAll" />
 
     <q-dialog v-model="drawerOpen" transition-show="fade" transition-hide="fade">
       <q-card class="task-detail-card">
@@ -108,11 +118,13 @@ import { invoke } from '@tauri-apps/api/core'
 import TaskNodeItem from './TaskNodeItem.vue'
 import CreateTaskDialog from './CreateTaskDialog.vue'
 import AgentDialog from './AgentDialog.vue'
+import AuditDialog from './AuditDialog.vue'
 import { stateConfig } from '../state-config.js'
 import { dispatch } from '../tool/index.js'
 
 const createOpen = ref(false)
 const agentOpen = ref(false)
+const auditOpen = ref(false)
 const workspaces = ref([])
 const workspaceNodes = ref({})
 const loading = ref(false)

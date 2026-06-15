@@ -13,5 +13,5 @@
     "docs/specs/**"
   ],
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
-  "words": ["omlx", "schemars", "OptiQ"]
+  "words": ["omlx", "schemars", "OptiQ", "millis", "journaled"]
 }

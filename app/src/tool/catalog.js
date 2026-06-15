@@ -26,6 +26,7 @@ function createArgv(input) {
 
 export const TOOLS = [
   {
+    scope: "safe",
     name: 'scan',
     summary: 'Scan an mt tasks directory and return its task graph as a nested tree.',
     input: {
@@ -35,6 +36,7 @@ export const TOOLS = [
     cli: input => ['scan', input.tasksDir],
   },
   {
+    scope: "safe",
     name: 'workspaces',
     summary: 'Discover all mt workspaces (tasks dirs) under the current git repo.',
     input: {},
@@ -42,6 +44,7 @@ export const TOOLS = [
     cli: () => ['workspaces'],
   },
   {
+    scope: "safe",
     name: 'create',
     summary: 'Create a new mt task node (task.md + a.md/h.md flag + optional deps).',
     input: {

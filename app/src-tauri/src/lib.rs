@@ -3,6 +3,30 @@ use std::path::PathBuf;
 
 use mt_scanner::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
 
+mod journal;
+
+/// Request-journal commands (webview side). Share src/journal.rs with the
+/// standalone `journal` binary; both resolve the same requests dir.
+#[tauri::command]
+fn journal_create(intent: String, actor: serde_json::Value) -> Result<String, String> {
+    journal::create(intent, actor)
+}
+
+#[tauri::command]
+fn journal_load(id: String) -> Result<serde_json::Value, String> {
+    journal::load(&id)
+}
+
+#[tauri::command]
+fn journal_update(id: String, patch: serde_json::Value) -> Result<(), String> {
+    journal::update(&id, patch)
+}
+
+#[tauri::command]
+fn journal_list() -> Result<Vec<serde_json::Value>, String> {
+    journal::list()
+}
+
 #[tauri::command]
 fn scan_tasks(tasks_dir: String) -> Result<Vec<TaskNode>, String> {
     // Виявляємо активні worktree з git, як це робить CLI (`mt-scanner scan`).
@@ -63,7 +87,10 @@ fn omlx_from_settings() -> (Option<String>, Option<String>) {
             .map(str::to_owned)
     };
     let host = str_at("server", "host");
-    let port = json.get("server").and_then(|s| s.get("port")).and_then(serde_json::Value::as_u64);
+    let port = json
+        .get("server")
+        .and_then(|s| s.get("port"))
+        .and_then(serde_json::Value::as_u64);
     let base_url = match (host, port) {
         (Some(h), Some(p)) => Some(format!("http://{h}:{p}/v1")),
         _ => None,
@@ -74,7 +101,11 @@ fn omlx_from_settings() -> (Option<String>, Option<String>) {
 #[tauri::command]
 fn omlx_config() -> OmlxConfig {
     let (base_url, api_key) = omlx_from_settings();
-    OmlxConfig { base_url, model: None, api_key }
+    OmlxConfig {
+        base_url,
+        model: None,
+        api_key,
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -89,7 +120,11 @@ pub fn run() {
             find_tasks_dir,
             find_all_tasks_dirs,
             read_task,
-            omlx_config
+            omlx_config,
+            journal_create,
+            journal_load,
+            journal_update,
+            journal_list
         ]);
 
     #[cfg(desktop)]

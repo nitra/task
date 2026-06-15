@@ -1,33 +1,45 @@
 import { toolManifest } from './manifest.js'
 
-// LLM adapter (n-tool-surface): the agent loop that lets an LLM drive the tool
-// surface with no UI. Both `chat` (the model call) and `dispatch` (tool
-// execution) are injected, so the same loop runs in-app (tauri-http + invoke
-// transport) and in the orchestrator (node fetch + mt-scanner transport), and
-// is unit-testable with mocks. Targets the OpenAI function-calling shape
-// because the model is served via omlx (OpenAI-compatible MLX server).
+/**
+ * Build a domain-aware system prompt for the gateway agent.
+ * @param {string[]} [workspaces] known mt workspace paths — shown to the model for grounding
+ * @returns {string} system prompt string
+ */
+export function createSystemPrompt(workspaces = []) {
+  const wsLines = workspaces.map(w => '  - ' + w).join('\n')
+  const wsSection = workspaces.length ? 'Known mt workspaces:\n' + wsLines : 'Call the "workspaces" tool to discover mt task directories before acting.'
 
-const SYSTEM_PROMPT = [
-  'You manage an mt task graph. Use the provided tools to scan, discover and create tasks.',
-  'Call one tool at a time; wait for its result before the next.',
-  'When the request is satisfied, reply with a short plain-text summary and no tool call.',
-].join(' ')
+  return [
+    'You are the task-app agent. Manage mt task graphs on behalf of the user.',
+    'Use the provided tools to discover workspaces, scan task trees, and create tasks.',
+    wsSection,
+    'Call one tool at a time; wait for its result before the next.',
+    'If the request is ambiguous (e.g. which project?), reply with a clarifying question and NO tool call.',
+    'When satisfied, reply with a plain-text summary and no tool call.',
+  ].join('\n')
+}
+
+const DEFAULT_SYSTEM = createSystemPrompt()
 
 /**
  * Run the tool-calling loop until the model answers without a tool call.
- * @param {object} params loop params
- * @param {string} params.prompt user request
- * @param {(name: string, input: object) => Promise<object>} params.dispatch tool dispatcher (returns envelope)
- * @param {(req: {messages: object[], tools: object[]}) => Promise<object>} params.chat model call → assistant message
+ * Accepts either a fresh prompt or an existing messages[] for sessional resume.
+ * @param {object} params loop parameters
+ * @param {string} [params.prompt] user request (fresh start)
+ * @param {object[]} [params.messages] existing conversation to resume (takes priority over prompt)
+ * @param {(name: string, input: object) => Promise<object>} params.dispatch tool dispatcher returning an envelope
+ * @param {(req: {messages: object[], tools: object[]}) => Promise<object>} params.chat model call returning an assistant message
  * @param {number} [params.maxSteps] safety cap on loop iterations
- * @param {string} [params.system] system prompt override
- * @returns {Promise<{content: string, steps: number, trace: object[], messages: object[], stopped?: string}>} result
+ * @param {string} [params.system] system prompt override (only used when building fresh from prompt)
+ * @returns {Promise<{content: string, steps: number, trace: object[], messages: object[], stopped?: string}>} loop result
  */
-export async function runAgent({ prompt, dispatch, chat, maxSteps = 6, system = SYSTEM_PROMPT }) {
-  const messages = [
-    { role: 'system', content: system },
-    { role: 'user', content: prompt },
-  ]
+export async function runAgent({ prompt, messages: initialMessages, dispatch, chat, maxSteps = 6, system = DEFAULT_SYSTEM }) {
+  const messages = initialMessages
+    ? [...initialMessages]
+    : [
+        { role: 'system', content: system },
+        { role: 'user', content: prompt },
+      ]
   const tools = toolManifest()
   const trace = []
 

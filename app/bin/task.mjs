@@ -2,9 +2,15 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { randomUUID as _uuid } from 'node:crypto'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { createDispatch } from '../src/tool/dispatch.js'
+import { handleRequest, handleRespond } from '../src/tool/agent-handler.js'
+import { createNodeJournalStore } from '../src/tool/journal-store-node.js'
 import { createOpenAiChat, runAgent } from '../src/tool/llm.js'
 import { listTools, toolManifest } from '../src/tool/manifest.js'
 
@@ -83,6 +89,75 @@ async function main() {
     }
   }
 
+  if (cmd === 'mcp') {
+    // MCP-stdio server — exposes request(intent) and respond(requestId, message)
+    // so any MCP-capable orchestrator (Claude Code, Cursor) can drive the app agent.
+    const actorId = process.env.MCP_ACTOR_ID ?? (() => {
+      const flag = process.argv.indexOf('--actor')
+      return flag === -1 ? ('mcp-' + _uuid().slice(0, 8)) : process.argv[flag + 1]
+    })()
+    const actor = { kind: 'agent', id: actorId }
+
+    const baseUrl = process.env.OMLX_BASE_URL ?? 'http://127.0.0.1:8000/v1'
+    const model = process.env.OMLX_MODEL ?? 'gemma-4-e4b-it-OptiQ-4bit'
+    const apiKey = process.env.OMLX_API_KEY
+    const chat = createOpenAiChat({ baseUrl, model, apiKey })
+
+    // Journal FS through the Rust `journal` binary (FS-in-Rust). NODE_REQUESTS_DIR
+    // overrides the dir (tests); else the binary uses the app-local-data default.
+    const journal = createNodeJournalStore({ requestsDir: process.env.NODE_REQUESTS_DIR })
+
+    const server = new Server({ name: 'task', version: '1.0.0' }, { capabilities: { tools: {} } })
+
+    server.setRequestHandler(ListToolsRequestSchema, () => ({
+      tools: [
+        {
+          name: 'request',
+          description: 'Send a natural-language intent to the task-app agent. Returns a structured result with status, summary, actions taken, and an optional clarifying question.',
+          inputSchema: {
+            type: 'object',
+            properties: { intent: { type: 'string', description: 'What you want the agent to do.' } },
+            required: ['intent'],
+          },
+        },
+        {
+          name: 'respond',
+          description: 'Reply to a pending clarification (needs_clarification status). Pass the requestId from the previous request call.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              requestId: { type: 'string' },
+              message: { type: 'string', description: 'Your answer to the clarifying question.' },
+            },
+            required: ['requestId', 'message'],
+          },
+        },
+      ],
+    }))
+
+    server.setRequestHandler(CallToolRequestSchema, async (req) => {
+      const { name, arguments: args } = req.params
+      let result
+      if (name === 'request') {
+        result = await handleRequest({ intent: args.intent, actor, chat, dispatch, journal })
+      }
+      else if (name === 'respond') {
+        result = await handleRespond({ requestId: args.requestId, message: args.message, actor, chat, dispatch, journal })
+      }
+      else {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unknown tool: ' + name }) }], isError: true }
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+    })
+
+    await server.connect(new StdioServerTransport())
+    // Return null (not a code) so main()'s dispatcher does NOT call
+    // process.exit — that would kill the server right after connecting. The
+    // stdio transport keeps stdin open (active handle), so the process stays
+    // alive serving requests and exits naturally on stdin EOF / disconnect.
+    return null
+  }
+
   let input = {}
   if (payload) {
     try {
@@ -100,7 +175,10 @@ async function main() {
 }
 
 main()
-  .then(code => process.exit(code))
+  .then((code) => {
+    // null = long-running mode (MCP server) — let the process live on its own handles.
+    if (code !== null) process.exit(code)
+  })
   .catch((error) => {
     process.stderr.write(`${String(error?.message ?? error)}\n`)
     process.exit(1)
