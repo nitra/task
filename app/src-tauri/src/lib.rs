@@ -31,6 +31,52 @@ fn read_task(tasks_dir: String, task_path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
+/// Конфіг omlx: ключ і базовий URL, щоб не задавати їх окремо в кожній програмі.
+/// Порожні значення → `None`.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OmlxConfig {
+    base_url: Option<String>,
+    model: Option<String>,
+    api_key: Option<String>,
+}
+
+/// Витягуємо `(base_url, api_key)` з `~/.omlx/settings.json` — того самого файлу,
+/// що читає omlx-сервер. Портативно: `$HOME` резолвиться на кожній машині, тож
+/// жодних env/launchd налаштувань per-host. Будь-яка помилка читання → `(None, None)`.
+fn omlx_from_settings() -> (Option<String>, Option<String>) {
+    let Some(home) = std::env::var_os("HOME") else {
+        return (None, None);
+    };
+    let path = PathBuf::from(home).join(".omlx/settings.json");
+    let Ok(raw) = fs::read_to_string(&path) else {
+        return (None, None);
+    };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return (None, None);
+    };
+    let str_at = |obj: &str, key: &str| {
+        json.get(obj)
+            .and_then(|o| o.get(key))
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+    };
+    let host = str_at("server", "host");
+    let port = json.get("server").and_then(|s| s.get("port")).and_then(serde_json::Value::as_u64);
+    let base_url = match (host, port) {
+        (Some(h), Some(p)) => Some(format!("http://{h}:{p}/v1")),
+        _ => None,
+    };
+    (base_url, str_at("auth", "api_key"))
+}
+
+#[tauri::command]
+fn omlx_config() -> OmlxConfig {
+    let (base_url, api_key) = omlx_from_settings();
+    OmlxConfig { base_url, model: None, api_key }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -42,7 +88,8 @@ pub fn run() {
             create_task,
             find_tasks_dir,
             find_all_tasks_dirs,
-            read_task
+            read_task,
+            omlx_config
         ]);
 
     #[cfg(desktop)]

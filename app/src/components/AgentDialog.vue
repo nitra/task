@@ -62,7 +62,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import BaseDialog from './BaseDialog.vue'
@@ -76,7 +76,10 @@ defineProps({
 const emit = defineEmits(['update:modelValue', 'ran'])
 
 const $q = useQuasar()
-const { baseUrl, model, apiKey, save } = useOmlx()
+const { baseUrl, model, apiKey, save, loadEnv } = useOmlx()
+
+// Підтягуємо ключ/конфіг із глобального env користувача (OMLX_*) при старті.
+onMounted(loadEnv)
 
 const prompt = ref('')
 const running = ref(false)

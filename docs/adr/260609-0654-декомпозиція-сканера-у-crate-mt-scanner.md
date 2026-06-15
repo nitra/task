@@ -39,3 +39,13 @@ Chosen option: "Виокремити логіку в окремий Rust crate `
 - `find_tasks_dir` у сканері оновлено: `.mt.json` → поле `mt_dir`, потім legacy `.n-cursor.json`, потім `mt/` і `tasks/` як fallback.
 - Функція `has_running_sentinel` додана для перевірки `running_<pid>_until_*` sentinel-файлів.
 - `scan_for_workspaces` отримала параметр `inherited_ignores: &[String]`; функції `load_gitignore`, `glob_match_name`, `is_gitignored` реалізують просте glob-matching.
+
+## Update 2026-06-09
+
+### Виключення gitignored-директорій зі сканування воркспейсів
+
+Сканер зчитує `.gitignore`-файли з накопиченням паттернів при кожному спуску (семантика git: паттерни відносні до директорії файлу). Запобігає хибному виявленню воркспейсів у `node_modules`, `target`, `dist` тощо.
+
+- Нові функції: `load_gitignore`, `glob_match_name`, `is_gitignored` у `app/src-tauri/src/lib.rs`
+- Підпис `scan_for_workspaces` розширено параметром `inherited_ignores: &[String]`
+- Документація: `mt/npm/docs/mt.md`, нова секція "Обмеження: `.gitignore`" в розділі "Монорепо"
