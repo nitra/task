@@ -133,8 +133,16 @@ export async function handleApprove({ requestId, approve, dispatch, journal }) {
   await journal.update(requestId, { status: 'running' })
   const envelope = await dispatch(tool, input)
   const actions = [...(record.actions ?? []), { tool, input, envelope }]
-  const status = envelope.ok ? 'done' : 'failed'
-  const summary = envelope.ok ? `Approved: ${tool} executed.` : null
-  await journal.update(requestId, { status, actions, summary, error: envelope.ok ? null : (envelope.error?.message ?? 'failed'), pendingApproval: null })
-  return { requestId, status, summary, actions, question: null, pendingApproval: null }
+
+  if (!envelope.ok) {
+    // Execution failed (e.g. transient) — stay needs_approval so the human can
+    // retry after fixing; keep pendingApproval, record the error and the attempt.
+    const error = envelope.error?.message ?? 'execution failed'
+    await journal.update(requestId, { status: 'needs_approval', actions, error })
+    return { requestId, status: 'needs_approval', summary: null, actions, error, question: null, pendingApproval: record.pendingApproval }
+  }
+
+  const summary = `Approved: ${tool} executed.`
+  await journal.update(requestId, { status: 'done', actions, summary, error: null, pendingApproval: null })
+  return { requestId, status: 'done', summary, actions, question: null, pendingApproval: null }
 }

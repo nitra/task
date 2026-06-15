@@ -127,6 +127,21 @@ describe('destructive approval (D-E2)', () => {
     expect(journal.load(id).pendingApproval).toBeNull()
   })
 
+  it('handleApprove keeps needs_approval (retryable) when execution fails', async () => {
+    const journal = memJournal()
+    const id = journal.create({ intent: 'delete x', actor: { kind: 'agent', id: 't' } })
+    journal.update(id, { status: 'needs_approval', pendingApproval: { tool: 'delete', input: { tasksDir: '/p/mt', name: 'x' } }, actions: [] })
+    const dispatch = vi.fn().mockResolvedValue({ ok: false, error: { code: 'io', message: 'Command delete_task not found' } })
+
+    const res = await handleApprove({ requestId: id, approve: true, dispatch, journal })
+
+    expect(res.status).toBe('needs_approval')
+    expect(res.error).toContain('not found')
+    const rec = journal.load(id)
+    expect(rec.status).toBe('needs_approval')
+    expect(rec.pendingApproval.tool).toBe('delete') // still retryable
+  })
+
   it('handleApprove reject marks rejected without executing', async () => {
     const journal = memJournal()
     const id = journal.create({ intent: 'delete x', actor: { kind: 'agent', id: 't' } })
