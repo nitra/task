@@ -25,7 +25,8 @@ export function useAgent() {
   const journal = createTauriJournalStore()
 
   /**
-   *
+   * Build an omlx chat fn from the current config (tauri-http transport).
+   * @returns {(req: object) => Promise<object>} chat function
    */
   function chat() {
     return createOpenAiChat({

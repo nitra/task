@@ -6,6 +6,7 @@
     </span>
 
     <div v-if="result.summary" class="req-summary">{{ result.summary }}</div>
+    <div v-if="result.question" class="req-summary">{{ result.question }}</div>
     <div v-if="result.error" class="req-error">{{ result.error }}</div>
 
     <div v-if="result.actions?.length" class="req-actions">
@@ -18,32 +19,11 @@
         <code>{{ action.tool }}({{ JSON.stringify(action.input) }})</code>
       </div>
     </div>
-
-    <div v-if="result.status === 'needs_clarification'" class="req-clarify">
-      <div class="req-question">{{ result.question }}</div>
-      <q-input
-        v-model="answer"
-        @keyup.ctrl.enter="send"
-        dense
-        outlined
-        autogrow
-        placeholder="Відповідь…"
-      />
-      <q-btn
-        @click="send"
-        label="Відповісти"
-        color="primary"
-        unelevated
-        no-caps
-        :disable="!answer.trim() || busy"
-        :loading="busy"
-      />
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed } from 'vue'
 
 const STATUS_COLOR = {
   pending: '#8e8e93',
@@ -57,21 +37,9 @@ const STATUS_COLOR = {
 
 const props = defineProps({
   result: { type: Object, required: true },
-  busy: { type: Boolean, default: false },
 })
-const emit = defineEmits(['respond'])
 
-const answer = ref('')
 const statusColor = computed(() => STATUS_COLOR[props.result.status] ?? '#8e8e93')
-
-/**
- * Emit the human's clarification answer to the parent and clear the field.
- */
-function send() {
-  if (!answer.value.trim()) return
-  emit('respond', answer.value)
-  answer.value = ''
-}
 </script>
 
 <style scoped>
@@ -106,20 +74,6 @@ function send() {
   font-size: 11px;
   opacity: 0.8;
   overflow-wrap: anywhere;
-}
-
-.req-clarify {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  border-radius: 8px;
-  background: color-mix(in srgb, #64d2ff 12%, transparent);
-}
-
-.req-question {
-  font-size: 13px;
-  font-weight: 500;
 }
 
 .state-pill {

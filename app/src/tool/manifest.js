@@ -20,11 +20,12 @@ function toJsonSchema(input) {
 }
 
 /**
- * OpenAI function-calling tool definitions for every catalog tool.
+ * OpenAI function-calling tool definitions, optionally filtered (e.g. by scope).
+ * @param {(tool: object) => boolean} [allow] predicate; default includes all tools
  * @returns {object[]} OpenAI `tools` array
  */
-export function toolManifest() {
-  return TOOLS.map(tool => ({
+export function toolManifest(allow = () => true) {
+  return TOOLS.filter(tool => allow(tool)).map(tool => ({
     type: 'function',
     function: {
       name: tool.name,

@@ -31,16 +31,16 @@ const DEFAULT_SYSTEM = createSystemPrompt()
  * @param {(req: {messages: object[], tools: object[]}) => Promise<object>} params.chat model call returning an assistant message
  * @param {number} [params.maxSteps] safety cap on loop iterations
  * @param {string} [params.system] system prompt override (only used when building fresh from prompt)
+ * @param {object[]} [params.tools] LLM tool manifest (default: all; pass a scoped manifest to restrict)
  * @returns {Promise<{content: string, steps: number, trace: object[], messages: object[], stopped?: string}>} loop result
  */
-export async function runAgent({ prompt, messages: initialMessages, dispatch, chat, maxSteps = 6, system = DEFAULT_SYSTEM }) {
+export async function runAgent({ prompt, messages: initialMessages, dispatch, chat, maxSteps = 6, system = DEFAULT_SYSTEM, tools = toolManifest() }) {
   const messages = initialMessages
     ? [...initialMessages]
     : [
         { role: 'system', content: system },
         { role: 'user', content: prompt },
       ]
-  const tools = toolManifest()
   const trace = []
 
   for (let step = 0; step < maxSteps; step++) {

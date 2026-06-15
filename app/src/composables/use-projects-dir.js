@@ -1,5 +1,3 @@
-import { ref } from 'vue'
-
 // Remembers the user's "projects root" (the directory they browse from to pick a
 // project) and the last project they created a task in, so the folder picker
 // reopens where they left off. Persisted in localStorage; no FS access here.

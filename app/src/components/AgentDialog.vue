@@ -19,25 +19,33 @@
       <q-separator class="q-my-sm" />
     </template>
 
+    <div v-if="turns.length" ref="logEl" class="chat-log">
+      <template v-for="(turn, i) in turns" :key="i">
+        <div v-if="turn.role === 'user'" class="chat-user">{{ turn.text }}</div>
+        <RequestView v-else :result="turn.result" />
+      </template>
+      <div v-if="running" class="chat-thinking">
+        <q-spinner-dots size="18px" /> думаю…
+      </div>
+    </div>
+
     <q-input
       v-model="prompt"
-      @keyup.ctrl.enter="run"
+      @keyup.ctrl.enter="send"
       dense
       outlined
       autofocus
       type="textarea"
       autogrow
-      label="Prompt"
+      :label="inputLabel"
       hint="наприклад: Create a task named deploy in /Users/.../mt, agent mode"
     />
-
-    <RequestView v-if="result" @respond="onRespond" :result="result" :busy="running" />
 
     <template #actions>
       <q-btn v-close-popup label="Закрити" flat no-caps />
       <q-btn
-        @click="run"
-        label="Запустити"
+        @click="send"
+        :label="sendLabel"
         unelevated
         no-caps
         color="primary"
@@ -50,7 +58,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import BaseDialog from './BaseDialog.vue'
 import RequestView from './RequestView.vue'
@@ -66,53 +74,53 @@ const { baseUrl, model, apiKey, saveOmlx, loadOmlxEnv, request, respond } = useA
 
 const prompt = ref('')
 const running = ref(false)
-const result = ref(null)
+const turns = ref([])
+const requestId = ref(null)
+const logEl = ref(null)
 const showConfig = ref(false)
 
 /**
- * Pull omlx config from the user's global settings; reset transient state.
+ * Pull omlx config from the user's global settings; reset the conversation.
  */
 async function onShow() {
   prompt.value = ''
-  result.value = null
+  turns.value = []
+  requestId.value = null
   await loadOmlxEnv()
 }
 
 /**
- * Apply the outcome: store it, refresh the graph if anything was created.
+ * Scroll the transcript to the latest turn after the DOM settles.
+ */
+async function scrollToEnd() {
+  await nextTick()
+  if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
+}
+
+/**
+ * Append an agent turn, latch the conversation id, refresh the graph on writes.
  * @param {object} outcome structured result from request/respond
  */
 function apply(outcome) {
-  result.value = outcome
+  if (outcome.requestId) requestId.value = outcome.requestId
+  turns.value.push({ role: 'agent', result: outcome })
   if (outcome.actions?.some(action => action.envelope?.ok)) emit('ran')
+  scrollToEnd()
 }
 
 /**
- * Start a new agent request from the prompt (journaled).
+ * Send the current message: start a new request, or resume the conversation.
  */
-async function run() {
-  if (!prompt.value.trim() || running.value) return
+async function send() {
+  const text = prompt.value.trim()
+  if (!text || running.value) return
+  prompt.value = ''
+  turns.value.push({ role: 'user', text })
+  scrollToEnd()
   running.value = true
   try {
     saveOmlx()
-    apply(await request(prompt.value))
-  }
-  catch (error) {
-    $q.notify({ type: 'negative', message: String(error?.message ?? error) })
-  }
-  finally {
-    running.value = false
-  }
-}
-
-/**
- * Answer a pending clarification (sessional resume).
- * @param {string} message the human's answer
- */
-async function onRespond(message) {
-  running.value = true
-  try {
-    apply(await respond(result.value.requestId, message))
+    apply(await (requestId.value ? respond(requestId.value, text) : request(text)))
   }
   catch (error) {
     $q.notify({ type: 'negative', message: String(error?.message ?? error) })
@@ -122,3 +130,34 @@ async function onRespond(message) {
   }
 }
 </script>
+
+<style scoped>
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.chat-user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 7px 11px;
+  border-radius: 12px 12px 2px 12px;
+  background: color-mix(in srgb, #0a84ff 18%, transparent);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.chat-thinking {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+</style>

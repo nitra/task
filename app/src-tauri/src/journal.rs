@@ -6,7 +6,7 @@
 //! — only patch-update status/fields. Timestamps are epoch millis (UI formats).
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{json, Value};
@@ -30,11 +30,11 @@ fn now_millis() -> u128 {
         .unwrap_or(0)
 }
 
-fn record_path(id: &str) -> Result<PathBuf, String> {
-    Ok(requests_dir()?.join(format!("{id}.json")))
+fn record_path(dir: &Path, id: &str) -> PathBuf {
+    dir.join(format!("{id}.json"))
 }
 
-fn write_record(path: &PathBuf, record: &Value) -> Result<(), String> {
+fn write_record(path: &Path, record: &Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -42,8 +42,7 @@ fn write_record(path: &PathBuf, record: &Value) -> Result<(), String> {
     fs::write(path, body).map_err(|e| e.to_string())
 }
 
-/// Create a new record (status `pending`) and return its id.
-pub fn create(intent: String, actor: Value) -> Result<String, String> {
+fn create_in(dir: &Path, intent: String, actor: Value) -> Result<String, String> {
     let id = Uuid::new_v4().to_string();
     let now = now_millis();
     let record = json!({
@@ -60,20 +59,18 @@ pub fn create(intent: String, actor: Value) -> Result<String, String> {
         "error": Value::Null,
         "parentId": Value::Null,
     });
-    write_record(&record_path(&id)?, &record)?;
+    write_record(&record_path(dir, &id), &record)?;
     Ok(id)
 }
 
-/// Load a record by id.
-pub fn load(id: &str) -> Result<Value, String> {
-    let raw = fs::read_to_string(record_path(id)?).map_err(|e| e.to_string())?;
+fn load_in(dir: &Path, id: &str) -> Result<Value, String> {
+    let raw = fs::read_to_string(record_path(dir, id)).map_err(|e| e.to_string())?;
     serde_json::from_str(&raw).map_err(|e| e.to_string())
 }
 
-/// Merge `patch` (a JSON object) into the record and bump `updatedAt`.
-pub fn update(id: &str, patch: Value) -> Result<(), String> {
-    let path = record_path(id)?;
-    let mut record = load(id)?;
+fn update_in(dir: &Path, id: &str, patch: Value) -> Result<(), String> {
+    let path = record_path(dir, id);
+    let mut record = load_in(dir, id)?;
     let obj = record.as_object_mut().ok_or("record is not an object")?;
     if let Value::Object(fields) = patch {
         for (k, v) in fields {
@@ -84,11 +81,8 @@ pub fn update(id: &str, patch: Value) -> Result<(), String> {
     write_record(&path, &record)
 }
 
-/// List all records, newest first (by filename = uuid is not time-ordered, so
-/// sort by `createdAt`).
-pub fn list() -> Result<Vec<Value>, String> {
-    let dir = requests_dir()?;
-    let mut records: Vec<Value> = match fs::read_dir(&dir) {
+fn list_in(dir: &Path) -> Result<Vec<Value>, String> {
+    let mut records: Vec<Value> = match fs::read_dir(dir) {
         Ok(entries) => entries
             .flatten()
             .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
@@ -101,4 +95,73 @@ pub fn list() -> Result<Vec<Value>, String> {
         std::cmp::Reverse(r.get("createdAt").and_then(Value::as_u64).unwrap_or(0))
     });
     Ok(records)
+}
+
+/// Create a new record (status `pending`) and return its id.
+pub fn create(intent: String, actor: Value) -> Result<String, String> {
+    create_in(&requests_dir()?, intent, actor)
+}
+
+/// Load a record by id.
+pub fn load(id: &str) -> Result<Value, String> {
+    load_in(&requests_dir()?, id)
+}
+
+/// Merge `patch` (a JSON object) into the record and bump `updatedAt`.
+pub fn update(id: &str, patch: Value) -> Result<(), String> {
+    update_in(&requests_dir()?, id, patch)
+}
+
+/// List all records, newest first (by `createdAt`).
+pub fn list() -> Result<Vec<Value>, String> {
+    list_in(&requests_dir()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tmp_dir() -> PathBuf {
+        std::env::temp_dir().join(format!("task-journal-test-{}", Uuid::new_v4()))
+    }
+
+    #[test]
+    fn create_then_load_roundtrips() {
+        let dir = tmp_dir();
+        let id = create_in(
+            &dir,
+            "do thing".into(),
+            json!({ "kind": "agent", "id": "t" }),
+        )
+        .unwrap();
+        let rec = load_in(&dir, &id).unwrap();
+        assert_eq!(rec["intent"], "do thing");
+        assert_eq!(rec["status"], "pending");
+        assert_eq!(rec["actor"]["id"], "t");
+        assert_eq!(rec["id"], id);
+    }
+
+    #[test]
+    fn update_merges_fields() {
+        let dir = tmp_dir();
+        let id = create_in(&dir, "x".into(), Value::Null).unwrap();
+        update_in(&dir, &id, json!({ "status": "done", "summary": "ok" })).unwrap();
+        let rec = load_in(&dir, &id).unwrap();
+        assert_eq!(rec["status"], "done");
+        assert_eq!(rec["summary"], "ok");
+        assert_eq!(rec["intent"], "x"); // untouched fields preserved
+    }
+
+    #[test]
+    fn list_returns_all_records() {
+        let dir = tmp_dir();
+        create_in(&dir, "a".into(), Value::Null).unwrap();
+        create_in(&dir, "b".into(), Value::Null).unwrap();
+        assert_eq!(list_in(&dir).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn list_missing_dir_is_empty() {
+        assert!(list_in(&tmp_dir()).unwrap().is_empty());
+    }
 }

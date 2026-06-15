@@ -24,9 +24,11 @@ function createArgv(input) {
   return argv
 }
 
+// Trust tier per tool (n-tool-surface D-E1): read < write < destructive.
+// Actor scope filters the manifest and guards dispatch.
 export const TOOLS = [
   {
-    scope: "safe",
+    tier: 'read',
     name: 'scan',
     summary: 'Scan an mt tasks directory and return its task graph as a nested tree.',
     input: {
@@ -36,7 +38,7 @@ export const TOOLS = [
     cli: input => ['scan', input.tasksDir],
   },
   {
-    scope: "safe",
+    tier: 'read',
     name: 'workspaces',
     summary: 'Discover all mt workspaces (tasks dirs) under the current git repo.',
     input: {},
@@ -44,7 +46,7 @@ export const TOOLS = [
     cli: () => ['workspaces'],
   },
   {
-    scope: "safe",
+    tier: 'write',
     name: 'create',
     summary: 'Create a new mt task node (task.md + a.md/h.md flag + optional deps).',
     input: {

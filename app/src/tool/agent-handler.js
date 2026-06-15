@@ -1,4 +1,5 @@
 import { runAgent, createSystemPrompt } from './llm.js'
+import { guardDispatch, scopedManifest } from './scope.js'
 
 // Agent-gateway handlers — the entry points that start or resume the agent
 // loop on behalf of a caller (human via UI or agent via MCP). They own the
@@ -36,7 +37,8 @@ export async function handleRequest({ intent, actor, chat, dispatch, journal }) 
       system: createSystemPrompt(),
       prompt: intent,
       chat,
-      dispatch,
+      dispatch: guardDispatch(dispatch, actor),
+      tools: scopedManifest(actor),
     })
   }
   catch (error) {
@@ -67,11 +69,11 @@ export async function handleRequest({ intent, actor, chat, dispatch, journal }) 
 }
 
 /**
- * Resume a suspended (needs_clarification) request with a user reply.
+ * Resume an existing conversation with a follow-up user message (full chat).
  * @param {{ requestId: string, message: string, actor: {kind:string,id:string}, chat: (r:object)=>Promise<object>, dispatch: (n:string,i:object)=>Promise<object>, journal: object }} opts resume parameters
  * @returns {Promise<object>} updated result envelope
  */
-export async function handleRespond({ requestId, message, actor: _actor, chat, dispatch, journal }) {
+export async function handleRespond({ requestId, message, actor, chat, dispatch, journal }) {
   let record
   try {
     record = await journal.load(requestId)
@@ -80,7 +82,9 @@ export async function handleRespond({ requestId, message, actor: _actor, chat, d
     return { requestId, status: 'failed', summary: null, actions: [], question: 'Request not found.' }
   }
 
-  if (!['needs_clarification', 'needs_confirmation'].includes(record.status)) {
+  // Resume any conversation that has prior history — full-chat follow-ups, not
+  // just clarifications. Only an in-flight ('running') turn is off-limits.
+  if (record.status === 'running' || !Array.isArray(record.messages) || record.messages.length === 0) {
     return { requestId, status: record.status, summary: record.summary, actions: record.actions, question: null }
   }
 
@@ -89,7 +93,7 @@ export async function handleRespond({ requestId, message, actor: _actor, chat, d
 
   let result
   try {
-    result = await runAgent({ messages: resumeMessages, chat, dispatch })
+    result = await runAgent({ messages: resumeMessages, chat, dispatch: guardDispatch(dispatch, actor), tools: scopedManifest(actor) })
   }
   catch (error) {
     await journal.update(requestId, { status: 'failed', error: String(error?.message ?? error) })
