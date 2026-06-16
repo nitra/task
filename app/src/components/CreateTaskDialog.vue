@@ -6,104 +6,111 @@
     title="Нова задача"
     icon="sym_o_add_task"
   >
-    <!-- Project: browse to any directory on disk -->
-        <div>
-          <div class="field-label">Проєкт</div>
-          <div class="row no-wrap items-center q-gutter-sm">
-            <q-input
-              @click="browse"
-              :model-value="project"
-              readonly
-              dense
-              outlined
-              class="col"
-              placeholder="Виберіть директорію проєкту…"
-            />
-            <q-btn @click="browse" icon="sym_o_folder_open" label="Огляд" dense unelevated color="primary" />
-          </div>
-          <div v-if="project" class="field-hint">→ {{ tasksDir }}</div>
-        </div>
+    <!-- Project: pick from configured search paths -->
+    <div>
+      <div class="field-label-row">
+        <span class="field-label">Проєкт</span>
+        <q-btn flat dense round icon="sym_o_add_circle" size="xs" @click="addPath" title="Додати директорію пошуку" />
+      </div>
+      <q-select
+        v-model="project"
+        @popup-show="loadWorkspaces"
+        :options="filteredWorkspaces"
+        :loading="wsLoading"
+        use-input
+        input-debounce="0"
+        dense
+        outlined
+        emit-value
+        map-options
+        clearable
+        placeholder="Виберіть проєкт…"
+        @filter="filterWorkspaces"
+      />
+      <div v-if="project" class="field-hint">→ {{ tasksDir }}</div>
+      <div v-if="!projectPaths.length" class="field-hint">Немає директорій — натисніть + щоб додати</div>
+    </div>
 
-        <!-- Node id -->
-        <q-input
-          v-model="name"
-          @keyup.enter="canSubmit && submit()"
-          dense
-          outlined
-          autofocus
-          label="Назва задачі"
-          hint="id вузла; «/» = вкладені (наприклад research/collect-data)"
-          :rules="[() => nameError === null || nameError]"
-        />
+    <!-- Node id -->
+    <q-input
+      v-model="name"
+      @keyup.enter="canSubmit && submit()"
+      dense
+      outlined
+      autofocus
+      label="Назва задачі"
+      hint="id вузла; «/» = вкладені (наприклад research/collect-data)"
+      :rules="[() => nameError === null || nameError]"
+    />
 
-        <!-- Executor -->
-        <div>
-          <div class="field-label">Виконавець</div>
-          <q-btn-toggle
-            v-model="form.mode"
-            :options="MODE_OPTIONS"
-            dense
-            unelevated
-            no-caps
-            toggle-color="primary"
-          />
-        </div>
+    <!-- Executor -->
+    <div>
+      <div class="field-label">Виконавець</div>
+      <q-btn-toggle
+        v-model="form.mode"
+        :options="MODE_OPTIONS"
+        dense
+        unelevated
+        no-caps
+        toggle-color="primary"
+      />
+    </div>
 
-        <template v-if="form.mode === 'agent'">
-          <q-select
-            v-model="form.modelTier"
-            :options="TIER_OPTIONS"
-            dense
-            outlined
-            label="Модель (model_tier)"
-            emit-value
-            map-options
-          />
-          <q-select
-            v-model="form.skills"
-            dense
-            outlined
-            multiple
-            use-input
-            use-chips
-            hide-dropdown-icon
-            new-value-mode="add-unique"
-            input-debounce="0"
-            label="Навички (skills)"
-            hint="Enter додає; порожнє → дефолт із .mt.json"
-          />
-        </template>
+    <template v-if="form.mode === 'agent'">
+      <q-select
+        v-model="form.modelTier"
+        :options="TIER_OPTIONS"
+        dense
+        outlined
+        label="Модель (model_tier)"
+        emit-value
+        map-options
+      />
+      <q-select
+        v-model="form.skills"
+        dense
+        outlined
+        multiple
+        use-input
+        use-chips
+        hide-dropdown-icon
+        new-value-mode="add-unique"
+        input-debounce="0"
+        label="Навички (skills)"
+        hint="Enter додає; порожнє → дефолт із .mt.json"
+      />
+    </template>
 
-        <q-input
-          v-model.number="form.budgetSec"
-          dense
-          outlined
-          type="number"
-          label="Бюджет, сек (budget_sec)"
-          hint="Порожнє → дефолт із .mt.json"
-        />
+    <q-input
+      v-model.number="form.budgetSec"
+      dense
+      outlined
+      type="number"
+      label="Бюджет, сек (budget_sec)"
+      hint="Порожнє → дефолт із .mt.json"
+    />
 
-        <q-input
-          v-model="form.hint"
-          dense
-          outlined
-          label="Підказка (hint)"
-          placeholder="atomic"
-        />
+    <q-input
+      v-model="form.hint"
+      dense
+      outlined
+      label="Підказка (hint)"
+      placeholder="atomic"
+    />
 
-        <q-select
-          v-model="form.deps"
-          dense
-          outlined
-          multiple
-          use-input
-          use-chips
-          hide-dropdown-icon
-          new-value-mode="add-unique"
-          input-debounce="0"
-          label="Залежності (deps)"
-          hint="id вузлів → порожні deps/<id>.md; Enter додає"
-        />
+    <q-select
+      v-model="form.deps"
+      dense
+      outlined
+      multiple
+      use-input
+      use-chips
+      hide-dropdown-icon
+      new-value-mode="add-unique"
+      input-debounce="0"
+      label="Залежності (deps)"
+      hint="id вузлів → порожні deps/<id>.md; Enter додає"
+    />
 
     <template #actions>
       <DialogActions
@@ -118,13 +125,14 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { open } from '@tauri-apps/plugin-dialog'
 import BaseDialog from './BaseDialog.vue'
 import DialogActions from './DialogActions.vue'
 import { buildCreateOpts, mtDirFor, validateTaskName } from '../task-create.js'
-import { useProjectsDir } from '../composables/use-projects-dir.js'
+import { useProjectPaths } from '../composables/use-project-paths.js'
+import { useProjectWorkspaces } from '../composables/use-project-workspaces.js'
 import { dispatch } from '../tool/index.js'
 
 defineProps({
@@ -143,7 +151,8 @@ const TIER_OPTIONS = [
 ]
 
 const $q = useQuasar()
-const { projectsDir, lastProject, setLastProject } = useProjectsDir()
+const { projectPaths, lastProject, addProjectPath, setLastProject } = useProjectPaths()
+const { workspaces, loading: wsLoading, load: loadWorkspaces, refresh: refreshWorkspaces } = useProjectWorkspaces()
 
 const project = ref('')
 const name = ref('')
@@ -157,34 +166,39 @@ const form = reactive({
   skills: [],
 })
 
+const wsFilter = ref('')
+const filteredWorkspaces = computed(() => {
+  const terms = wsFilter.value.toLowerCase().split(/\s+/).filter(Boolean)
+  if (!terms.length) return workspaces.value
+  return workspaces.value.filter(w => {
+    const label = w.label.toLowerCase()
+    return terms.every(t => label.includes(t))
+  })
+})
+
+function filterWorkspaces(val, update) {
+  wsFilter.value = val
+  update()
+}
+
 const nameError = computed(() => (name.value ? validateTaskName(name.value) : 'Вкажіть назву задачі'))
 const tasksDir = computed(() => (project.value ? mtDirFor(project.value) : ''))
 const canSubmit = computed(() => !!project.value && nameError.value === null && !submitting.value)
 
-/**
- * Reset transient fields when the dialog opens; reuse the last project as start.
- */
 function onShow() {
   name.value = ''
   project.value = lastProject.value || ''
+  loadWorkspaces()
 }
 
-/**
- * Open the native folder picker, starting from the last project / projects root.
- */
-async function browse() {
-  const picked = await open({
-    directory: true,
-    multiple: false,
-    defaultPath: project.value || lastProject.value || projectsDir.value,
-    title: 'Виберіть директорію проєкту',
-  })
-  if (typeof picked === 'string') project.value = picked
+async function addPath() {
+  const picked = await open({ directory: true, title: 'Виберіть директорію пошуку проєктів' })
+  if (typeof picked === 'string') {
+    addProjectPath(picked)
+    await refreshWorkspaces()
+  }
 }
 
-/**
- * Send `create_task` to Rust and report the outcome.
- */
 async function submit() {
   if (!canSubmit.value) return
   submitting.value = true
@@ -221,6 +235,17 @@ async function submit() {
   font-weight: 600;
   opacity: 0.7;
   margin-bottom: 6px;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.field-label-row .field-label {
+  margin-bottom: 0;
 }
 
 .field-hint {

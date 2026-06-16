@@ -50,7 +50,7 @@ describe('buildCreateOpts', () => {
   it('keeps only set fields and uses snake_case keys', () => {
     const opts = buildCreateOpts({
       mode: 'agent',
-      modelTier: 'MAX',
+      modelTier: 'CLOUD_MAX',
       budgetSec: 1800,
       hint: 'atomic',
       deps: ['upstream'],
@@ -58,7 +58,7 @@ describe('buildCreateOpts', () => {
     })
     expect(opts).toEqual({
       mode: 'agent',
-      model_tier: 'MAX',
+      model_tier: 'CLOUD_MAX',
       budget_sec: 1800,
       hint: 'atomic',
       deps: ['upstream'],
@@ -72,7 +72,7 @@ describe('buildCreateOpts', () => {
   })
 
   it('omits agent-only fields for human mode', () => {
-    const opts = buildCreateOpts({ mode: 'human', modelTier: 'AVG', skills: ['bash'], deps: ['x'] })
+    const opts = buildCreateOpts({ mode: 'human', modelTier: 'CLOUD_AVG', skills: ['bash'], deps: ['x'] })
     expect(opts).toEqual({ mode: 'human', deps: ['x'] })
   })
 

@@ -73,6 +73,31 @@ fn delete_task(tasks_dir: String, name: String) -> Result<(), String> {
     fs::remove_dir_all(&target).map_err(|e| e.to_string())
 }
 
+/// Returns the user's home directory for use as a base path in the project picker.
+#[tauri::command]
+fn home_dir() -> Option<String> {
+    std::env::var_os("HOME").map(|h| h.to_string_lossy().into_owned())
+}
+
+/// List all mt/ task directories reachable from `root` using the scanner's
+/// workspace discovery (respects .mt.json, .gitignore, depth ≤ 6).
+#[tauri::command]
+fn list_project_workspaces(root: String) -> Vec<WorkspaceInfo> {
+    mt_scanner::find_all_tasks_dirs_from(&PathBuf::from(root))
+}
+
+/// List mt/ task directories from an explicit list of project paths.
+/// Each path is scanned independently via the scanner's workspace discovery.
+/// Paths that don't exist are silently skipped.
+#[tauri::command]
+fn list_projects_from_paths(paths: Vec<String>) -> Vec<WorkspaceInfo> {
+    paths
+        .iter()
+        .filter(|p| PathBuf::from(p).is_dir())
+        .flat_map(|p| mt_scanner::find_all_tasks_dirs_from(&PathBuf::from(p)))
+        .collect()
+}
+
 /// Конфіг omlx: ключ і базовий URL, щоб не задавати їх окремо в кожній програмі.
 /// Порожні значення → `None`.
 #[derive(serde::Serialize)]
@@ -137,6 +162,9 @@ pub fn run() {
             create_task,
             find_tasks_dir,
             find_all_tasks_dirs,
+            list_project_workspaces,
+            list_projects_from_paths,
+            home_dir,
             read_task,
             delete_task,
             omlx_config,

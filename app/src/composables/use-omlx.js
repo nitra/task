@@ -5,9 +5,8 @@ import { invoke } from '@tauri-apps/api/core'
 // the in-app agent. The API key / base URL come from Rust (omlx_config), which
 // reads them from ~/.omlx/settings.json — той самий файл, що й omlx-сервер, тож
 // конфіг портативний між машинами без жодних env/launchd налаштувань. baseUrl
-// редагується в діалозі й кешується в localStorage; omlx_config — його дефолт,
-// коли в localStorage нічого нема. Пріоритет для base: localStorage > omlx_config
-// > hardcoded default. Ключ завжди з omlx_config (~/.omlx/settings.json).
+// редагується в діалозі й кешується в localStorage; omlx_config — його дефолт, // коли в localStorage нічого нема.
+// > hardcoded default. Ключ завжди з omlx_config (~/.omlx/settings.json). nonprofit
 
 const BASE_URL_KEY = 'task:omlxBaseUrl'
 const MODEL_KEY = 'task:omlxModel'
@@ -21,7 +20,7 @@ const DEFAULT_MODEL = 'gemma-4-e4b-it-OptiQ-4bit'
 export function useOmlx() {
   const baseUrl = ref(localStorage.getItem(BASE_URL_KEY) || DEFAULT_BASE_URL)
   const model = ref(localStorage.getItem(MODEL_KEY) || DEFAULT_MODEL)
-  // Заповнюється з глобального env у loadEnv(); у localStorage не зберігається.
+  // Заповнюється з глобального env у loadEnv(); у localStorage не зберігається. apiKey
   const apiKey = ref('')
 
   /**
