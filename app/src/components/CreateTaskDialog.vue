@@ -10,11 +10,12 @@
     <div>
       <div class="field-label-row">
         <span class="field-label">Проєкт</span>
-        <q-btn flat dense round icon="sym_o_add_circle" size="xs" @click="addPath" title="Додати директорію пошуку" />
+        <q-btn @click="addPath" flat dense round icon="sym_o_add_circle" size="xs" title="Додати директорію пошуку" />
       </div>
       <q-select
         v-model="project"
         @popup-show="loadWorkspaces"
+        @filter="filterWorkspaces"
         :options="filteredWorkspaces"
         :loading="wsLoading"
         use-input
@@ -25,7 +26,6 @@
         map-options
         clearable
         placeholder="Виберіть проєкт…"
-        @filter="filterWorkspaces"
       />
       <div v-if="project" class="field-hint">→ {{ tasksDir }}</div>
       <div v-if="!projectPaths.length" class="field-hint">Немає директорій — натисніть + щоб додати</div>
@@ -165,9 +165,10 @@ const form = reactive({
   skills: [],
 })
 
+const WS_SPLIT_RE = /\s+/
 const wsFilter = ref('')
 const filteredWorkspaces = computed(() => {
-  const terms = wsFilter.value.toLowerCase().split(/\s+/).filter(Boolean)
+  const terms = wsFilter.value.toLowerCase().split(WS_SPLIT_RE).filter(Boolean)
   if (!terms.length) return workspaces.value
   return workspaces.value.filter(w => {
     const label = w.label.toLowerCase()
@@ -175,6 +176,9 @@ const filteredWorkspaces = computed(() => {
   })
 })
 
+/**
+ *
+ */
 function filterWorkspaces(val, update) {
   wsFilter.value = val
   update()
@@ -184,12 +188,18 @@ const nameError = computed(() => (name.value ? validateTaskName(name.value) : '�
 const tasksDir = computed(() => (project.value ? mtDirFor(project.value) : ''))
 const canSubmit = computed(() => !!project.value && nameError.value === null && !submitting.value)
 
+/**
+ *
+ */
 function onShow() {
   name.value = ''
   project.value = lastProject.value || ''
   loadWorkspaces()
 }
 
+/**
+ *
+ */
 async function addPath() {
   const picked = await open({ directory: true, title: 'Виберіть директорію пошуку проєктів' })
   if (typeof picked === 'string') {
@@ -198,6 +208,9 @@ async function addPath() {
   }
 }
 
+/**
+ *
+ */
 async function submit() {
   if (!canSubmit.value) return
   submitting.value = true

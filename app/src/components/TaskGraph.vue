@@ -81,8 +81,8 @@
     </div>
 
     <CreateTaskDialog v-model="createOpen" @created="onCreated" />
-    <AgentDialog v-model="agentOpen" :agent="agent" @ran="scanAll" />
-    <AuditDialog v-model="auditOpen" :agent="agent" @changed="scanAll" />
+    <AgentDialog v-model="agentOpen" @ran="scanAll" :agent="agent" />
+    <AuditDialog v-model="auditOpen" @changed="scanAll" :agent="agent" />
 
     <q-dialog v-model="drawerOpen" transition-show="fade" transition-hide="fade">
       <q-card class="task-detail-card">
