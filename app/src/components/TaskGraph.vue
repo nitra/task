@@ -81,8 +81,8 @@
     </div>
 
     <CreateTaskDialog v-model="createOpen" @created="onCreated" />
-    <AgentDialog v-model="agentOpen" @ran="scanAll" />
-    <AuditDialog v-model="auditOpen" @changed="scanAll" />
+    <AgentDialog v-model="agentOpen" :agent="agent" @ran="scanAll" />
+    <AuditDialog v-model="auditOpen" :agent="agent" @changed="scanAll" />
 
     <q-dialog v-model="drawerOpen" transition-show="fade" transition-hide="fade">
       <q-card class="task-detail-card">
@@ -115,13 +115,14 @@
 <script setup>
 import { marked } from 'marked'
 import { invoke } from '@tauri-apps/api/core'
+import { AgentDialog, AuditDialog } from '@7n/tauri-components/components'
 import TaskNodeItem from './TaskNodeItem.vue'
 import CreateTaskDialog from './CreateTaskDialog.vue'
-import AgentDialog from './AgentDialog.vue'
-import AuditDialog from './AuditDialog.vue'
 import { stateConfig } from '../state-config.js'
 import { dispatch } from '../tool/index.js'
+import { useAgent } from '../composables/use-agent.js'
 
+const agent = useAgent()
 const createOpen = ref(false)
 const agentOpen = ref(false)
 const auditOpen = ref(false)

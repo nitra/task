@@ -21,6 +21,7 @@
     "test:all": "bun run test && bun run test:rust"
   },
   "dependencies": {
+    "@7n/tauri-components": "^0.3.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@quasar/extras": "^2.0.0",
     "@tauri-apps/api": "^2.11.0",

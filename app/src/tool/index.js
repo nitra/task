@@ -1,9 +1,11 @@
-import { createDispatch } from './dispatch.js'
-import { tauriTransport } from './transports.js'
+import { createDispatch } from '@7n/tauri-components'
+import { tauriTransport } from '@7n/tauri-components/vue'
+import { TOOLS } from './catalog.js'
 
-// In-app entry to the tool surface. The UI and the in-app LLM runner share this
-// single dispatch instance (Tauri transport). The orchestrator builds its own
-// dispatch with the CLI transport in bin/task.mjs.
+// In-app entry to the tool surface for DIRECT (non-agent) UI calls — create /
+// scan / delete from dialogs. Binds the shared dispatcher to this app's catalog
+// and the Tauri transport. The in-app agent (useAgent) builds its own dispatch
+// inside the kit; the orchestrator (bin/task.mjs) builds one with the CLI
+// transport.
 
-export const dispatch = createDispatch(tauriTransport)
-export { listTools, toolManifest } from './manifest.js'
+export const dispatch = createDispatch(TOOLS, tauriTransport)

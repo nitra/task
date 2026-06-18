@@ -483,6 +483,72 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Allow all agent commands: request journal (create/load/update/list) and omlx config.\n#### This default permission set includes:\n\n- `allow-journal-create`\n- `allow-journal-load`\n- `allow-journal-update`\n- `allow-journal-list`\n- `allow-omlx-config`",
+          "type": "string",
+          "const": "agent:default",
+          "markdownDescription": "Allow all agent commands: request journal (create/load/update/list) and omlx config.\n#### This default permission set includes:\n\n- `allow-journal-create`\n- `allow-journal-load`\n- `allow-journal-update`\n- `allow-journal-list`\n- `allow-omlx-config`"
+        },
+        {
+          "description": "Enables the journal_create command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:allow-journal-create",
+          "markdownDescription": "Enables the journal_create command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the journal_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:allow-journal-list",
+          "markdownDescription": "Enables the journal_list command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the journal_load command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:allow-journal-load",
+          "markdownDescription": "Enables the journal_load command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the journal_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:allow-journal-update",
+          "markdownDescription": "Enables the journal_update command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the omlx_config command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:allow-omlx-config",
+          "markdownDescription": "Enables the omlx_config command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the journal_create command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:deny-journal-create",
+          "markdownDescription": "Denies the journal_create command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the journal_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:deny-journal-list",
+          "markdownDescription": "Denies the journal_list command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the journal_load command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:deny-journal-load",
+          "markdownDescription": "Denies the journal_load command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the journal_update command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:deny-journal-update",
+          "markdownDescription": "Denies the journal_update command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the omlx_config command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:deny-omlx-config",
+          "markdownDescription": "Denies the omlx_config command without any pre-configured scope."
+        },
+        {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
           "type": "string",
           "const": "core:default",

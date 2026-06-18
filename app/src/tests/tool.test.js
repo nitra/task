@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { validateInput } from '@7n/tauri-components'
 import { getTool, TOOLS } from '../tool/catalog.js'
-import { createDispatch, validateInput } from '../tool/dispatch.js'
-import { listTools, toolManifest } from '../tool/manifest.js'
+
+// Domain tests for the local tool catalog. The generic agent machinery
+// (dispatch, manifest, scope, the loop) is tested in @7n/tauri-components; here
+// we only cover what's task-specific: the catalog shape, the mt-scanner CLI argv
+// builders, and the per-tool validators.
 
 describe('catalog', () => {
   it('every tool has name, summary, input and a tauri command', () => {
@@ -44,7 +48,7 @@ describe('catalog', () => {
   })
 })
 
-describe('validateInput', () => {
+describe('validateInput against catalog tools', () => {
   it('flags a missing required field', () => {
     expect(validateInput(getTool('scan'), {})).toBe('Missing required field: tasksDir')
   })
@@ -62,58 +66,5 @@ describe('validateInput', () => {
 
   it('passes when optional fields are absent', () => {
     expect(validateInput(getTool('workspaces'), {})).toBeNull()
-  })
-})
-
-describe('dispatch', () => {
-  it('returns an ok envelope from the transport output', async () => {
-    const transport = vi.fn().mockResolvedValue([{ id: 'a' }])
-    const dispatch = createDispatch(transport)
-    const result = await dispatch('scan', { tasksDir: '/p/mt' })
-    expect(result).toEqual({ ok: true, output: [{ id: 'a' }] })
-    expect(transport).toHaveBeenCalledWith(getTool('scan'), { tasksDir: '/p/mt' })
-  })
-
-  it('rejects an unknown tool without calling the transport', async () => {
-    const transport = vi.fn()
-    const result = await createDispatch(transport)('nope', {})
-    expect(result).toEqual({ ok: false, error: { code: 'not_found', message: 'Unknown tool: nope' } })
-    expect(transport).not.toHaveBeenCalled()
-  })
-
-  it('rejects invalid input before the transport', async () => {
-    const transport = vi.fn()
-    const result = await createDispatch(transport)('scan', {})
-    expect(result.ok).toBe(false)
-    expect(result.error.code).toBe('validation')
-    expect(transport).not.toHaveBeenCalled()
-  })
-
-  it('wraps a transport failure as an io error', async () => {
-    const transport = vi.fn().mockRejectedValue(new Error('boom'))
-    const result = await createDispatch(transport)('scan', { tasksDir: '/p/mt' })
-    expect(result).toEqual({ ok: false, error: { code: 'io', message: 'boom' } })
-  })
-})
-
-describe('manifest', () => {
-  it('emits OpenAI function-calling tools from the catalog', () => {
-    const manifest = toolManifest()
-    expect(manifest).toHaveLength(TOOLS.length)
-    const scan = manifest.find(entry => entry.function.name === 'scan')
-    expect(scan).toMatchObject({
-      type: 'function',
-      function: {
-        name: 'scan',
-        parameters: { type: 'object', required: ['tasksDir'] },
-      },
-    })
-    expect(scan.function.parameters.properties.tasksDir.type).toBe('string')
-  })
-
-  it('lists tools as name + summary', () => {
-    const list = listTools()
-    expect(list).toHaveLength(TOOLS.length)
-    expect(list.every(item => item.name && item.summary)).toBe(true)
   })
 })

@@ -8,11 +8,10 @@ import { fileURLToPath } from 'node:url'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { createDispatch } from '../src/tool/dispatch.js'
-import { handleRequest, handleRespond } from '../src/tool/agent-handler.js'
+import { createAgentKit, createDispatch, createOpenAiChat, listTools, runAgent, toolManifest } from '@7n/tauri-components'
+import { TOOLS } from '../src/tool/catalog.js'
 import { createNodeJournalStore } from '../src/tool/journal-store-node.js'
-import { createOpenAiChat, runAgent } from '../src/tool/llm.js'
-import { listTools, toolManifest } from '../src/tool/manifest.js'
+import { createSystemPrompt } from '../src/tool/prompt.js'
 
 // Headless entry for script orchestrators (n-tool-surface): no human-facing
 // verbs/flags — just `task <tool> '<json>'`, `task schema`, `task list`. Same
@@ -47,12 +46,17 @@ function resolveScannerBin() {
  * @returns {unknown} parsed JSON output (or null when empty)
  */
 function cliTransport(tool, input) {
-  const result = spawnSync(resolveScannerBin(), tool.cli(input), { encoding: 'utf8' })
+  // Spawn from the projects root (~/www) so cwd-based discovery (`workspaces`)
+  // grounds against all repos under it — same reference point as the GUI.
+  // scan/create take absolute tasksDir, so cwd is irrelevant for them.
+  const projectsRoot = join(process.env.HOME ?? '', 'www')
+  const cwd = existsSync(projectsRoot) ? projectsRoot : undefined
+  const result = spawnSync(resolveScannerBin(), tool.cli(input), { encoding: 'utf8', cwd })
   if (result.status !== 0) throw new Error(result.stderr?.trim() || `mt-scanner exited ${result.status}`)
   return result.stdout.trim() ? JSON.parse(result.stdout) : null
 }
 
-const dispatch = createDispatch(cliTransport)
+const dispatch = createDispatch(TOOLS, cliTransport)
 
 /**
  * @returns {Promise<number>} process exit code
@@ -61,11 +65,11 @@ async function main() {
   const [cmd, payload] = process.argv.slice(2)
 
   if (!cmd || cmd === 'list') {
-    process.stdout.write(`${JSON.stringify(listTools(), null, 2)}\n`)
+    process.stdout.write(`${JSON.stringify(listTools(TOOLS), null, 2)}\n`)
     return 0
   }
   if (cmd === 'schema') {
-    process.stdout.write(`${JSON.stringify(toolManifest(), null, 2)}\n`)
+    process.stdout.write(`${JSON.stringify(toolManifest(TOOLS), null, 2)}\n`)
     return 0
   }
 
@@ -78,7 +82,7 @@ async function main() {
     const model = process.env.OMLX_MODEL ?? 'mlx-community/gemma-3n-E4B-it'
     const apiKey = process.env.OMLX_API_KEY
     try {
-      const result = await runAgent({ prompt: payload, dispatch, chat: createOpenAiChat({ baseUrl, model, apiKey }) })
+      const result = await runAgent({ prompt: payload, dispatch, chat: createOpenAiChat({ baseUrl, model, apiKey }), system: createSystemPrompt(), tools: toolManifest(TOOLS) })
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
       return 0
     }
@@ -106,6 +110,16 @@ async function main() {
     // Journal FS through the Rust `journal` binary (FS-in-Rust). NODE_REQUESTS_DIR
     // overrides the dir (tests); else the binary uses the app-local-data default.
     const journal = createNodeJournalStore({ requestsDir: process.env.NODE_REQUESTS_DIR })
+
+    // Bind the shared agent kit to this app's catalog + domain prompt, the CLI
+    // transport and the node journal. Grounded with the workspace list.
+    const kit = createAgentKit({
+      catalog: TOOLS,
+      systemPrompt: ctx => createSystemPrompt(ctx.workspaces),
+      transport: cliTransport,
+      journal,
+      grounding: { tool: 'workspaces', key: 'workspaces' },
+    })
 
     const server = new Server({ name: 'task', version: '1.0.0' }, { capabilities: { tools: {} } })
 
@@ -139,10 +153,10 @@ async function main() {
       const { name, arguments: args } = req.params
       let result
       if (name === 'request') {
-        result = await handleRequest({ intent: args.intent, actor, chat, dispatch, journal })
+        result = await kit.request({ intent: args.intent, actor, chat })
       }
       else if (name === 'respond') {
-        result = await handleRespond({ requestId: args.requestId, message: args.message, actor, chat, dispatch, journal })
+        result = await kit.respond({ requestId: args.requestId, message: args.message, actor, chat })
       }
       else {
         return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unknown tool: ' + name }) }], isError: true }

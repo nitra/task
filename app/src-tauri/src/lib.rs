@@ -3,29 +3,9 @@ use std::path::PathBuf;
 
 use mt_scanner::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
 
-mod journal;
-
-/// Request-journal commands (webview side). Share src/journal.rs with the
-/// standalone `journal` binary; both resolve the same requests dir.
-#[tauri::command]
-fn journal_create(intent: String, actor: serde_json::Value) -> Result<String, String> {
-    journal::create(intent, actor)
-}
-
-#[tauri::command]
-fn journal_load(id: String) -> Result<serde_json::Value, String> {
-    journal::load(&id)
-}
-
-#[tauri::command]
-fn journal_update(id: String, patch: serde_json::Value) -> Result<(), String> {
-    journal::update(&id, patch)
-}
-
-#[tauri::command]
-fn journal_list() -> Result<Vec<serde_json::Value>, String> {
-    journal::list()
-}
+// The request journal (journal_*) and omlx_config now come from the shared
+// tauri-plugin-agent (invoked as plugin:agent|*). src/journal.rs stays only for
+// the standalone `journal` binary used by the node MCP orchestrator.
 
 #[tauri::command]
 fn scan_tasks(tasks_dir: String) -> Result<Vec<TaskNode>, String> {
@@ -98,65 +78,13 @@ fn list_projects_from_paths(paths: Vec<String>) -> Vec<WorkspaceInfo> {
         .collect()
 }
 
-/// Конфіг omlx: ключ і базовий URL, щоб не задавати їх окремо в кожній програмі.
-/// Порожні значення → `None`.
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct OmlxConfig {
-    base_url: Option<String>,
-    model: Option<String>,
-    api_key: Option<String>,
-}
-
-/// Витягуємо `(base_url, api_key)` з `~/.omlx/settings.json` — того самого файлу,
-/// що читає omlx-сервер. Портативно: `$HOME` резолвиться на кожній машині, тож
-/// жодних env/launchd налаштувань per-host. Будь-яка помилка читання → `(None, None)`.
-fn omlx_from_settings() -> (Option<String>, Option<String>) {
-    let Some(home) = std::env::var_os("HOME") else {
-        return (None, None);
-    };
-    let path = PathBuf::from(home).join(".omlx/settings.json");
-    let Ok(raw) = fs::read_to_string(&path) else {
-        return (None, None);
-    };
-    let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw) else {
-        return (None, None);
-    };
-    let str_at = |obj: &str, key: &str| {
-        json.get(obj)
-            .and_then(|o| o.get(key))
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty())
-            .map(str::to_owned)
-    };
-    let host = str_at("server", "host");
-    let port = json
-        .get("server")
-        .and_then(|s| s.get("port"))
-        .and_then(serde_json::Value::as_u64);
-    let base_url = match (host, port) {
-        (Some(h), Some(p)) => Some(format!("http://{h}:{p}/v1")),
-        _ => None,
-    };
-    (base_url, str_at("auth", "api_key"))
-}
-
-#[tauri::command]
-fn omlx_config() -> OmlxConfig {
-    let (base_url, api_key) = omlx_from_settings();
-    OmlxConfig {
-        base_url,
-        model: None,
-        api_key,
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_agent::init())
         .invoke_handler(tauri::generate_handler![
             scan_tasks,
             create_task,
@@ -166,12 +94,7 @@ pub fn run() {
             list_projects_from_paths,
             home_dir,
             read_task,
-            delete_task,
-            omlx_config,
-            journal_create,
-            journal_load,
-            journal_update,
-            journal_list
+            delete_task
         ]);
 
     #[cfg(desktop)]
