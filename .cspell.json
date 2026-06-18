@@ -9,9 +9,12 @@
     "report",
     "*.svg",
     "**/k8s/**/*.yaml",
+    "**/dist/**",
+    "**/target/**",
+    "**/src-tauri/gen/**",
     "docs/adr/**",
     "docs/specs/**"
   ],
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
-  "words": ["omlx", "schemars", "OptiQ", "millis", "journaled"]
+  "words": ["omlx", "schemars", "OptiQ", "millis", "journaled", "modelcontextprotocol", "прогон", "staticlib", "cdylib", "rlib", "serde", "journaling", "roundtrips", "instrumenter", "statefulset", "stry", "tctl", "toplevel", "краш", "макроса", "плагіна", "рендериться", "тернарник", "фронтматері"]
 }

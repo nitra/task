@@ -144,7 +144,7 @@ EOF
 Бекенд `nitra/task` керує dev pods:
 
 | Подія | Дія |
-|---|---|
+| --- | --- |
 | Розробник натискає "Open in Editor" | `kubectl apply` dev pod з template.yaml |
 | Pod Ready | Teleport node-agent реєструється автоматично |
 | SSH-сесія закрита | grace period 30 хвилин |

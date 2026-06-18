@@ -1,5 +1,6 @@
 {
   "gitignore": true,
+  "ignores": ["docs/adr/**", "docs/specs/**", "AGENTS.md", "CLAUDE.md"],
   "config": {
     "default": true,
     "MD013": false,
