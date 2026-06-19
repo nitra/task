@@ -40,12 +40,6 @@ function resolveScannerBin() {
 }
 
 /**
- * CLI transport: per-verb spawn of mt-scanner, parse JSON stdout.
- * @param {object} tool tool definition (uses `tool.cli`)
- * @param {object} input tool input
- * @returns {unknown} parsed JSON output (or null when empty)
- */
-/**
  * The user's configured project paths (single source, written by the GUI/Rust);
  * defaults to ~/www. Lets the MCP agent ground against the SAME roots as the human.
  * @returns {string[]} project paths
@@ -64,7 +58,11 @@ function readProjectPaths() {
 }
 
 /**
- *
+ * CLI transport: spawn mt-scanner per tool, parse JSON stdout. `workspaces`
+ * scans the configured project paths (multi-root); others use `tool.cli`.
+ * @param {object} tool tool definition (uses `tool.name` / `tool.cli`)
+ * @param {object} input tool input
+ * @returns {unknown} parsed JSON output (or null when empty)
  */
 function cliTransport(tool, input) {
   // workspaces scans the configured project paths (multi-root) — same source as
