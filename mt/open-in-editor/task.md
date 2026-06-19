@@ -10,6 +10,7 @@ budget_sec: 3600
 При натисканні — бекенд спавнить dev pod у k8s, монтує `tasks-pvc`, реєструє pod у Teleport, повертає SSH connection string. Розробник підключається через обраний редактор.
 
 Підтримувані редактори:
+
 - **VS Code** — URI deep link `vscode://vscode-remote/ssh-remote+<host>/tasks`
 - **Cursor** — URI deep link `cursor://vscode-remote/ssh-remote+<host>/tasks`
 - **Zed** — копіювання hostname у буфер + інструкція (URI-протоколу немає)
@@ -32,6 +33,7 @@ budget_sec: 3600
 ## Inputs
 
 ### context
+
 Архітектура доступу: Teleport Auth+Proxy у k8s, SSO через GitHub/Google.
 Dev pod монтує той самий `tasks-pvc` що і worker-поди з `n-cursor graph`.
 Lifecycle: spawn on demand → grace period після закриття SSH → auto-delete.
@@ -40,6 +42,7 @@ VS Code і Cursor використовують однаковий URI-форма
 Всі три редактори використовують `~/.ssh/config` з `ProxyCommand tsh proxy ssh`.
 
 ### constraints
+
 - Бекенд: Bun/Node HTTP (або розширення існуючого `nitra/task` бекенду)
 - Розробник не має прямого доступу до kubectl або k8s API
 - Teleport Operator керує реєстрацією нод декларативно через CRD

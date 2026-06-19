@@ -9,25 +9,30 @@ Rust compiles clean. No remaining references to the old composable outside its o
 Here's a summary of what was implemented:
 
 **`app/src/composables/use-project-paths.js`** (new):
+
 - Stores `task:projectPaths` (JSON array) and `task:lastProject` in localStorage
 - Exports `addProjectPath`, `removeProjectPath`, `setLastProject`
 
 **`app/src/composables/use-project-workspaces.js`** (updated):
+
 - Uses `useProjectPaths` instead of the single-dir composable
 - Calls new `list_projects_from_paths` Rust command
 - Auto-invalidates cache when `projectPaths` changes
 
 **`app/src-tauri/src/lib.rs`** (new command):
+
 - `list_projects_from_paths(paths: Vec<String>) -> Vec<WorkspaceInfo>` — scans each path with `mt_scanner::find_all_tasks_dirs_from`, merges results
 - Paths without an `mt/` directory return no entries (silently skipped)
 - Registered in the invoke handler
 
 **`app/src/components/CreateTaskDialog.vue`** (updated):
+
 - Project field is now a searchable dropdown populated from configured paths
 - "+" button next to the label opens a native folder picker to add a new search path
 - Shows a hint when no paths are configured
 
 **`app/src/composables/use-projects-dir.js`** (deprecated shim):
+
 - Re-exports as backward-compat wrapper pointing to `use-project-paths.js`
 
 To add `/Users/vitaliytv/www/vitaliytv/whitekey` as a project, click "+" in the "Проєкт" field and pick that directory.

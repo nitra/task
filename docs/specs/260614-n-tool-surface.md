@@ -67,6 +67,7 @@ JS-логіка може лишатися на фронті — її лише т
 { "ok": true,  "output": { /* результат */ } }
 { "ok": false, "error": { "code": "validation|not_found|io|…", "message": "…" } }
 ```
+
 Оркестратор: `ok:false` → exit ≠ 0. UI/LLM: `Result` / tool_result з `is_error`.
 
 ## Дворівнева структура правила (Рішення 4)
@@ -109,6 +110,7 @@ JS-логіка може лишатися на фронті — її лише т
 *(`read_task` — поки UI-only; у бінарнику немає read-verb → фіксуємо TODO, не рахуємо як tool, щоб не ламати інваріант.)*
 
 **Файли (Tauri-стек):**
+
 - `app/src/tool/catalog.js` — 3 тули: `{ name, summary, input (reuse валідації з task-create.js), tauri: '<command>', cli: input → argv[] }`.
 - `app/src/tool/dispatch.js` — `createDispatch(transport)`; валідація + конверт.
 - `app/src/tool/manifest.js` — `toolManifest()` (OpenAI tools) + `listTools()`.

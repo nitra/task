@@ -23,11 +23,11 @@ Chosen option: "Перенести структуру з `myshare`, заміни
 
 ## More Information
 
-- Файли-джерела: `/Users/vitaliytv/www/vitaliytv/myshare/` (root + `app/` workspace)
-- Що перенесено: `package.json`, `bunfig.toml`, `.gitignore`, `eslint.config.js`, `knip.json`, `app/package.json`, `app/index.html`, `app/vite.config.js`, `app/jsconfig.json`, `app/vitest.config.js`, `app/src/main.js`, `app/src/App.vue`, `app/src/quasar-variables.sass`, `app/src/test-utils/quasar.js`, `app/src-tauri/` skeleton
-- Що адаптовано: `productName → task`, `identifier → com.nitra.task`, `Cargo.toml name → task`, `lib.rs` без команд у `invoke_handler`; видалено dep `@tauri-apps/plugin-http`
-- Що не перенесено: `scripts/` workspace, stryker config, бізнес-модулі (`youtube`, `ollama`, `shared-url`, `page-meta`, `translation-cache`, `url-history`)
-- Коміти: `a5ccaa6` (init scaffold), `d2b8b70` (apply n-cursor fix — 56 файлів конфігурації)
+* Файли-джерела: `/Users/vitaliytv/www/vitaliytv/myshare/` (root + `app/` workspace)
+* Що перенесено: `package.json`, `bunfig.toml`, `.gitignore`, `eslint.config.js`, `knip.json`, `app/package.json`, `app/index.html`, `app/vite.config.js`, `app/jsconfig.json`, `app/vitest.config.js`, `app/src/main.js`, `app/src/App.vue`, `app/src/quasar-variables.sass`, `app/src/test-utils/quasar.js`, `app/src-tauri/` skeleton
+* Що адаптовано: `productName → task`, `identifier → com.nitra.task`, `Cargo.toml name → task`, `lib.rs` без команд у `invoke_handler`; видалено dep `@tauri-apps/plugin-http`
+* Що не перенесено: `scripts/` workspace, stryker config, бізнес-модулі (`youtube`, `ollama`, `shared-url`, `page-meta`, `translation-cache`, `url-history`)
+* Коміти: `a5ccaa6` (init scaffold), `d2b8b70` (apply n-cursor fix — 56 файлів конфігурації)
 
 ## Update 2026-06-07
 

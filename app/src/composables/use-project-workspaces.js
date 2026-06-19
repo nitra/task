@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core'
-import { ref, watch } from 'vue'
 import { useProjectPaths } from './use-project-paths.js'
 
 const { projectPaths } = useProjectPaths()

@@ -25,10 +25,10 @@ Chosen option: "Динамічне сканування від git root + від
 
 ## More Information
 
-- Новий Rust-command: `find_all_tasks_dirs() -> Vec<WorkspaceInfo>`
-- `WorkspaceInfo { label: String, path: String }` — label є відносним шляхом від git root
-- `find_git_root` шукає `.git` директорію вгору по дереву
-- `scan_for_workspaces` — рекурсивний обхід з глибиною до 6 рівнів, пропускає `node_modules`, `target`, `dist`, `build`, приховані директорії
-- `scan_for_workspaces` читає `.gitignore` на кожному рівні, накопичує паттерни від батьків (`inherited_ignores: &[String]`); нові функції: `load_gitignore(dir)`, `is_gitignored(name, patterns)`, `glob_match_name(name, pattern)` — обробляє прості `*`-glob-паттерни
-- `TaskGraph.vue` переписано: немає `q-input`, виводяться секції per-workspace
-- Документація оновлена: `mt/npm/docs/mt.md`, секція "Монорепо"
+* Новий Rust-command: `find_all_tasks_dirs() -> Vec<WorkspaceInfo>`
+* `WorkspaceInfo { label: String, path: String }` — label є відносним шляхом від git root
+* `find_git_root` шукає `.git` директорію вгору по дереву
+* `scan_for_workspaces` — рекурсивний обхід з глибиною до 6 рівнів, пропускає `node_modules`, `target`, `dist`, `build`, приховані директорії
+* `scan_for_workspaces` читає `.gitignore` на кожному рівні, накопичує паттерни від батьків (`inherited_ignores: &[String]`); нові функції: `load_gitignore(dir)`, `is_gitignored(name, patterns)`, `glob_match_name(name, pattern)` — обробляє прості `*`-glob-паттерни
+* `TaskGraph.vue` переписано: немає `q-input`, виводяться секції per-workspace
+* Документація оновлена: `mt/npm/docs/mt.md`, секція "Монорепо"

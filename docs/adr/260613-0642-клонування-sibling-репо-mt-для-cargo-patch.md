@@ -27,8 +27,10 @@ Chosen option: "Клонувати `nitra/mt` у sibling-каталог", becaus
 Команда: `git clone ssh://git@github.com/nitra/mt.git /Users/vitalii/www/nitra/mt`
 
 Patch-секція в `app/src-tauri/Cargo.toml`:
+
 ```toml
 [patch."ssh://git@github.com/nitra/mt.git"]
 mt-scanner = { path = "../../../mt/scanner" }
 ```
+
 Перевірка: `cargo fetch` у `app/src-tauri/` → exit 0.

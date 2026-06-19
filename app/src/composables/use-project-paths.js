@@ -1,5 +1,3 @@
-import { ref } from 'vue'
-
 const PATHS_KEY = 'task:projectPaths'
 const LAST_PROJECT_KEY = 'task:lastProject'
 

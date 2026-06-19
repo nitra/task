@@ -125,7 +125,6 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
 import { useQuasar } from 'quasar'
 import { open } from '@tauri-apps/plugin-dialog'
 import { BaseDialog, DialogActions } from '@7n/tauri-components/components'
