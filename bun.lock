@@ -18,7 +18,7 @@
       "name": "app",
       "version": "0.1.0",
       "dependencies": {
-        "@7n/tauri-components": "^0.3.0",
+        "@7n/tauri-components": "^0.5.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@quasar/extras": "^2.0.0",
         "@tauri-apps/api": "^2.11.0",
@@ -46,7 +46,7 @@
     },
   },
   "packages": {
-    "@7n/tauri-components": ["@7n/tauri-components@0.3.0", "", { "dependencies": { "marked": "^18.0.5" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "quasar"] }, "sha512-z4+dV1j6WqF8kbr2JxSFqW2g2l7sIb2+jUQFVAhbX22IrK5YKGhRpbG1ftyHmezm/37pxNXdHQr/dd1RP5rbDw=="],
+    "@7n/tauri-components": ["@7n/tauri-components@0.5.0", "", { "dependencies": { "marked": "^18.0.5" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "@vue/test-utils": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "@vue/test-utils", "quasar"] }, "sha512-6fPppX52YmrmiwtrJpJfXBGtiT4YOiOcfqfVUrgHhb7raPqnbKDUDDoIgHNhs7dKwL4fAO98IQxRQoGxPSkXEw=="],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 
