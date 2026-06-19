@@ -149,7 +149,7 @@ const TIER_OPTIONS = [
 ]
 
 const $q = useQuasar()
-const { projectPaths, lastProject, addProjectPath, setLastProject } = useProjectPaths()
+const { projectPaths, lastProject, loadPaths, addProjectPath, setLastProject } = useProjectPaths()
 const { workspaces, loading: wsLoading, load: loadWorkspaces, refresh: refreshWorkspaces } = useProjectWorkspaces()
 
 const project = ref('')
@@ -195,6 +195,7 @@ const canSubmit = computed(() => !!project.value && nameError.value === null && 
 function onShow() {
   name.value = ''
   project.value = lastProject.value || ''
+  loadPaths()
   loadWorkspaces()
 }
 

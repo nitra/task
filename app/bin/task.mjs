@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID as _uuid } from 'node:crypto'
 import process from 'node:process'
@@ -45,13 +45,32 @@ function resolveScannerBin() {
  * @param {object} input tool input
  * @returns {unknown} parsed JSON output (or null when empty)
  */
+/**
+ * The user's configured project paths (single source, written by the GUI/Rust);
+ * defaults to ~/www. Lets the MCP agent ground against the SAME roots as the human.
+ * @returns {string[]} project paths
+ */
+function readProjectPaths() {
+  try {
+    const cfg = join(process.env.HOME ?? '', 'Library/Application Support/com.nitra.task/config.json')
+    const paths = JSON.parse(readFileSync(cfg, 'utf8')).project_paths
+    if (Array.isArray(paths) && paths.length) return paths
+  }
+  catch {
+    // no config yet — fall through to default
+  }
+  const www = join(process.env.HOME ?? '', 'www')
+  return existsSync(www) ? [www] : []
+}
+
+/**
+ *
+ */
 function cliTransport(tool, input) {
-  // Spawn from the projects root (~/www) so cwd-based discovery (`workspaces`)
-  // grounds against all repos under it — same reference point as the GUI.
-  // scan/create take absolute tasksDir, so cwd is irrelevant for them.
-  const projectsRoot = join(process.env.HOME ?? '', 'www')
-  const cwd = existsSync(projectsRoot) ? projectsRoot : undefined
-  const result = spawnSync(resolveScannerBin(), tool.cli(input), { encoding: 'utf8', cwd })
+  // workspaces scans the configured project paths (multi-root) — same source as
+  // the GUI; scan/create take an absolute tasksDir so they need no cwd.
+  const argv = tool.name === 'workspaces' ? ['workspaces', ...readProjectPaths()] : tool.cli(input)
+  const result = spawnSync(resolveScannerBin(), argv, { encoding: 'utf8' })
   if (result.status !== 0) throw new Error(result.stderr?.trim() || `mt-scanner exited ${result.status}`)
   return result.stdout.trim() ? JSON.parse(result.stdout) : null
 }

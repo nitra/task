@@ -22,11 +22,13 @@ export function useProjectWorkspaces() {
     if (loaded) return
     loading.value = true
     try {
-      const entries = await invoke('list_projects_from_paths', { paths: projectPaths.value })
+      // Single source: find_all_tasks_dirs scans the configured project paths
+      // (default ~/www) — the SAME roots the agent grounds against.
+      const entries = await invoke('find_all_tasks_dirs')
       workspaces.value = entries.map(e => ({ label: e.label, value: e.path }))
       loaded = true
     } catch (error) {
-      console.error('list_projects_from_paths failed', error)
+      console.error('find_all_tasks_dirs failed', error)
     }
     finally {
       loading.value = false

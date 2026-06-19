@@ -7,6 +7,8 @@ use mt_scanner::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
 // tauri-plugin-agent (invoked as plugin:agent|*). src/journal.rs stays only for
 // the standalone `journal` binary used by the node MCP orchestrator.
 
+mod config;
+
 #[tauri::command]
 fn scan_tasks(tasks_dir: String) -> Result<Vec<TaskNode>, String> {
     // Виявляємо активні worktree з git, як це робить CLI (`mt-scanner scan`).
@@ -26,7 +28,9 @@ fn find_tasks_dir() -> Result<String, String> {
 
 #[tauri::command]
 fn find_all_tasks_dirs() -> Result<Vec<WorkspaceInfo>, String> {
-    mt_scanner::find_all_tasks_dirs()
+    // Single source: the configured project paths (default ~/www) — the SAME
+    // roots the human's GUI uses, so the agent grounds against them too.
+    Ok(list_projects_from_paths(config::get_project_paths()))
 }
 
 #[tauri::command]
@@ -78,6 +82,18 @@ fn list_projects_from_paths(paths: Vec<String>) -> Vec<WorkspaceInfo> {
         .collect()
 }
 
+/// Configured project search paths (single source; default ~/www).
+#[tauri::command]
+fn get_project_paths() -> Vec<String> {
+    config::get_project_paths()
+}
+
+/// Persist the project search paths (shared by GUI, in-app agent and MCP bin).
+#[tauri::command]
+fn set_project_paths(paths: Vec<String>) -> Result<(), String> {
+    config::set_project_paths(paths)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -94,7 +110,9 @@ pub fn run() {
             list_projects_from_paths,
             home_dir,
             read_task,
-            delete_task
+            delete_task,
+            get_project_paths,
+            set_project_paths
         ]);
 
     #[cfg(desktop)]
