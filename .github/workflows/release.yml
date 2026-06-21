@@ -67,9 +67,18 @@ jobs:
           env-slug: 'main'
           secret-path: '/nitra/task'
 
-      - uses: webfactory/ssh-agent@v0.9.0
+      - name: Fetch Apple signing secrets from Infisical
+        uses: Infisical/secrets-action@v1.0.16
         with:
-          ssh-private-key: ${{ env.MT_DEPLOY_KEY }}
+          method: 'oidc'
+          domain: 'https://secret.7n.ai'
+          project-slug: 'vitaliytv-kfse'
+          identity-id: '53691c96-17d9-4389-b078-0f77073809ab'
+          env-slug: 'main'
+          secret-path: '/apple'
+
+      - name: Configure git for nitra/mt (private)
+        run: git config --global url."https://x-access-token:${MT_GITHUB_TOKEN}@github.com/nitra/mt".insteadOf "https://github.com/nitra/mt"
 
       - uses: ./.github/actions/setup-bun-deps
 
@@ -81,6 +90,12 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ env.APPLE_ID }}
+          APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
         with:
           projectPath: app
           releaseId: ${{ needs.create-release.outputs.release_id }}
