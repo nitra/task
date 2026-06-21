@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_id: ${{ steps.create-release.outputs.result }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Create or reuse release
+        id: create-release
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const params = { owner: context.repo.owner, repo: context.repo.repo };
+            let release;
+            try {
+              release = (await github.rest.repos.getReleaseByTag({ ...params, tag })).data;
+            } catch {
+              release = (await github.rest.repos.createRelease({
+                ...params,
+                tag_name: tag,
+                name: `task ${tag}`,
+                draft: false,
+                prerelease: false,
+                generate_release_notes: true,
+              })).data;
+            }
+            return String(release.id);
+
+  build-desktop:
+    needs: create-release
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Build and upload DMG
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: --target universal-apple-darwin
+
+  # APK: вимагає ініціалізованого Android-проєкту (app/src-tauri/gen/android),
+  # якого в task ще немає. Після `bun --cwd=app run tauri android init` і коміту
+  # gen/android додай сюди job build-android (ідентичний до mlmail/myshare).
