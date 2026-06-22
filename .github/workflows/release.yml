@@ -73,6 +73,16 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
+      - name: Build journal universal binary
+        run: |
+          cargo build --release --bin journal --target aarch64-apple-darwin --manifest-path app/src-tauri/Cargo.toml
+          cargo build --release --bin journal --target x86_64-apple-darwin --manifest-path app/src-tauri/Cargo.toml
+          mkdir -p app/src-tauri/target/universal-apple-darwin/release
+          lipo -create \
+            app/src-tauri/target/aarch64-apple-darwin/release/journal \
+            app/src-tauri/target/x86_64-apple-darwin/release/journal \
+            -output app/src-tauri/target/universal-apple-darwin/release/journal
+
       - name: Build and upload DMG
         uses: tauri-apps/tauri-action@v0
         env:
