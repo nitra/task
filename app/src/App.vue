@@ -4,6 +4,7 @@
       <q-toolbar class="app-toolbar">
         <span class="brand-dot" />
         <span class="brand-name">task</span>
+        <span v-if="appVersion" class="app-version">v{{ appVersion }}</span>
       </q-toolbar>
     </q-header>
     <q-page-container>
@@ -15,7 +16,18 @@
 </template>
 
 <script setup>
+import { onMounted, ref } from 'vue'
+import { getVersion } from '@tauri-apps/api/app'
 import TaskGraph from './components/TaskGraph.vue'
+import { useUpdater } from './composables/use-updater.js'
+
+useUpdater()
+
+const appVersion = ref('')
+
+onMounted(async () => {
+  appVersion.value = await getVersion()
+})
 </script>
 
 <style scoped>
@@ -49,5 +61,13 @@ import TaskGraph from './components/TaskGraph.vue'
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.02em;
+}
+
+.app-version {
+  margin-left: 8px;
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.5;
 }
 </style>
