@@ -8,6 +8,8 @@
     "opener:default",
     "dialog:allow-open",
     "agent:default",
+    "process:allow-restart",
+    "mcp-bridge:default",
     {
       "identifier": "http:default",
       "allow": [
