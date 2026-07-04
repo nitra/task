@@ -102,6 +102,7 @@
 <script setup>
 import { marked } from 'marked'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { AgentDialog, AuditDialog } from '@7n/tauri-components/components'
 import TaskNodeItem from './TaskNodeItem.vue'
 import CreateTaskDialog from './CreateTaskDialog.vue'
@@ -209,16 +210,29 @@ async function scanAll() {
     const wsResult = await dispatch('workspaces', {})
     if (!wsResult.ok) throw new Error(wsResult.error.message)
     workspaces.value = wsResult.output
+    await watchWorkspaces()
     await Promise.all(
       workspaces.value.map(async ws => {
         const result = await dispatch('scan', { tasksDir: ws.path })
         workspaceNodes.value[ws.path] = result.ok ? result.output : []
       })
     )
-  } catch (error) {
-    error.value = String(error)
+  } catch (err) {
+    error.value = String(err)
   } finally {
     loading.value = false
+  }
+}
+
+/**
+ * (Re)start the native FS watcher over the current workspaces; file changes
+ * come back as `mt-changed` events → debounced rescan below.
+ */
+async function watchWorkspaces() {
+  try {
+    await invoke('watch_tasks_dirs', { dirs: workspaces.value.map(ws => ws.path) })
+  } catch (err) {
+    console.error('watch_tasks_dirs failed', err)
   }
 }
 
@@ -229,7 +243,17 @@ async function onCreated() {
   await scanAll()
 }
 
-onMounted(scanAll)
+let rescanTimer = null
+
+onMounted(async () => {
+  await scanAll()
+  await listen('mt-changed', () => {
+    clearTimeout(rescanTimer)
+    rescanTimer = setTimeout(scanAll, 400)
+  })
+})
+
+onUnmounted(() => clearTimeout(rescanTimer))
 </script>
 
 <style scoped>

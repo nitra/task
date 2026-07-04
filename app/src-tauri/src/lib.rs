@@ -1,7 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use mt_core::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
+use notify::Watcher;
+use tauri::Emitter;
 
 // The request journal (journal_*) and omlx_config now come from the shared
 // tauri-plugin-agent (invoked as plugin:agent|*). src/journal.rs stays only for
@@ -94,9 +97,43 @@ fn set_project_paths(paths: Vec<String>) -> Result<(), String> {
     config::set_project_paths(paths)
 }
 
+/// Активний FS-watcher tasks-директорій; заміняється при кожному
+/// `watch_tasks_dirs` (список воркспейсів може змінитись після rescan).
+struct WatchState(Mutex<Option<notify::RecommendedWatcher>>);
+
+/// Стежить за tasks-директоріями і шле подію `mt-changed` (payload — шлях
+/// зміненого файлу); frontend дебаунсить і перескановує граф.
+#[tauri::command]
+fn watch_tasks_dirs(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, WatchState>,
+    dirs: Vec<String>,
+) -> Result<(), String> {
+    let mut watcher =
+        notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
+            if let Ok(event) = res {
+                if let Some(path) = event.paths.first() {
+                    let _ = app.emit("mt-changed", path.display().to_string());
+                }
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    for dir in &dirs {
+        let path = PathBuf::from(dir);
+        if path.is_dir() {
+            watcher
+                .watch(&path, notify::RecursiveMode::Recursive)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    *state.0.lock().map_err(|e| e.to_string())? = Some(watcher);
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .manage(WatchState(Mutex::new(None)))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
@@ -110,7 +147,8 @@ pub fn run() {
             read_node_artifact,
             delete_task,
             get_project_paths,
-            set_project_paths
+            set_project_paths,
+            watch_tasks_dirs
         ]);
 
     #[cfg(desktop)]
