@@ -109,6 +109,7 @@ import CreateTaskDialog from './CreateTaskDialog.vue'
 import ArtifactChain from './ArtifactChain.vue'
 import { stateConfig } from '../state-config.js'
 import { collectAttention } from '../attention.js'
+import { applyClaims } from '../claims.js'
 import { dispatch } from '../tool/index.js'
 import { useAgent } from '../composables/use-agent.js'
 
@@ -215,6 +216,14 @@ async function scanAll() {
       workspaces.value.map(async ws => {
         const result = await dispatch('scan', { tasksDir: ws.path })
         workspaceNodes.value[ws.path] = result.ok ? result.output : []
+        // Remote ownership поверх локального скану: активний claim → running,
+        // прострочений lease → stalled. Офлайн/без remote — тихо пропускаємо.
+        try {
+          const claims = await invoke('remote_claims', { tasksDir: ws.path })
+          workspaceNodes.value[ws.path] = applyClaims(workspaceNodes.value[ws.path], claims)
+        } catch {
+          // remote недоступний — лишаємо локальний derived-стан
+        }
       })
     )
   } catch (err) {

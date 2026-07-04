@@ -97,6 +97,78 @@ fn set_project_paths(paths: Vec<String>) -> Result<(), String> {
     config::set_project_paths(paths)
 }
 
+/// Claim вузла для GUI: шлях + ownership-факти з `.mt-claim.yml`.
+#[derive(serde::Serialize)]
+struct NodeClaim {
+    path: String,
+    actor: Option<String>,
+    runner_id: Option<String>,
+    lease_until: Option<String>,
+    expired: bool,
+}
+
+/// Збирає шляхи всіх вузлів дерева (для зіставлення з claim node-hash).
+fn collect_paths(nodes: &[TaskNode], out: &mut Vec<String>) {
+    for node in nodes {
+        out.push(node.path.clone());
+        collect_paths(&node.children, out);
+    }
+}
+
+/// Remote claims воркспейсу: читає `refs/mt/claims/*`, зіставляє node-hash зі
+/// сканованими вузлами → running/stalled з runner_id для GUI.
+#[tauri::command]
+fn remote_claims(tasks_dir: String) -> Result<Vec<NodeClaim>, String> {
+    let out = std::process::Command::new("git")
+        .args(["-C", &tasks_dir, "rev-parse", "--show-toplevel"])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err("tasks dir is not inside a git repository".to_string());
+    }
+    let repo_root = PathBuf::from(String::from_utf8_lossy(&out.stdout).trim());
+    // Канонічний tasks-root для node-hash — шлях відносно git root.
+    let tasks_root = PathBuf::from(&tasks_dir)
+        .canonicalize()
+        .map_err(|e| e.to_string())?
+        .strip_prefix(&repo_root)
+        .map_err(|_| "tasks dir escapes its git repository".to_string())?
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    let grace = fs::read_to_string(repo_root.join(".mt.json"))
+        .ok()
+        .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
+        .and_then(|v| v.get("claim_grace_sec").and_then(serde_json::Value::as_i64))
+        .unwrap_or(60);
+    let claims = mt_core::claims::fetch_remote_claims(&repo_root, grace)?;
+    if claims.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let worktrees = mt_core::discover_worktrees(&PathBuf::from(&tasks_dir));
+    let nodes = mt_core::scan_tasks(tasks_dir, worktrees)?;
+    let mut paths = Vec::new();
+    collect_paths(&nodes, &mut paths);
+
+    let mut result = Vec::new();
+    for claim in claims {
+        if let Some(path) = paths
+            .iter()
+            .find(|p| mt_core::claims::node_hash(&tasks_root, p) == claim.node_hash)
+        {
+            result.push(NodeClaim {
+                path: path.clone(),
+                actor: claim.actor,
+                runner_id: claim.runner_id,
+                lease_until: claim.lease_until,
+                expired: claim.expired,
+            });
+        }
+    }
+    Ok(result)
+}
+
 /// Активний FS-watcher tasks-директорій; заміняється при кожному
 /// `watch_tasks_dirs` (список воркспейсів може змінитись після rescan).
 struct WatchState(Mutex<Option<notify::RecommendedWatcher>>);
@@ -148,7 +220,8 @@ pub fn run() {
             delete_task,
             get_project_paths,
             set_project_paths,
-            watch_tasks_dirs
+            watch_tasks_dirs,
+            remote_claims
         ]);
 
     #[cfg(desktop)]

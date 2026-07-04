@@ -1,10 +1,6 @@
 <template>
   <div>
-    <div
-      @click.stop="$emit('select', node)"
-      class="task-row"
-      :style="{ paddingLeft: indent + 'px' }"
-    >
+    <div @click.stop="$emit('select', node)" class="task-row" :style="{ paddingLeft: indent + 'px' }">
       <q-btn
         v-if="node.is_composite"
         @click.stop="expanded = !expanded"
@@ -13,31 +9,27 @@
         dense
         round
         size="xs"
-        class="task-row__toggle"
-      />
+        class="task-row__toggle" />
       <span v-else class="task-row__toggle-spacer" />
 
       <q-icon :name="cfg.icon" :style="{ color: cfg.color }" size="16px" class="task-row__icon" />
 
-      <span
-        class="task-row__id"
-        :class="{ 'task-row__id--struck': node.state === 'unresolvable' }"
-      >{{ node.id }}</span>
+      <span class="task-row__id" :class="{ 'task-row__id--struck': node.state === 'unresolvable' }">{{ node.id }}</span>
 
       <span class="state-pill" :style="{ '--c': cfg.color }">
         <span class="state-pill__dot" />
         {{ cfg.label }}
       </span>
 
-      <span v-if="node.deps.length" class="task-row__deps">
-        ← {{ node.deps.join(', ') }}
+      <span v-if="node.claim?.runner_id" class="task-row__runner" :title="node.claim.lease_until">
+        {{ node.claim.runner_id }}
       </span>
+
+      <span v-if="node.deps.length" class="task-row__deps"> ← {{ node.deps.join(', ') }} </span>
 
       <q-space />
 
-      <span v-if="node.budget_sec" class="task-row__budget">
-        {{ node.budget_sec }}s
-      </span>
+      <span v-if="node.budget_sec" class="task-row__budget"> {{ node.budget_sec }}s </span>
     </div>
 
     <template v-if="expanded && node.children?.length">
@@ -46,8 +38,7 @@
         :key="child.id"
         @select="$emit('select', $event)"
         :node="child"
-        :depth="depth + 1"
-      />
+        :depth="depth + 1" />
     </template>
   </div>
 </template>
@@ -57,7 +48,7 @@ import { stateConfig } from '../state-config.js'
 
 const props = defineProps({
   node: { type: Object, required: true },
-  depth: { type: Number, default: 0 },
+  depth: { type: Number, default: 0 }
 })
 
 defineEmits(['select'])
@@ -112,6 +103,17 @@ const indent = computed(() => props.depth * 20 + 8)
 .task-row__id--struck {
   text-decoration: line-through;
   opacity: 0.45;
+}
+
+.task-row__runner {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 10px;
+  opacity: 0.55;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgb(10 132 255 / 12%);
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .task-row__deps {
