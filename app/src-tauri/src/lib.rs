@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use mt_scanner::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
+use mt_core::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
 
 // The request journal (journal_*) and omlx_config now come from the shared
 // tauri-plugin-agent (invoked as plugin:agent|*). src/journal.rs stays only for
@@ -11,14 +11,14 @@ mod config;
 
 #[tauri::command]
 fn scan_tasks(tasks_dir: String) -> Result<Vec<TaskNode>, String> {
-    // Виявляємо активні worktree з git, як це робить CLI (`mt-scanner scan`).
-    let worktrees = mt_scanner::discover_worktrees(&PathBuf::from(&tasks_dir));
-    mt_scanner::scan_tasks(tasks_dir, worktrees)
+    // Виявляємо активні worktree з git, як це робить CLI (`mt scan`).
+    let worktrees = mt_core::discover_worktrees(&PathBuf::from(&tasks_dir));
+    mt_core::scan_tasks(tasks_dir, worktrees)
 }
 
 #[tauri::command]
 fn create_task(tasks_dir: String, name: String, opts: CreateOpts) -> Result<CreateOutcome, String> {
-    mt_scanner::create_task(tasks_dir, name, opts)
+    mt_core::create_task(tasks_dir, name, opts)
 }
 
 #[tauri::command]
@@ -32,6 +32,26 @@ fn find_all_tasks_dirs() -> Result<Vec<WorkspaceInfo>, String> {
 fn read_task(tasks_dir: String, task_path: String) -> Result<String, String> {
     let path = PathBuf::from(&tasks_dir).join(&task_path).join("task.md");
     fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
+/// Version chain вузла: перелік артефактів (task/plan/run/fact/audit-*) з
+/// frontmatter-витягом — дані для timeline у деталях задачі.
+#[tauri::command]
+fn node_artifacts(
+    tasks_dir: String,
+    task_path: String,
+) -> Result<Vec<mt_core::artifacts::NodeArtifact>, String> {
+    mt_core::artifacts::list_node_artifacts(&tasks_dir, &task_path)
+}
+
+/// Вміст одного артефакта вузла (allowlist імен — у mt-core).
+#[tauri::command]
+fn read_node_artifact(
+    tasks_dir: String,
+    task_path: String,
+    file: String,
+) -> Result<String, String> {
+    mt_core::artifacts::read_node_artifact(&tasks_dir, &task_path, &file)
 }
 
 /// Destructive: remove a task node directory. Executed only with authority
@@ -58,7 +78,7 @@ fn list_projects_from_paths(paths: Vec<String>) -> Vec<WorkspaceInfo> {
     paths
         .iter()
         .filter(|p| PathBuf::from(p).is_dir())
-        .flat_map(|p| mt_scanner::find_all_tasks_dirs_from(&PathBuf::from(p)))
+        .flat_map(|p| mt_core::find_all_tasks_dirs_from(&PathBuf::from(p)))
         .collect()
 }
 
@@ -86,6 +106,8 @@ pub fn run() {
             create_task,
             find_all_tasks_dirs,
             read_task,
+            node_artifacts,
+            read_node_artifact,
             delete_task,
             get_project_paths,
             set_project_paths

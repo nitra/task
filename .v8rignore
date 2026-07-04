@@ -4,8 +4,10 @@
 .git/**
 .cargo/
 .mt.json
+.mcp.json
 k8s/**
 app/src-tauri/target/
 app/src-tauri/gen/
 app/src-tauri/tauri.conf.json
+app/src-tauri/tauri.conf.dev.json
 app/src-tauri/capabilities/

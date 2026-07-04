@@ -3,43 +3,10 @@
     <div class="row items-center q-mb-md">
       <span class="section-title">Tasks</span>
       <q-space />
-      <q-btn
-        @click="auditOpen = true"
-        icon="sym_o_history"
-        flat
-        round
-        dense
-        size="sm"
-        title="Request journal"
-      />
-      <q-btn
-        @click="agentOpen = true"
-        icon="sym_o_smart_toy"
-        flat
-        round
-        dense
-        size="sm"
-        title="Agent"
-      />
-      <q-btn
-        @click="createOpen = true"
-        icon="sym_o_add"
-        flat
-        round
-        dense
-        size="sm"
-        title="New task"
-      />
-      <q-btn
-        @click="scanAll"
-        icon="sym_o_refresh"
-        flat
-        round
-        dense
-        size="sm"
-        :loading="loading"
-        title="Refresh"
-      />
+      <q-btn @click="auditOpen = true" icon="sym_o_history" flat round dense size="sm" title="Request journal" />
+      <q-btn @click="agentOpen = true" icon="sym_o_smart_toy" flat round dense size="sm" title="Agent" />
+      <q-btn @click="createOpen = true" icon="sym_o_add" flat round dense size="sm" title="New task" />
+      <q-btn @click="scanAll" icon="sym_o_refresh" flat round dense size="sm" :loading="loading" title="Refresh" />
     </div>
 
     <q-banner v-if="error" class="error-banner q-mb-md" rounded dense>
@@ -51,17 +18,32 @@
         v-for="(count, state) in stateCounts"
         :key="state"
         class="state-pill"
-        :style="{ '--c': stateConfig(state).color }"
-      >
+        :style="{ '--c': stateConfig(state).color }">
         <span class="state-pill__dot" />
         {{ stateConfig(state).label }}
         <span class="state-pill__count">{{ count }}</span>
       </span>
     </div>
 
-    <div v-if="!loading && workspaces.length === 0 && !error" class="empty-state">
-      No workspaces found
+    <div v-if="attention.length" class="attention q-mb-md">
+      <div class="attention__title">Needs attention</div>
+      <div
+        v-for="row in attention"
+        :key="row.workspace.path + row.node.path"
+        @click="onSelect(row.node, row.workspace.path)"
+        class="attention__row">
+        <q-icon
+          :name="stateConfig(row.node.state).icon"
+          :style="{ color: stateConfig(row.node.state).color }"
+          size="15px" />
+        <span class="attention__id">{{ row.node.id }}</span>
+        <span class="attention__ws">{{ row.workspace.label }}</span>
+        <q-space />
+        <span class="attention__reason">{{ row.reason }}</span>
+      </div>
     </div>
+
+    <div v-if="!loading && workspaces.length === 0 && !error" class="empty-state">No workspaces found</div>
 
     <div v-for="ws in workspaces" :key="ws.path" class="q-mb-lg">
       <div class="workspace-label">
@@ -72,12 +54,9 @@
           v-for="task in workspaceNodes[ws.path]"
           :key="task.id"
           @select="node => onSelect(node, ws.path)"
-          :node="task"
-        />
+          :node="task" />
       </div>
-      <div v-else-if="!loading" class="workspace-empty">
-        —
-      </div>
+      <div v-else-if="!loading" class="workspace-empty">—</div>
     </div>
 
     <CreateTaskDialog v-model="createOpen" @created="onCreated" />
@@ -99,13 +78,21 @@
 
         <q-separator />
 
-        <q-card-section class="q-pa-md scroll task-detail-content">
-          <div v-if="contentLoading" class="text-center q-pa-xl">
-            <q-spinner size="40px" color="primary" />
-          </div>
-          <div v-else-if="contentError" class="text-red">{{ contentError }}</div>
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div v-else class="markdown-body" v-html="renderedContent" />
+        <q-card-section horizontal class="task-detail-body">
+          <ArtifactChain
+            @select="a => openArtifact(a.file)"
+            :artifacts="artifacts"
+            :selected="selectedFile"
+            class="task-detail-chain" />
+          <q-separator vertical />
+          <q-card-section class="q-pa-md scroll task-detail-content">
+            <div v-if="contentLoading" class="text-center q-pa-xl">
+              <q-spinner size="40px" color="primary" />
+            </div>
+            <div v-else-if="contentError" class="text-red">{{ contentError }}</div>
+            <!-- eslint-disable-next-line vue/no-v-html -->
+            <div v-else class="markdown-body" v-html="renderedContent" />
+          </q-card-section>
         </q-card-section>
       </q-card>
     </q-dialog>
@@ -118,7 +105,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { AgentDialog, AuditDialog } from '@7n/tauri-components/components'
 import TaskNodeItem from './TaskNodeItem.vue'
 import CreateTaskDialog from './CreateTaskDialog.vue'
+import ArtifactChain from './ArtifactChain.vue'
 import { stateConfig } from '../state-config.js'
+import { collectAttention } from '../attention.js'
 import { dispatch } from '../tool/index.js'
 import { useAgent } from '../composables/use-agent.js'
 
@@ -137,14 +126,18 @@ const selectedTasksDir = ref('')
 const taskContent = ref('')
 const contentLoading = ref(false)
 const contentError = ref(null)
+const artifacts = ref([])
+const selectedFile = ref('task.md')
 
 const selectedCfg = computed(() => stateConfig(selectedTask.value?.state))
 
 const renderedContent = computed(() => marked.parse(taskContent.value))
 
+const attention = computed(() => collectAttention(workspaces.value, workspaceNodes.value))
+
 const stateCounts = computed(() => {
   const counts = {}
-  const walk = (nodes) => {
+  const walk = nodes => {
     for (const n of nodes) {
       counts[n.state] = (counts[n.state] ?? 0) + 1
       if (n.children?.length) walk(n.children)
@@ -157,7 +150,7 @@ const stateCounts = computed(() => {
 })
 
 /**
- * Open the detail dialog for a node and load its task.md.
+ * Open the detail dialog for a node: load its version chain and task.md.
  * @param {object} node selected task node
  * @param {string} tasksDir workspace tasks dir the node belongs to
  */
@@ -165,16 +158,43 @@ async function onSelect(node, tasksDir) {
   selectedTask.value = node
   selectedTasksDir.value = tasksDir
   drawerOpen.value = true
+  artifacts.value = []
+  await Promise.all([loadArtifacts(), openArtifact('task.md')])
+}
+
+/**
+ * Load the version chain (artifact list) of the selected node.
+ */
+async function loadArtifacts() {
+  try {
+    artifacts.value = await invoke('node_artifacts', {
+      tasksDir: selectedTasksDir.value,
+      taskPath: selectedTask.value.path
+    })
+  } catch (error) {
+    console.error('node_artifacts failed', error)
+    artifacts.value = []
+  }
+}
+
+/**
+ * Show one artifact of the selected node in the detail content pane.
+ * @param {string} file artifact file name, e.g. `run_002.md`
+ */
+async function openArtifact(file) {
+  selectedFile.value = file
   contentLoading.value = true
   contentError.value = null
   taskContent.value = ''
   try {
-    taskContent.value = await invoke('read_task', { tasksDir, taskPath: node.path })
-  }
-  catch (error) {
+    taskContent.value = await invoke('read_node_artifact', {
+      tasksDir: selectedTasksDir.value,
+      taskPath: selectedTask.value.path,
+      file
+    })
+  } catch (error) {
     contentError.value = String(error)
-  }
-  finally {
+  } finally {
     contentLoading.value = false
   }
 }
@@ -190,16 +210,14 @@ async function scanAll() {
     if (!wsResult.ok) throw new Error(wsResult.error.message)
     workspaces.value = wsResult.output
     await Promise.all(
-      workspaces.value.map(async (ws) => {
+      workspaces.value.map(async ws => {
         const result = await dispatch('scan', { tasksDir: ws.path })
         workspaceNodes.value[ws.path] = result.ok ? result.output : []
-      }),
+      })
     )
-  }
-  catch (error) {
+  } catch (error) {
     error.value = String(error)
-  }
-  finally {
+  } finally {
     loading.value = false
   }
 }
@@ -275,6 +293,56 @@ onMounted(scanAll)
   opacity: 0.4;
 }
 
+/* — attention inbox: вузли що чекають рішення людини — */
+.attention {
+  border: 1px solid rgb(255 159 10 / 25%);
+  border-radius: 10px;
+  padding: 6px;
+  background: rgb(255 159 10 / 5%);
+}
+
+.attention__title {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ff9f0a;
+  padding: 4px 8px 6px;
+}
+
+.attention__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.attention__row:hover {
+  background: rgb(255 159 10 / 10%);
+}
+
+.attention__id {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.attention__ws {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 11px;
+  opacity: 0.45;
+}
+
+.attention__reason {
+  font-size: 12px;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
 /* — workspace grouping — */
 .workspace-label {
   font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
@@ -312,12 +380,22 @@ onMounted(scanAll)
 }
 
 .task-detail-card {
-  width: 640px;
-  max-width: 92vw;
+  width: 860px;
+  max-width: 94vw;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
   border-radius: 12px;
+}
+
+.task-detail-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.task-detail-chain {
+  flex: 0 0 220px;
+  max-width: 220px;
 }
 
 .task-detail-content {
@@ -368,7 +446,7 @@ onMounted(scanAll)
   font-weight: 600;
 }
 
-.markdown-body :deep(input[type="checkbox"]) {
+.markdown-body :deep(input[type='checkbox']) {
   margin-right: 6px;
 }
 </style>

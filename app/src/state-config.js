@@ -3,20 +3,21 @@
 // stays consistent across the whole view. Colors track the Apple-system
 // accents defined in quasar-variables.sass.
 
+// Ключі = TaskState із mt-core (serde snake_case) — 12 станів зі спеки mt.md;
+// `invalidated` не стан (invalidate повертає вузол у waiting).
 export const STATE_CONFIG = {
-  unassigned:    { icon: 'sym_o_person_off',             color: '#8e8e93', label: 'unassigned' },
-  pending:       { icon: 'sym_o_schedule',               color: '#ff9f0a', label: 'pending' },
-  human_pending: { icon: 'sym_o_schedule',               color: '#ff9f0a', label: 'human-pending' },
-  waiting:       { icon: 'sym_o_radio_button_unchecked', color: '#98989d', label: 'waiting' },
-  blocked:       { icon: 'sym_o_do_not_disturb_on',      color: '#ff6b35', label: 'blocked' },
-  plan_review:   { icon: 'sym_o_rate_review',            color: '#64d2ff', label: 'plan-review' },
-  spawned:       { icon: 'sym_o_account_tree',           color: '#30c8c0', label: 'spawned' },
-  running:       { icon: 'sym_o_radio_button_checked',   color: '#0a84ff', label: 'running' },
-  pending_audit: { icon: 'sym_o_pending',                color: '#5e5ce6', label: 'pending-audit' },
-  resolved:      { icon: 'sym_o_check_circle',           color: '#30d158', label: 'resolved' },
-  failed:        { icon: 'sym_o_cancel',                 color: '#ff453a', label: 'failed' },
-  invalidated:   { icon: 'sym_o_block',                  color: '#636366', label: 'invalidated' },
-  unresolvable:  { icon: 'sym_o_error',                  color: '#636366', label: 'unresolvable' },
+  unassigned: { icon: 'sym_o_person_off', color: '#8e8e93', label: 'unassigned' },
+  pending: { icon: 'sym_o_schedule', color: '#ff9f0a', label: 'pending' },
+  waiting: { icon: 'sym_o_radio_button_unchecked', color: '#98989d', label: 'waiting' },
+  blocked: { icon: 'sym_o_do_not_disturb_on', color: '#ff6b35', label: 'blocked' },
+  plan_review: { icon: 'sym_o_rate_review', color: '#64d2ff', label: 'plan-review' },
+  spawned: { icon: 'sym_o_account_tree', color: '#30c8c0', label: 'spawned' },
+  running: { icon: 'sym_o_radio_button_checked', color: '#0a84ff', label: 'running' },
+  stalled: { icon: 'sym_o_hourglass_disabled', color: '#ffd60a', label: 'stalled' },
+  pending_audit: { icon: 'sym_o_pending', color: '#5e5ce6', label: 'pending-audit' },
+  resolved: { icon: 'sym_o_check_circle', color: '#30d158', label: 'resolved' },
+  failed: { icon: 'sym_o_cancel', color: '#ff453a', label: 'failed' },
+  unresolvable: { icon: 'sym_o_error', color: '#636366', label: 'unresolvable' }
 }
 
 export const FALLBACK_STATE = STATE_CONFIG.waiting
