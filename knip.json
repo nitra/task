@@ -1,13 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "project": [
-    "**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"
-  ],
-  "ignore": [
-    "**/__fixtures__/**",
-    ".pi/extensions/n-cursor-adr/**",
-    "app/src-tauri/target/**"
-  ],
+  "project": ["**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"],
+  "ignore": ["**/__fixtures__/**", ".pi/extensions/n-cursor-adr/**", "app/src-tauri/target/**"],
   "ignoreDependencies": [
     "@nitra/cspell-dict",
     "/@cspell\\/dict-.+/",
@@ -47,12 +41,7 @@
       ]
     },
     "app": {
-      "entry": [
-        "src/**/*.test.js",
-        "src/test-utils/**/*.js",
-        "test/happy-dom.preload.js",
-        "src/tool/journal.js"
-      ]
+      "entry": ["src/**/*.test.js", "src/test-utils/**/*.js", "test/happy-dom.preload.js", "src/tool/journal.js"]
     }
   }
 }

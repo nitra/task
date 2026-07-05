@@ -13,7 +13,7 @@ export function createSystemPrompt(workspaces = []) {
     ? [
         'Available projects (label → mt path):',
         wsLines,
-        'When the user names a project conversationally (e.g. "abie k8s", "abie/k8s", "the k8s project"), match it — case-insensitively, ignoring separators — against the labels above and use that project\'s path as `tasksDir`. If several match, ask which one.',
+        'When the user names a project conversationally (e.g. "abie k8s", "abie/k8s", "the k8s project"), match it — case-insensitively, ignoring separators — against the labels above and use that project\'s path as `tasksDir`. If several match, ask which one.'
       ].join('\n')
     : 'Call the "workspaces" tool to discover projects before acting.'
 
@@ -23,6 +23,6 @@ export function createSystemPrompt(workspaces = []) {
     wsSection,
     'Call one tool at a time; wait for its result before the next.',
     'If the request is ambiguous (e.g. which project?), reply with a clarifying question and NO tool call.',
-    'When satisfied, reply with a plain-text summary and no tool call.',
+    'When satisfied, reply with a plain-text summary and no tool call.'
   ].join('\n')
 }

@@ -32,10 +32,10 @@ export const TOOLS = [
     name: 'scan',
     summary: 'Scan an mt tasks directory and return its task graph as a nested tree.',
     input: {
-      tasksDir: { type: 'string', required: true, description: 'Absolute path to the mt/ tasks directory.' },
+      tasksDir: { type: 'string', required: true, description: 'Absolute path to the mt/ tasks directory.' }
     },
     tauri: 'scan_tasks',
-    cli: input => ['scan', input.tasksDir],
+    cli: input => ['scan', input.tasksDir]
   },
   {
     tier: 'read',
@@ -43,7 +43,7 @@ export const TOOLS = [
     summary: 'Discover all mt workspaces (tasks dirs) under the current git repo.',
     input: {},
     tauri: 'find_all_tasks_dirs',
-    cli: () => ['workspaces'],
+    cli: () => ['workspaces']
   },
   {
     tier: 'write',
@@ -51,12 +51,21 @@ export const TOOLS = [
     summary: 'Create a new mt task node (task.md + a.md/h.md flag + optional deps).',
     input: {
       tasksDir: { type: 'string', required: true, description: 'Absolute path to the mt/ tasks directory.' },
-      name: { type: 'string', required: true, description: 'Node id; "/" separates nested segments, e.g. research/collect-data.' },
-      opts: { type: 'object', required: false, description: 'Optional { mode, model_tier, budget_sec, hint, deps, skills }; empty fields fall back to .mt.json.' },
+      name: {
+        type: 'string',
+        required: true,
+        description: 'Node id; "/" separates nested segments, e.g. research/collect-data.'
+      },
+      opts: {
+        type: 'object',
+        required: false,
+        description:
+          'Optional { mode, model_tier, budget_sec, hint, deps, skills }; empty fields fall back to .mt.json.'
+      }
     },
     validate: input => validateTaskName(input.name),
     tauri: 'create_task',
-    cli: createArgv,
+    cli: createArgv
   },
   {
     tier: 'destructive',
@@ -64,13 +73,13 @@ export const TOOLS = [
     summary: 'Delete an mt task node (removes its directory). Destructive — agents need human approval.',
     input: {
       tasksDir: { type: 'string', required: true, description: 'Absolute path to the mt/ tasks directory.' },
-      name: { type: 'string', required: true, description: 'Node id to delete.' },
+      name: { type: 'string', required: true, description: 'Node id to delete.' }
     },
     validate: input => validateTaskName(input.name),
-    tauri: 'delete_task',
+    tauri: 'delete_task'
     // No `cli`: destructive tools have no headless orchestrator path — they run
     // in-app only (human directly, or human-approved agent request).
-  },
+  }
 ]
 
 /**

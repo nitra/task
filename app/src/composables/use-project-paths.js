@@ -15,8 +15,7 @@ const LAST_PROJECT_KEY = 'task:lastProject'
 function readStored(key) {
   try {
     return globalThis.localStorage?.getItem(key) ?? null
-  }
-  catch {
+  } catch {
     return null
   }
 }
@@ -29,8 +28,7 @@ function readStored(key) {
 function writeStored(key, value) {
   try {
     globalThis.localStorage?.setItem(key, value)
-  }
-  catch {
+  } catch {
     // no localStorage (tests / SSR) — in-memory ref state is still updated
   }
 }
@@ -53,8 +51,7 @@ export function useProjectPaths() {
     try {
       projectPaths.value = await invoke('get_project_paths')
       pathsLoaded = true
-    }
-    catch {
+    } catch {
       // not under Tauri (tests) — keep in-memory state
     }
   }

@@ -9,7 +9,7 @@ metadata:
 spec:
   allow:
     node_labels:
-      owner: "{{internal.logins}}"  # динамічно підставляється з identity провайдера
+      owner: '{{internal.logins}}' # динамічно підставляється з identity провайдера
     logins: [dev]
     # SSH-сесії дозволені лише до нод з label app=dev-pod
     node_labels_expression: 'labels["app"] == "dev-pod"'
@@ -26,7 +26,7 @@ metadata:
 spec:
   allow:
     node_labels:
-      "*": "*"
+      '*': '*'
     logins: [dev, root]
   deny: {}
   options:

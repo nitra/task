@@ -9,8 +9,8 @@ spec:
 
   postgresql:
     parameters:
-      max_connections: "200"
-      shared_buffers: "256MB"
+      max_connections: '200'
+      shared_buffers: '256MB'
 
   bootstrap:
     initdb:
@@ -34,4 +34,4 @@ spec:
       memory: 1Gi
 
   monitoring:
-    enablePodMonitor: false  # увімкнути якщо є Prometheus operator
+    enablePodMonitor: false # увімкнути якщо є Prometheus operator

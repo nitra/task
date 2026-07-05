@@ -5,8 +5,8 @@ metadata:
   namespace: teleport
   annotations:
     # Teleport сам управляє TLS через ACME — передаємо трафік as-is (SSL passthrough)
-    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/ssl-passthrough: 'true'
+    nginx.ingress.kubernetes.io/backend-protocol: 'HTTPS'
 spec:
   ingressClassName: nginx
   rules:

@@ -16,7 +16,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { getVersion } from '@tauri-apps/api/app'
 import TaskGraph from './components/TaskGraph.vue'
 import { useUpdater } from './composables/use-updater.js'

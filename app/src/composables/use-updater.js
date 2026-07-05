@@ -36,7 +36,7 @@ export function useUpdater() {
         message: `Версія ${update.version} готова. Встановити зараз?`,
         cancel: { label: 'Пізніше', flat: true },
         ok: { label: 'Встановити', color: 'primary' },
-        persistent: true,
+        persistent: true
       })
         .onOk(() => installAndRelaunch(update))
         .onCancel(() => {
@@ -61,23 +61,23 @@ export function useUpdater() {
     try {
       await update.downloadAndInstall(event => {
         switch (event.event) {
-        case 'Started': {
-          total = event.data.contentLength ?? 0
+          case 'Started': {
+            total = event.data.contentLength ?? 0
 
-        break;
-        }
-        case 'Progress': {
-          downloaded += event.data.chunkLength
-          if (total) dismiss({ message: `Завантаження… ${Math.round((downloaded / total) * 100)}%` })
+            break
+          }
+          case 'Progress': {
+            downloaded += event.data.chunkLength
+            if (total) dismiss({ message: `Завантаження… ${Math.round((downloaded / total) * 100)}%` })
 
-        break;
-        }
-        case 'Finished': {
-          dismiss()
+            break
+          }
+          case 'Finished': {
+            dismiss()
 
-        break;
-        }
-        // No default
+            break
+          }
+          // No default
         }
       })
       // busy лишається true: оновлення вже на диску, повторний чек лише
@@ -87,7 +87,7 @@ export function useUpdater() {
         message: `Перезапустити зараз, щоб перейти на версію ${update.version}?`,
         cancel: { label: 'Пізніше', flat: true },
         ok: { label: 'Перезапустити', color: 'primary' },
-        persistent: true,
+        persistent: true
       }).onOk(() => relaunch())
     } catch (error) {
       dismiss()

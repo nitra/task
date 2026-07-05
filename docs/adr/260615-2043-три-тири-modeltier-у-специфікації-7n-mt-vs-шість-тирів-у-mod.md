@@ -12,8 +12,8 @@ transcript: /Users/vitaliytv/.claude/projects/-Users-vitaliytv-www-nitra-task/50
 
 ## Considered Options
 
-* Залишити три абстрактні тири з `@7n/mt`: `MIM | AVG | MAX`
-* Використати шість конкретних тирів із `npm/lib/models.mjs`: `LOCAL_MIN`, `LOCAL_AVG`, `LOCAL_MAX`, `CLOUD_MIN`, `CLOUD_AVG`, `CLOUD_MAX`
+- Залишити три абстрактні тири з `@7n/mt`: `MIM | AVG | MAX`
+- Використати шість конкретних тирів із `npm/lib/models.mjs`: `LOCAL_MIN`, `LOCAL_AVG`, `LOCAL_MAX`, `CLOUD_MIN`, `CLOUD_AVG`, `CLOUD_MAX`
 
 ## Decision Outcome
 
@@ -21,13 +21,13 @@ Chosen option: "Шість конкретних тирів із `models.mjs`", b
 
 ### Consequences
 
-* Good, because класифікація `LOCAL_*/CLOUD_*` розрізняє локальне та хмарне розгортання, що відповідає реальній конфігурації середовища через змінні `N_*_MODEL`.
-* Bad, because transcript не містить підтверджених негативних наслідків.
+- Good, because класифікація `LOCAL_*/CLOUD_*` розрізняє локальне та хмарне розгортання, що відповідає реальній конфігурації середовища через змінні `N_*_MODEL`.
+- Bad, because transcript не містить підтверджених негативних наслідків.
 
 ## More Information
 
-* Специфікація трьох тирів: `/Users/vitaliytv/www/nitra/task/node_modules/@7n/mt/docs/mt.md` — `model_tier: AVG # MIM | AVG | MAX`
-* Шість тирів: `/Users/vitaliytv/www/nitra/cursor/npm/lib/models.mjs` — `LOCAL_MIN`, `LOCAL_AVG`, `LOCAL_MAX`, `CLOUD_MIN`, `CLOUD_AVG`, `CLOUD_MAX`
-* Документація: `/Users/vitaliytv/www/nitra/cursor/npm/lib/docs/models.md`
-* Змінено `app/src/components/CreateTaskDialog.vue` (git status: `M`)
-* CHANGELOG: `lib/models.mjs: global model tier classification (LOCAL_MIN/AVG/MAX, CLOUD_MIN/AVG/MAX) via N_*_MODE`
+- Специфікація трьох тирів: `/Users/vitaliytv/www/nitra/task/node_modules/@7n/mt/docs/mt.md` — `model_tier: AVG # MIM | AVG | MAX`
+- Шість тирів: `/Users/vitaliytv/www/nitra/cursor/npm/lib/models.mjs` — `LOCAL_MIN`, `LOCAL_AVG`, `LOCAL_MAX`, `CLOUD_MIN`, `CLOUD_AVG`, `CLOUD_MAX`
+- Документація: `/Users/vitaliytv/www/nitra/cursor/npm/lib/docs/models.md`
+- Змінено `app/src/components/CreateTaskDialog.vue` (git status: `M`)
+- CHANGELOG: `lib/models.mjs: global model tier classification (LOCAL_MIN/AVG/MAX, CLOUD_MIN/AVG/MAX) via N_*_MODE`

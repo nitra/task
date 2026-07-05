@@ -13,7 +13,7 @@
 export function applyClaims(nodes, claims) {
   if (!claims.length) return nodes
   const byPath = new Map(claims.map(c => [c.path, c]))
-  const walk = (list) => {
+  const walk = list => {
     for (const node of list ?? []) {
       const claim = byPath.get(node.path)
       if (claim) {

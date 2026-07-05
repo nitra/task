@@ -143,14 +143,14 @@ EOF
 
 Бекенд `nitra/task` керує dev pods:
 
-| Подія | Дія |
-| --- | --- |
-| Розробник натискає "Open in Editor" | `kubectl apply` dev pod з template.yaml |
-| Pod Ready | Teleport node-agent реєструється автоматично |
-| SSH-сесія закрита | grace period 30 хвилин |
-| Timeout без активності | `kubectl delete pod dev-<task-id>` |
-| Task node → `resolved` | UI попередження → auto-delete |
-| Максимальний час | `activeDeadlineSeconds: 28800` (8 год) |
+| Подія                               | Дія                                          |
+| ----------------------------------- | -------------------------------------------- |
+| Розробник натискає "Open in Editor" | `kubectl apply` dev pod з template.yaml      |
+| Pod Ready                           | Teleport node-agent реєструється автоматично |
+| SSH-сесія закрита                   | grace period 30 хвилин                       |
+| Timeout без активності              | `kubectl delete pod dev-<task-id>`           |
+| Task node → `resolved`              | UI попередження → auto-delete                |
+| Максимальний час                    | `activeDeadlineSeconds: 28800` (8 год)       |
 
 ## Оновлення Teleport
 

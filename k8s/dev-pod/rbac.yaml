@@ -12,7 +12,7 @@ metadata:
   name: dev-pod
   namespace: default
 rules:
-  - apiGroups: [""]
+  - apiGroups: ['']
     resources: [serviceaccounts/token]
     verbs: [create]
 ---
@@ -43,7 +43,7 @@ metadata:
   name: task-backend
   namespace: default
 rules:
-  - apiGroups: [""]
+  - apiGroups: ['']
     resources: [pods]
     verbs: [get, list, watch, create, delete]
 ---

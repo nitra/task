@@ -4,8 +4,7 @@
     @show="onShow"
     :model-value="modelValue"
     title="Нова задача"
-    icon="sym_o_add_task"
-  >
+    icon="sym_o_add_task">
     <!-- Project: pick from configured search paths -->
     <div>
       <div class="field-label-row">
@@ -25,8 +24,7 @@
         emit-value
         map-options
         clearable
-        placeholder="Виберіть проєкт…"
-      />
+        placeholder="Виберіть проєкт…" />
       <div v-if="project" class="field-hint">→ {{ tasksDir }}</div>
       <div v-if="!projectPaths.length" class="field-hint">Немає директорій — натисніть + щоб додати</div>
     </div>
@@ -40,20 +38,12 @@
       autofocus
       label="Назва задачі"
       hint="id вузла; «/» = вкладені (наприклад research/collect-data)"
-      :rules="[() => nameError === null || nameError]"
-    />
+      :rules="[() => nameError === null || nameError]" />
 
     <!-- Executor -->
     <div>
       <div class="field-label">Виконавець</div>
-      <q-btn-toggle
-        v-model="form.mode"
-        :options="MODE_OPTIONS"
-        dense
-        unelevated
-        no-caps
-        toggle-color="primary"
-      />
+      <q-btn-toggle v-model="form.mode" :options="MODE_OPTIONS" dense unelevated no-caps toggle-color="primary" />
     </div>
 
     <template v-if="form.mode === 'agent'">
@@ -64,8 +54,7 @@
         outlined
         label="Модель (model_tier)"
         emit-value
-        map-options
-      />
+        map-options />
       <q-select
         v-model="form.skills"
         dense
@@ -77,8 +66,7 @@
         new-value-mode="add-unique"
         input-debounce="0"
         label="Навички (skills)"
-        hint="Enter додає; порожнє → дефолт із .mt.json"
-      />
+        hint="Enter додає; порожнє → дефолт із .mt.json" />
     </template>
 
     <q-input
@@ -87,16 +75,9 @@
       outlined
       type="number"
       label="Бюджет, сек (budget_sec)"
-      hint="Порожнє → дефолт із .mt.json"
-    />
+      hint="Порожнє → дефолт із .mt.json" />
 
-    <q-input
-      v-model="form.hint"
-      dense
-      outlined
-      label="Підказка (hint)"
-      placeholder="atomic"
-    />
+    <q-input v-model="form.hint" dense outlined label="Підказка (hint)" placeholder="atomic" />
 
     <q-select
       v-model="form.deps"
@@ -109,8 +90,7 @@
       new-value-mode="add-unique"
       input-debounce="0"
       label="Залежності (deps)"
-      hint="id вузлів → порожні deps/<id>.md; Enter додає"
-    />
+      hint="id вузлів → порожні deps/<id>.md; Enter додає" />
 
     <template #actions>
       <DialogActions
@@ -118,8 +98,7 @@
         cancel-label="Скасувати"
         submit-label="Створити"
         :disable="!canSubmit"
-        :loading="submitting"
-      />
+        :loading="submitting" />
     </template>
   </BaseDialog>
 </template>
@@ -134,18 +113,18 @@ import { useProjectWorkspaces } from '../composables/use-project-workspaces.js'
 import { dispatch } from '../tool/index.js'
 
 defineProps({
-  modelValue: { type: Boolean, default: false },
+  modelValue: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue', 'created'])
 
 const MODE_OPTIONS = [
   { label: 'Agent', value: 'agent' },
-  { label: 'Human', value: 'human' },
+  { label: 'Human', value: 'human' }
 ]
 const TIER_OPTIONS = [
   { label: 'MIM', value: 'MIM' },
   { label: 'AVG', value: 'AVG' },
-  { label: 'MAX', value: 'MAX' },
+  { label: 'MAX', value: 'MAX' }
 ]
 
 const $q = useQuasar()
@@ -161,7 +140,7 @@ const form = reactive({
   budgetSec: '',
   hint: '',
   deps: [],
-  skills: [],
+  skills: []
 })
 
 const WS_SPLIT_RE = /\s+/
@@ -220,7 +199,7 @@ async function submit() {
     const envelope = await dispatch('create', {
       tasksDir: tasksDir.value,
       name: name.value,
-      opts: buildCreateOpts(form),
+      opts: buildCreateOpts(form)
     })
     if (!envelope.ok) {
       $q.notify({ type: 'negative', message: envelope.error.message })
@@ -229,15 +208,13 @@ async function submit() {
     const outcome = envelope.output
     if ('Created' in outcome) {
       $q.notify({ type: 'positive', message: `Створено: ${outcome.Created.task_path}` })
-    }
-    else {
+    } else {
       $q.notify({ type: 'warning', message: `Вже існує: ${outcome.Exists.task_path}` })
     }
     setLastProject(project.value)
     emit('created', { tasksDir: tasksDir.value, outcome })
     emit('update:modelValue', false)
-  }
-  finally {
+  } finally {
     submitting.value = false
   }
 }

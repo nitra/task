@@ -29,12 +29,24 @@ describe('catalog', () => {
     const argv = getTool('create').cli({
       tasksDir: '/p/mt',
       name: 'research/collect',
-      opts: { mode: 'agent', model_tier: 'MAX', budget_sec: 1800, hint: 'atomic', deps: ['a', 'b'] },
+      opts: { mode: 'agent', model_tier: 'MAX', budget_sec: 1800, hint: 'atomic', deps: ['a', 'b'] }
     })
     expect(argv).toEqual([
-      'create', '/p/mt', 'research/collect',
-      '--mode', 'agent', '--model-tier', 'MAX', '--budget-sec', '1800', '--hint', 'atomic',
-      '--dep', 'a', '--dep', 'b',
+      'create',
+      '/p/mt',
+      'research/collect',
+      '--mode',
+      'agent',
+      '--model-tier',
+      'MAX',
+      '--budget-sec',
+      '1800',
+      '--hint',
+      'atomic',
+      '--dep',
+      'a',
+      '--dep',
+      'b'
     ])
   })
 
@@ -55,8 +67,9 @@ describe('validateInput against catalog tools', () => {
 
   it('flags a wrong type', () => {
     expect(validateInput(getTool('scan'), { tasksDir: 5 })).toBe('Field "tasksDir" must be a string')
-    expect(validateInput(getTool('create'), { tasksDir: '/p/mt', name: 'x', opts: [] }))
-      .toBe('Field "opts" must be an object')
+    expect(validateInput(getTool('create'), { tasksDir: '/p/mt', name: 'x', opts: [] })).toBe(
+      'Field "opts" must be an object'
+    )
   })
 
   it('runs the tool custom validator (task name)', () => {

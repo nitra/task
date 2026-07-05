@@ -15,6 +15,6 @@ export function useAgent() {
     catalog: TOOLS,
     systemPrompt: ctx => createSystemPrompt(ctx.workspaces),
     grounding: { tool: 'workspaces', key: 'workspaces' },
-    omlx: { storagePrefix: 'task', defaultModel: 'gemma-4-e4b-it-OptiQ-4bit' },
+    omlx: { storagePrefix: 'task', defaultModel: 'gemma-4-e4b-it-OptiQ-4bit' }
   })
 }

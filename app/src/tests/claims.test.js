@@ -8,16 +8,16 @@ const tree = () => [
     state: 'spawned',
     children: [
       { id: 'a', path: 'root/a', state: 'waiting', children: [] },
-      { id: 'b', path: 'root/b', state: 'waiting', children: [] },
-    ],
-  },
+      { id: 'b', path: 'root/b', state: 'waiting', children: [] }
+    ]
+  }
 ]
 
 describe('applyClaims', () => {
   it('активний claim → running, прострочений → stalled (рекурсивно)', () => {
     const nodes = applyClaims(tree(), [
       { path: 'root/a', expired: false, runner_id: 'srv-1/42' },
-      { path: 'root/b', expired: true },
+      { path: 'root/b', expired: true }
     ])
     expect(nodes[0].children[0].state).toBe('running')
     expect(nodes[0].children[0].claim.runner_id).toBe('srv-1/42')

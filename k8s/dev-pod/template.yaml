@@ -7,20 +7,20 @@ metadata:
   namespace: default
   labels:
     app: dev-pod
-    task: ${TASK_NODE_ID}          # Teleport RBAC фільтрує за цим label
-    owner: ${OWNER_EMAIL}          # власник сесії (email із SSO)
+    task: ${TASK_NODE_ID} # Teleport RBAC фільтрує за цим label
+    owner: ${OWNER_EMAIL} # власник сесії (email із SSO)
   annotations:
     # Автоматичне видалення через N хвилин без активної SSH-сесії
     # Реалізується бекендом через watch на Teleport audit log
-    nitra.com/idle-timeout-min: "30"
+    nitra.com/idle-timeout-min: '30'
     nitra.com/task-node: ${TASK_NODE_ID}
 spec:
   serviceAccountName: dev-pod
   # Pod видаляється бекендом; activeDeadlineSeconds — hard cap на випадок витоку
-  activeDeadlineSeconds: 28800  # 8 годин максимум
+  activeDeadlineSeconds: 28800 # 8 годин максимум
   containers:
     - name: workspace
-      image: ghcr.io/nitralabs/dev-workspace:latest  # базовий образ: zed-server + git + n-cursor
+      image: ghcr.io/nitralabs/dev-workspace:latest # базовий образ: zed-server + git + n-cursor
       command: [sleep, infinity]
       volumeMounts:
         - name: tasks
@@ -55,6 +55,6 @@ spec:
   volumes:
     - name: tasks
       persistentVolumeClaim:
-        claimName: tasks-pvc   # той самий PVC що монтують worker-поди n-cursor graph
+        claimName: tasks-pvc # той самий PVC що монтують worker-поди n-cursor graph
 
-  restartPolicy: Never  # pod не перезапускається — бекенд створює новий при необхідності
+  restartPolicy: Never # pod не перезапускається — бекенд створює новий при необхідності

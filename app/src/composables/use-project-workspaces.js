@@ -7,7 +7,9 @@ const workspaces = ref([])
 const loading = ref(false)
 let loaded = false
 
-watch(projectPaths, () => { loaded = false })
+watch(projectPaths, () => {
+  loaded = false
+})
 
 /**
  * Shared store of mt workspaces discovered from the user's project paths.
@@ -29,8 +31,7 @@ export function useProjectWorkspaces() {
       loaded = true
     } catch (error) {
       console.error('find_all_tasks_dirs failed', error)
-    }
-    finally {
+    } finally {
       loading.value = false
     }
   }

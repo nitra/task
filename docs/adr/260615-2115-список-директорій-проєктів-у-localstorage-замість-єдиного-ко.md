@@ -43,21 +43,26 @@ To add `/Users/vitaliytv/www/vitaliytv/whitekey` as a project, click "+" in the 
 ## ADR Список директорій проєктів у localStorage замість єдиного кореневого шляху
 
 ## Context and Problem Statement
+
 Додаток шукав проєкти (де є `mt/`) сканом двох рівнів углиб від єдиного `projectsDir` (`~/www`). Проєкти без `package.json` (наприклад `/Users/vitaliytv/www/vitaliytv/whitekey`) або ті, що не відповідають схемі `<org>/<project>`, не з'являлися в picker-і задач.
 
 ## Considered Options
-* Зберігати список шляхів у `localStorage` як JSON-масив (`task:projectPaths`)
-* Tauri `plugin-store` (нативне зберігання у `AppData`)
-* Конфіг-файл (`.json`/`.toml`) у директорії домашнього профілю
+
+- Зберігати список шляхів у `localStorage` як JSON-масив (`task:projectPaths`)
+- Tauri `plugin-store` (нативне зберігання у `AppData`)
+- Конфіг-файл (`.json`/`.toml`) у директорії домашнього профілю
 
 ## Decision Outcome
+
 Chosen option: "Зберігати список шляхів у `localStorage` як JSON-масив (`task:projectPaths`)", because `plugin-store` відсутній у `package.json` (додаткова залежність без переваг у даному контексті), а `localStorage` вже використовується для `task:lastProject` і достатньо надійний у Tauri 2 на macOS.
 
 ### Consequences
-* Good, because користувач може явно додавати/видаляти довільні директорії через UI, незалежно від того, чи є в них `package.json`.
-* Bad, because `localStorage` прив'язаний до WebView і не доступний напряму з Rust-процесу; майбутній Rust-код не може читати список без передачі через Tauri IPC.
+
+- Good, because користувач може явно додавати/видаляти довільні директорії через UI, незалежно від того, чи є в них `package.json`.
+- Bad, because `localStorage` прив'язаний до WebView і не доступний напряму з Rust-процесу; майбутній Rust-код не може читати список без передачі через Tauri IPC.
 
 ## More Information
+
 - `app/src/composables/use-project-paths.js` — ключі `task:projectPaths`, `task:lastProject`
 - `app/src/composables/use-project-workspaces.js` — викликає `list_projects_from_paths` (Tauri IPC), інвалідує кеш через `watch(projectPaths, ...)`
 - `app/src-tauri/src/lib.rs:list_projects_from_paths` — `fn list_projects_from_paths(paths: Vec<String>) -> Vec<WorkspaceInfo>`, делегує `mt_scanner::find_all_tasks_dirs_from` для кожного шляху

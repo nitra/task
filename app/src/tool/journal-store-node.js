@@ -18,7 +18,7 @@ function resolveJournalBin() {
   if (process.env.TASK_JOURNAL_BIN) return process.env.TASK_JOURNAL_BIN
   const candidates = [
     join(HERE, '../../src-tauri/target/release/journal'),
-    join(HERE, '../../src-tauri/target/debug/journal'),
+    join(HERE, '../../src-tauri/target/debug/journal')
   ]
   const found = candidates.find(path => existsSync(path))
   if (found) return found
@@ -34,7 +34,7 @@ export function createNodeJournalStore({ requestsDir } = {}) {
   const env = { ...process.env }
   if (requestsDir) env.TASK_REQUESTS_DIR = requestsDir
 
-  const run = (args) => {
+  const run = args => {
     const res = spawnSync(bin, args, { encoding: 'utf8', env })
     if (res.status !== 0) throw new Error(res.stderr?.trim() || `journal exited ${res.status}`)
     return res.stdout.trim() ? JSON.parse(res.stdout) : null
@@ -43,6 +43,8 @@ export function createNodeJournalStore({ requestsDir } = {}) {
   return {
     create: ({ intent, actor }) => run(['create', JSON.stringify({ intent, actor })]).id,
     load: id => run(['load', id]),
-    update: (id, patch) => { run(['update', id, JSON.stringify(patch)]) },
+    update: (id, patch) => {
+      run(['update', id, JSON.stringify(patch)])
+    }
   }
 }

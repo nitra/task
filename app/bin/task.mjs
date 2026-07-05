@@ -8,7 +8,14 @@ import { fileURLToPath } from 'node:url'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { createAgentKit, createDispatch, createOpenAiChat, listTools, runAgent, toolManifest } from '@7n/tauri-components'
+import {
+  createAgentKit,
+  createDispatch,
+  createOpenAiChat,
+  listTools,
+  runAgent,
+  toolManifest
+} from '@7n/tauri-components'
 import { TOOLS } from '../src/tool/catalog.js'
 import { createNodeJournalStore } from '../src/tool/journal-store-node.js'
 import { createSystemPrompt } from '../src/tool/prompt.js'
@@ -32,7 +39,7 @@ function resolveScannerBin() {
     join(BIN_DIR, '../../../mt/target/debug/mt-scanner'),
     // fallback: standalone (non-workspace) layout
     join(BIN_DIR, '../../../mt/scanner/target/release/mt-scanner'),
-    join(BIN_DIR, '../../../mt/scanner/target/debug/mt-scanner'),
+    join(BIN_DIR, '../../../mt/scanner/target/debug/mt-scanner')
   ]
   const found = candidates.find(path => existsSync(path))
   if (found) return found
@@ -49,8 +56,7 @@ function readProjectPaths() {
     const cfg = join(process.env.HOME ?? '', 'Library/Application Support/com.nitra.task/config.json')
     const paths = JSON.parse(readFileSync(cfg, 'utf8')).project_paths
     if (Array.isArray(paths) && paths.length) return paths
-  }
-  catch {
+  } catch {
     // no config yet — fall through to default
   }
   const www = join(process.env.HOME ?? '', 'www')
@@ -99,11 +105,16 @@ async function main() {
     const model = process.env.OMLX_MODEL ?? 'mlx-community/gemma-3n-E4B-it'
     const apiKey = process.env.OMLX_API_KEY
     try {
-      const result = await runAgent({ prompt: payload, dispatch, chat: createOpenAiChat({ baseUrl, model, apiKey }), system: createSystemPrompt(), tools: toolManifest(TOOLS) })
+      const result = await runAgent({
+        prompt: payload,
+        dispatch,
+        chat: createOpenAiChat({ baseUrl, model, apiKey }),
+        system: createSystemPrompt(),
+        tools: toolManifest(TOOLS)
+      })
       process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
       return 0
-    }
-    catch (error) {
+    } catch (error) {
       process.stderr.write(`agent failed (omlx ${baseUrl}, model ${model}): ${String(error?.message ?? error)}\n`)
       process.stderr.write('Set OMLX_BASE_URL / OMLX_MODEL, and ensure the omlx server is running.\n')
       return 2
@@ -113,10 +124,12 @@ async function main() {
   if (cmd === 'mcp') {
     // MCP-stdio server — exposes request(intent) and respond(requestId, message)
     // so any MCP-capable orchestrator (Claude Code, Cursor) can drive the app agent.
-    const actorId = process.env.MCP_ACTOR_ID ?? (() => {
-      const flag = process.argv.indexOf('--actor')
-      return flag === -1 ? ('mcp-' + _uuid().slice(0, 8)) : process.argv[flag + 1]
-    })()
+    const actorId =
+      process.env.MCP_ACTOR_ID ??
+      (() => {
+        const flag = process.argv.indexOf('--actor')
+        return flag === -1 ? 'mcp-' + _uuid().slice(0, 8) : process.argv[flag + 1]
+      })()
     const actor = { kind: 'agent', id: actorId }
 
     const baseUrl = process.env.OMLX_BASE_URL ?? 'http://127.0.0.1:8000/v1'
@@ -135,7 +148,7 @@ async function main() {
       systemPrompt: ctx => createSystemPrompt(ctx.workspaces),
       transport: cliTransport,
       journal,
-      grounding: { tool: 'workspaces', key: 'workspaces' },
+      grounding: { tool: 'workspaces', key: 'workspaces' }
     })
 
     const server = new Server({ name: 'task', version: '1.0.0' }, { capabilities: { tools: {} } })
@@ -144,38 +157,38 @@ async function main() {
       tools: [
         {
           name: 'request',
-          description: 'Send a natural-language intent to the task-app agent. Returns a structured result with status, summary, actions taken, and an optional clarifying question.',
+          description:
+            'Send a natural-language intent to the task-app agent. Returns a structured result with status, summary, actions taken, and an optional clarifying question.',
           inputSchema: {
             type: 'object',
             properties: { intent: { type: 'string', description: 'What you want the agent to do.' } },
-            required: ['intent'],
-          },
+            required: ['intent']
+          }
         },
         {
           name: 'respond',
-          description: 'Reply to a pending clarification (needs_clarification status). Pass the requestId from the previous request call.',
+          description:
+            'Reply to a pending clarification (needs_clarification status). Pass the requestId from the previous request call.',
           inputSchema: {
             type: 'object',
             properties: {
               requestId: { type: 'string' },
-              message: { type: 'string', description: 'Your answer to the clarifying question.' },
+              message: { type: 'string', description: 'Your answer to the clarifying question.' }
             },
-            required: ['requestId', 'message'],
-          },
-        },
-      ],
+            required: ['requestId', 'message']
+          }
+        }
+      ]
     }))
 
-    server.setRequestHandler(CallToolRequestSchema, async (req) => {
+    server.setRequestHandler(CallToolRequestSchema, async req => {
       const { name, arguments: args } = req.params
       let result
       if (name === 'request') {
         result = await kit.request({ intent: args.intent, actor, chat })
-      }
-      else if (name === 'respond') {
+      } else if (name === 'respond') {
         result = await kit.respond({ requestId: args.requestId, message: args.message, actor, chat })
-      }
-      else {
+      } else {
         return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unknown tool: ' + name }) }], isError: true }
       }
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
@@ -193,8 +206,7 @@ async function main() {
   if (payload) {
     try {
       input = JSON.parse(payload)
-    }
-    catch {
+    } catch {
       process.stderr.write(`Invalid JSON input: ${payload}\n`)
       return 2
     }
@@ -206,11 +218,11 @@ async function main() {
 }
 
 main()
-  .then((code) => {
+  .then(code => {
     // null = long-running mode (MCP server) — let the process live on its own handles.
     if (code !== null) process.exit(code)
   })
-  .catch((error) => {
+  .catch(error => {
     process.stderr.write(`${String(error?.message ?? error)}\n`)
     process.exit(1)
   })

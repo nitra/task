@@ -7,6 +7,7 @@ transcript: /Users/vitaliytv/.claude/projects/-Users-vitaliytv-www-nitra-task/50
 Поточна специфікація `@7n/mt` визначає лише 3 значення для `model_tier`: `MIM | AVG | MAX`. Що саме ви мали на увазі під "6 виборів типів агентів"?
 
 ---
+
 **Transcript ends.**
 
 ## ADR Три тири `model_tier` у специфікації `@7n/mt`
@@ -17,8 +18,8 @@ transcript: /Users/vitaliytv/.claude/projects/-Users-vitaliytv-www-nitra-task/50
 
 ## Considered Options
 
-* Три тири `MIM | AVG | MAX` (поточне визначення в `@7n/mt`)
-* Шість варіантів (гіпотетичне розширення, згадане користувачем, але не конкретизоване)
+- Три тири `MIM | AVG | MAX` (поточне визначення в `@7n/mt`)
+- Шість варіантів (гіпотетичне розширення, згадане користувачем, але не конкретизоване)
 
 ## Decision Outcome
 
@@ -26,12 +27,12 @@ Chosen option: "Три тири `MIM | AVG | MAX`", because специфікац
 
 ### Consequences
 
-* Good, because реалізація в `CreateTaskDialog.vue` відповідає чинній специфікації `@7n/mt`.
-* Bad, because transcript не містить підтверджених негативних наслідків.
+- Good, because реалізація в `CreateTaskDialog.vue` відповідає чинній специфікації `@7n/mt`.
+- Bad, because transcript не містить підтверджених негативних наслідків.
 
 ## More Information
 
-* Специфікація: `node_modules/@7n/mt/docs/mt.md` (рядок `model_tier: AVG # MIM | AVG | MAX`)
-* UI-компонент: `app/src/components/CreateTaskDialog.vue`
-* Команда перевірки: `grep -r "model_tier" /Users/vitaliytv/www/nitra/task/node_modules/@7n/mt/docs/`
-* Джерело 6 варіантів у transcript не конкретизовано та залишилося без відповіді.
+- Специфікація: `node_modules/@7n/mt/docs/mt.md` (рядок `model_tier: AVG # MIM | AVG | MAX`)
+- UI-компонент: `app/src/components/CreateTaskDialog.vue`
+- Команда перевірки: `grep -r "model_tier" /Users/vitaliytv/www/nitra/task/node_modules/@7n/mt/docs/`
+- Джерело 6 варіантів у transcript не конкретизовано та залишилося без відповіді.

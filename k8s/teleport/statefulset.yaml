@@ -19,7 +19,7 @@ spec:
       containers:
         - name: teleport
           image: public.ecr.aws/gravitational/teleport-distroless:16
-          args: ["start", "--config=/etc/teleport/teleport.yaml"]
+          args: ['start', '--config=/etc/teleport/teleport.yaml']
           ports:
             - name: web
               containerPort: 3080
