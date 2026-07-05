@@ -79,6 +79,8 @@
 
         <q-separator />
 
+        <NodeActions v-if="selectedTask" @changed="onNodeChanged" :node="selectedTask" :tasks-dir="selectedTasksDir" />
+
         <q-card-section horizontal class="task-detail-body">
           <ArtifactChain
             @select="a => openArtifact(a.file)"
@@ -108,6 +110,7 @@ import { AgentDialog, AuditDialog } from '@7n/tauri-components/components'
 import TaskNodeItem from './TaskNodeItem.vue'
 import CreateTaskDialog from './CreateTaskDialog.vue'
 import ArtifactChain from './ArtifactChain.vue'
+import NodeActions from './NodeActions.vue'
 import { stateConfig } from '../state-config.js'
 import { collectAttention } from '../attention.js'
 import { applyClaims } from '../claims.js'
@@ -182,6 +185,26 @@ function onSelectDep(depId, tasksDir) {
   }
   const dep = find(workspaceNodes.value[tasksDir])
   if (dep) onSelect(dep, tasksDir)
+}
+
+/**
+ * After a node mutation (approve/reject/assign): rescan and refresh the
+ * selected node so its state, actions and chain reflect the new files.
+ */
+async function onNodeChanged() {
+  const path = selectedTask.value?.path
+  await scanAll()
+  const find = nodes => {
+    for (const node of nodes ?? []) {
+      if (node.path === path) return node
+      const hit = find(node.children)
+      if (hit) return hit
+    }
+    return null
+  }
+  const fresh = find(workspaceNodes.value[selectedTasksDir.value])
+  if (fresh) selectedTask.value = fresh
+  await Promise.all([loadArtifacts(), openArtifact(selectedFile.value)])
 }
 
 /**

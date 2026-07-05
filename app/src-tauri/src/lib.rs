@@ -97,6 +97,54 @@ fn set_project_paths(paths: Vec<String>) -> Result<(), String> {
     config::set_project_paths(paths)
 }
 
+/// Plan-review read-модель: актуальний план вузла з розібраними `## Children`.
+#[tauri::command]
+fn plan_review_info(
+    tasks_dir: String,
+    task_path: String,
+) -> Result<mt_core::spawn::PlanReview, String> {
+    mt_core::spawn::plan_review(&tasks_dir, &task_path)
+}
+
+/// Plan-review рішення: approve → валідація + матеріалізація дітей.
+#[tauri::command]
+fn spawn_approve(
+    tasks_dir: String,
+    task_path: String,
+) -> Result<mt_core::spawn::SpawnOutcome, String> {
+    mt_core::spawn::spawn_approve(&tasks_dir, &task_path)
+}
+
+/// Plan-review рішення: reject із причиною → plan-rejected_NNN.md.
+#[tauri::command]
+fn spawn_reject(tasks_dir: String, task_path: String, reason: String) -> Result<String, String> {
+    mt_core::spawn::spawn_reject(&tasks_dir, &task_path, &reason)
+}
+
+/// Перемикає виконавця вузла (a.md ↔ h.md).
+#[tauri::command]
+fn set_executor(
+    tasks_dir: String,
+    task_path: String,
+    mode: String,
+    model_tier: Option<String>,
+    qualification: Option<String>,
+) -> Result<String, String> {
+    let mode = match mode.as_str() {
+        "agent" => mt_core::Mode::Agent,
+        "human" => mt_core::Mode::Human,
+        other => return Err(format!("invalid mode: {other}")),
+    };
+    mt_core::spawn::set_executor(
+        &tasks_dir,
+        &task_path,
+        mode,
+        model_tier.as_deref(),
+        None,
+        qualification.as_deref(),
+    )
+}
+
 /// Claim вузла для GUI: шлях + ownership-факти з `.mt-claim.yml`.
 #[derive(serde::Serialize)]
 struct NodeClaim {
@@ -221,7 +269,11 @@ pub fn run() {
             get_project_paths,
             set_project_paths,
             watch_tasks_dirs,
-            remote_claims
+            remote_claims,
+            plan_review_info,
+            spawn_approve,
+            spawn_reject,
+            set_executor
         ]);
 
     #[cfg(desktop)]
