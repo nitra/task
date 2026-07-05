@@ -6,13 +6,17 @@ beforeEach(() => {
   const store = {}
   globalThis.localStorage = {
     getItem: key => (key in store ? store[key] : null),
-    setItem: (key, value) => { store[key] = String(value) },
-    removeItem: (key) => { delete store[key] },
+    setItem: (key, value) => {
+      store[key] = String(value)
+    },
+    removeItem: key => {
+      delete store[key]
+    }
   }
 })
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve([])) }))
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(() => Promise.resolve(() => {})) }))
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(() => Promise.resolve(vi.fn())) }))
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 

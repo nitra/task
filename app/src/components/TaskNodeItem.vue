@@ -25,7 +25,17 @@
         {{ node.claim.runner_id }}
       </span>
 
-      <span v-if="node.deps.length" class="task-row__deps"> ← {{ node.deps.join(', ') }} </span>
+      <span v-if="node.deps.length" class="task-row__deps">
+        ←
+        <a
+          v-for="dep in node.deps"
+          :key="dep"
+          @click.stop.prevent="$emit('select-dep', dep)"
+          class="task-row__dep-link"
+          href="#"
+          >{{ dep }}</a
+        >
+      </span>
 
       <q-space />
 
@@ -37,6 +47,7 @@
         v-for="child in node.children"
         :key="child.id"
         @select="$emit('select', $event)"
+        @select-dep="$emit('select-dep', $event)"
         :node="child"
         :depth="depth + 1" />
     </template>
@@ -51,7 +62,7 @@ const props = defineProps({
   depth: { type: Number, default: 0 }
 })
 
-defineEmits(['select'])
+defineEmits(['select', 'select-dep'])
 
 const expanded = ref(true)
 
@@ -123,6 +134,17 @@ const indent = computed(() => props.depth * 20 + 8)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.task-row__dep-link {
+  color: inherit;
+  text-decoration: none;
+  margin-right: 4px;
+}
+
+.task-row__dep-link:hover {
+  text-decoration: underline;
+  opacity: 1;
 }
 
 .task-row__budget {

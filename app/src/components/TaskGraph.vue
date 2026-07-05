@@ -54,6 +54,7 @@
           v-for="task in workspaceNodes[ws.path]"
           :key="task.id"
           @select="node => onSelect(node, ws.path)"
+          @select-dep="depId => onSelectDep(depId, ws.path)"
           :node="task" />
       </div>
       <div v-else-if="!loading" class="workspace-empty">—</div>
@@ -165,6 +166,25 @@ async function onSelect(node, tasksDir) {
 }
 
 /**
+ * Follow a dependency edge: dep-id = шлях вузла відносно tasks root (спека),
+ * тож шукаємо вузол за path у дереві воркспейсу і відкриваємо його.
+ * @param {string} depId dependency id, e.g. `collect-data` or `research/analyze`
+ * @param {string} tasksDir workspace tasks dir
+ */
+function onSelectDep(depId, tasksDir) {
+  const find = nodes => {
+    for (const node of nodes ?? []) {
+      if (node.path === depId) return node
+      const hit = find(node.children)
+      if (hit) return hit
+    }
+    return null
+  }
+  const dep = find(workspaceNodes.value[tasksDir])
+  if (dep) onSelect(dep, tasksDir)
+}
+
+/**
  * Load the version chain (artifact list) of the selected node.
  */
 async function loadArtifacts() {
@@ -226,8 +246,8 @@ async function scanAll() {
         }
       })
     )
-  } catch (err) {
-    error.value = String(err)
+  } catch (error) {
+    error.value = String(error)
   } finally {
     loading.value = false
   }
@@ -240,8 +260,8 @@ async function scanAll() {
 async function watchWorkspaces() {
   try {
     await invoke('watch_tasks_dirs', { dirs: workspaces.value.map(ws => ws.path) })
-  } catch (err) {
-    console.error('watch_tasks_dirs failed', err)
+  } catch (error) {
+    console.error('watch_tasks_dirs failed', error)
   }
 }
 
