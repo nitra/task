@@ -3,9 +3,8 @@ type: Vue Component
 title: NodeActions.vue
 resource: app/src/components/NodeActions.vue
 docgen:
-  crc: c76500a7
+  crc: 0862137e
   model: openai-codex/gpt-5.5
-  tier: cloud-avg
 ---
 
 Компонент показує доступні дії для вузла задачі залежно від його стану та ролі виконавця. Він дає змогу переглядати план, призначати виконавця, надсилати human-сигнали, а також виконувати небезпечні операції над вузлом.

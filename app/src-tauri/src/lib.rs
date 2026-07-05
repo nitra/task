@@ -145,6 +145,27 @@ fn set_executor(
     )
 }
 
+/// Запуск агентського вузла локальним runner-ом: preflight синхронно (помилки
+/// blocked/running видно одразу), сам ран — у фоновому потоці; прогрес GUI
+/// бачить через running_* маркер і FS-watcher, фінал — подія mt-run-finished.
+#[tauri::command]
+fn run_node(
+    app: tauri::AppHandle,
+    tasks_dir: String,
+    task_path: String,
+) -> Result<mt_core::runner::RunPlan, String> {
+    let plan = mt_core::runner::preflight(&tasks_dir, &task_path)?;
+    std::thread::spawn(move || {
+        let outcome = mt_core::runner::run_node(&tasks_dir, &task_path);
+        let payload = match outcome {
+            Ok(o) => serde_json::json!({ "path": task_path, "result": o.result }),
+            Err(e) => serde_json::json!({ "path": task_path, "result": "error", "error": e }),
+        };
+        let _ = app.emit("mt-run-finished", payload);
+    });
+    Ok(plan)
+}
+
 /// Human done/audit: пише fact (якщо ще немає), ганяє ## Check, пише run;
 /// audit відкриває аудит-цикл; done тягне composite-агрегацію вгору.
 #[tauri::command]
@@ -331,7 +352,8 @@ pub fn run() {
             invalidate_node,
             kill_node,
             human_signal,
-            human_failed
+            human_failed,
+            run_node
         ]);
 
     #[cfg(desktop)]

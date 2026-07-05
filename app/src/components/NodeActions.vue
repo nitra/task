@@ -100,6 +100,25 @@
       </div>
     </div>
 
+    <div v-else-if="agentRunnable" class="node-actions">
+      <div class="node-actions__title">Agent — локальний запуск</div>
+      <div class="row items-center q-gutter-sm">
+        <q-btn
+          @click="runAgent"
+          :loading="busy"
+          label="Run"
+          icon="sym_o_play_arrow"
+          color="primary"
+          size="sm"
+          unelevated
+          dense />
+        <span v-if="runPlan" class="node-actions__hint">
+          спроба {{ runPlan.attempt }} · budget {{ runPlan.budget_sec }}s / hard {{ runPlan.budget_hard_sec }}s
+        </span>
+      </div>
+      <div v-if="actionError" class="node-actions__error">{{ actionError }}</div>
+    </div>
+
     <div v-else-if="humanActive" class="node-actions">
       <div class="node-actions__title">Human flow — заверши вузол сигналом</div>
       <q-input
@@ -212,6 +231,10 @@ const humanActive = computed(
   () => props.node.mode === 'human' && ['pending', 'waiting', 'failed'].includes(props.node.state)
 )
 
+// Агентський вузол, який можна запустити локальним runner-ом.
+const agentRunnable = computed(() => props.node.mode === 'agent' && ['waiting', 'failed'].includes(props.node.state))
+const runPlan = ref(null)
+
 const dangerHint = computed(() =>
   danger.value === 'kill'
     ? 'архівує вузол і всіх нащадків у .history/ та прибирає з графу'
@@ -293,6 +316,17 @@ function assign() {
       qualification: mode === 'human' && qualification.value.trim() ? qualification.value.trim() : null
     })
   )
+}
+
+/**
+ * Локальний запуск агента: preflight синхронно, ран у фоні (стан вузла
+ * перемкнеться на running через маркер + FS-watcher).
+ * @returns {Promise<void>} завершення дії
+ */
+function runAgent() {
+  return run(async () => {
+    runPlan.value = await invoke('run_node', { tasksDir: props.tasksDir, taskPath: props.node.path })
+  })
 }
 
 /**

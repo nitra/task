@@ -4,6 +4,8 @@ title: app
 resource: app/
 ---
 
+# app
+
 | Файл                                                            | Тип       |
 | --------------------------------------------------------------- | --------- |
 | [stryker-vue-macros-ignorer.mjs](stryker-vue-macros-ignorer.md) | JS Module |

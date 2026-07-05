@@ -3,9 +3,8 @@ type: Vue Component
 title: TaskGraph.vue
 resource: app/src/components/TaskGraph.vue
 docgen:
-  crc: a415ce9f
+  crc: 9621eb2d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
 ---
 
 Компонент відображає візуальне дерево завдань (Task Graph) для різних робочих просторів (workspaces). Він надає панель для керування, підсумковий звіт про стан завдань та деталі для вибору одного вузла графа.

@@ -308,6 +308,12 @@ onMounted(async () => {
     clearTimeout(rescanTimer)
     rescanTimer = setTimeout(scanAll, 400)
   })
+  // Фінал фонового агентського рану: помилки — у банер, стан — rescan.
+  await listen('mt-run-finished', event => {
+    if (event.payload?.result === 'error') error.value = `run ${event.payload.path}: ${event.payload.error}`
+    clearTimeout(rescanTimer)
+    rescanTimer = setTimeout(scanAll, 400)
+  })
 })
 
 onUnmounted(() => clearTimeout(rescanTimer))
