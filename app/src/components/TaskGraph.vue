@@ -203,7 +203,12 @@ async function onNodeChanged() {
     return null
   }
   const fresh = find(workspaceNodes.value[selectedTasksDir.value])
-  if (fresh) selectedTask.value = fresh
+  if (!fresh) {
+    // Вузол зник із графу (kill) — закриваємо деталі.
+    drawerOpen.value = false
+    return
+  }
+  selectedTask.value = fresh
   await Promise.all([loadArtifacts(), openArtifact(selectedFile.value)])
 }
 

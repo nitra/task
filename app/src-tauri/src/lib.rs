@@ -145,6 +145,18 @@ fn set_executor(
     )
 }
 
+/// Інвалідація version chain вузла (+каскад по нащадках) → history/.
+#[tauri::command]
+fn invalidate_node(tasks_dir: String, task_path: String) -> Result<Vec<String>, String> {
+    mt_core::lifecycle::invalidate(&tasks_dir, &task_path, true)
+}
+
+/// Kill вузла: архів піддерева у .history/ і видалення з графу.
+#[tauri::command]
+fn kill_node(tasks_dir: String, task_path: String) -> Result<String, String> {
+    mt_core::lifecycle::kill(&tasks_dir, &task_path)
+}
+
 /// Claim вузла для GUI: шлях + ownership-факти з `.mt-claim.yml`.
 #[derive(serde::Serialize)]
 struct NodeClaim {
@@ -273,7 +285,9 @@ pub fn run() {
             plan_review_info,
             spawn_approve,
             spawn_reject,
-            set_executor
+            set_executor,
+            invalidate_node,
+            kill_node
         ]);
 
     #[cfg(desktop)]

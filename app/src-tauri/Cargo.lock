@@ -2254,7 +2254,7 @@ dependencies = [
 [[package]]
 name = "mt-core"
 version = "0.1.0"
-source = "git+https://github.com/nitra/mt.git?branch=claude%2Fclaims-api#ed8efea601e835d3deafb5efff02fd6f9617f932"
+source = "git+https://github.com/nitra/mt.git?branch=claude%2Fclaims-api#cb21bfdbc1c7b4511fe2714157cc29837cd5e02d"
 dependencies = [
  "chrono",
  "serde",
