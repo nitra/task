@@ -2,30 +2,10 @@
 description: Tauri
 globs: "**/src-tauri/**,**/tauri.conf.json"
 alwaysApply: false
-version: '1.4'
+version: '1.5'
 ---
 
-У `.vscode/extensions.json` `recommendations` має містити `tauri-apps.tauri-vscode`:
-
-```json title=".vscode/extensions.json"
-{
-  "recommendations": ["tauri-apps.tauri-vscode"]
-}
-```
-
-Розширені Rust-вимоги (`rust-lang.rust-analyzer`, `tamasfe.even-better-toml`, скрипт `lint-rust`, CI `lint-rust.yml`) — у правилі **`rust`** (`n-rust.mdc`). Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому `rust` активується автоматично разом з `tauri`.
-
-## Виявлення проєкту Tauri
-
-Правило активується, якщо хоч у одному workspace-пакеті (корінь або будь-який пакет з `package.json#workspaces`) виявлений маркер Tauri:
-
-- існує каталог `<ws>/src-tauri/`;
-- існує `<ws>/src-tauri/Cargo.toml`;
-- існує `<ws>/src-tauri/tauri.conf.json`;
-- існує `<ws>/tauri.conf.json` (legacy flat-layout);
-- `<ws>/package.json#dependencies` чи `devDependencies` містить ключ з префіксом `@tauri-apps/`.
-
-Виявлення виконує `js/tooling.mjs` через `getMonorepoPackageRootDirs()`. Це дозволяє Tauri-rule працювати у монорепо, де Tauri живе в одному з пакетів (а не в корені), не вимагаючи кореневих маркерів.
+Правило встановлює канонічні вимоги для Tauri-проєктів: виявлення маркерів у монорепо, VS Code-розширення, налаштування mutation-testing для platform bridge та реалізацію Tool Surface поверх Tauri+Rust.
 
 ## Mutation-testing: семантика app shell та platform bridge
 
@@ -66,3 +46,55 @@ exclude_globs = [
   - якщо обидва канонічні ключі (`additional_cargo_test_args`, `exclude_globs`) вже присутні — `manual cargo-mutants config preserved`, нічого не зміниться;
   - якщо якийсь канонічний ключ відсутній — додається окремим блоком у кінці файла, без зміни існуючих значень.
 - Послідовний `fix test` → `fix tauri` створює Tauri-config; повторний `fix tauri` не дублює секцій; повторний `fix test` не перетирає Tauri-tuning.
+
+## Виявлення проєкту Tauri та VS Code-розширення
+
+Правило активується, якщо хоч у одному workspace-пакеті (корінь або будь-який пакет з `package.json#workspaces`) виявлений маркер Tauri:
+
+- існує каталог `<ws>/src-tauri/`;
+- існує `<ws>/src-tauri/Cargo.toml`;
+- існує `<ws>/src-tauri/tauri.conf.json`;
+- існує `<ws>/tauri.conf.json` (legacy flat-layout);
+- `<ws>/package.json#dependencies` чи `devDependencies` містить ключ з префіксом `@tauri-apps/`.
+
+Виявлення виконує `js/tooling.mjs` через `getMonorepoPackageRootDirs()`. Це дозволяє Tauri-rule працювати у монорепо, де Tauri живе в одному з пакетів (а не в корені), не вимагаючи кореневих маркерів.
+
+### VS Code розширення
+
+У `.vscode/extensions.json` `recommendations` має містити `tauri-apps.tauri-vscode`:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["tauri-apps.tauri-vscode"]
+}
+```
+
+Розширені Rust-вимоги (`rust-lang.rust-analyzer`, `tamasfe.even-better-toml`, скрипт `lint-rust`, CI `lint-rust.yml`) — у правилі **`rust`** (`n-rust.mdc`). Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому `rust` активується автоматично разом з `tauri`.
+
+Це також покриває CI/release-build job'и, що збирають Tauri-додаток через `tauri-apps/tauri-action`: будь-який job з кроком `dtolnay/rust-toolchain@…` (лінт, coverage чи release/build — не лише `lint-rust.yml`) повинен мати `Swatinem/rust-cache@v2` одразу після нього, інакше CI щоразу заново качає весь cargo registry. Перевірка й автофікс — concern `rust/toolchain_cache` (rust.mdc), не дублюється тут.
+
+Перевірка `tauri-apps.tauri-vscode` виконується Rego-пакетом `tauri.vscode_extensions` через `conftest` (умовно — лише після підтвердження маркера Tauri).
+
+## VS Code розширення для Tauri-проєктів
+
+Rego-пакет: `tauri.vscode_extensions`
+
+Цільовий файл: `.vscode/extensions.json`
+
+Перевіряє, що поле `recommendations` містить розширення `tauri-apps.tauri-vscode`.
+
+Запускається умовно — лише якщо JS-перевірка (`tooling.mjs`) виявила маркер Tauri-проєкту (`src-tauri/`, `tauri.conf.json` або залежність `@tauri-apps/*`). Розширення `rust-lang.rust-analyzer` і `tamasfe.even-better-toml` вимагаються окремо правилом `rust` (rust.mdc).
+
+**✓ Правильно:**
+
+```json
+{ "recommendations": ["tauri-apps.tauri-vscode"] }
+```
+
+**✗ Неправильно:**
+
+```json
+{ "recommendations": ["rust-lang.rust-analyzer"] }
+{ "recommendations": [] }
+{}
+```

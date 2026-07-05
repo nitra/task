@@ -1,0 +1,235 @@
+---
+description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
+version: '1.43'
+globs: "**/k8s/**/*.yaml"
+alwaysApply: false
+---
+
+# Kubernetes YAML у шляхах з `k8s`
+
+Для кожного файлу `*.yaml`, у шляху якого є сегмент директорії **`k8s`** — перевірка modeline `$schema`, структури Kustomize, маніфестів Deployment / Service / NetworkPolicy та лінт через kubeconform і kubescape.
+
+**Скоп — поза `.github/`:** правило стосується YAML-маніфестів у каталогах **`k8s`** (визначаються відносно кореня репо, не за абсолютним шляхом). Файли під **`.github/workflows/`** та **`.github/actions/`** ця перевірка **не** зачіпає — їхній скоп визначає **`ga.mdc`** (там канон — **`.yml`**).
+
+**Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @nitra/cursor fix docker`**.
+
+## Активація
+
+Правило активується автоматично для `**/k8s/**/*.yaml` (через `globs`). Додаткова конфігурація в `.n-cursor.json` не потрібна.
+
+## Швидкий gate через conftest (Rego)
+
+Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/k8s/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor fix k8s`** для прогону по реальних YAML). JS authoritative; rego — швидкий gate для одиничного маніфеста.
+
+## Перевірки `base/kustomization.yaml`
+
+Rego-пакет: `k8s.base_kustomization`
+
+**Цільові файли:** `k8s/.../base/kustomization.yaml` (вибір через `isBaseKustomizationPath` у JS; `kind: Kustomization`, `apiVersion: kustomize.config.k8s.io/…`).
+
+**Що перевіряється:**
+
+- `namespace:` — обов'язковий і непорожній (наприклад `namespace: dev`)
+- `resources:` — не повинен містити `hpa.yaml` або `pdb.yaml` (у будь-якому підкаталозі); HPA/PDB мають бути у sibling-каталозі `components/` і підключатися з overlay через `components: [- ../components]`
+
+**Примітка:** рекурсивний обхід `resources:`/`components:`/`bases:` із зануренням у вкладені `kustomization.yaml` — у JS (`verifyK8sBaseKustomizeHasNoHpaPdb`). NetworkPolicy у `base/resources:` — дозволена і не блокується цим правилом.
+
+## Перевірки маніфестів у шарі `base/`
+
+Rego-пакет: `k8s.base_manifest`
+
+**Цільові файли:** будь-який `*.yaml` у шляху `k8s/.../base/` (окрім `kustomization.yaml`). JS відбирає файли через `isK8sBaseManifestYamlPath` і передає conftest з цим namespace.
+
+**Що перевіряється:**
+
+- Namespaced kind — обов'язковий непорожній `metadata.namespace` (cluster-scoped kinds, `List`, `Kustomization` — виняток; список cluster-scoped kinds узгоджено з `CLUSTER_SCOPED_KINDS` у `fix.mjs`)
+- `kind: Deployment` — фіксовані resource-requests у кожному контейнері (включно з `initContainers`):
+  - `resources.requests.cpu` рівно `"0.02"` (або число `0.02`)
+  - `resources.requests.memory` рівно `"128Mi"` (суфікс `Mi` без урахування регістру)
+
+**Примітка:** cross-file перевірки (`metadataNamespaceRequiredViolation` у ширшому контексті дерева) лишаються у JS.
+
+## Перевірки Gateway API маршрутів і HealthCheckPolicy
+
+Rego-пакет: `k8s.gateway`
+
+**Цільові файли:** YAML з `kind` одного з: `HTTPRoute`, `GRPCRoute`, `TCPRoute`, `TLSRoute`, `UDPRoute` (`apiVersion: gateway.networking.k8s.io/…`); `HealthCheckPolicy` (`apiVersion: networking.gke.io/…`).
+
+**Що перевіряється:**
+
+- `HealthCheckPolicy`: `spec.targetRef` обов'язковий; якщо `targetRef.kind` не вказано або `Service` — `targetRef.name` має закінчуватися на `-hl` (headless Service)
+- Gateway API маршрут: кожен `backendRef` до Service (визначається за полями `name` + `port`; `kind`/`group` необов'язкові) — ім'я має закінчуватися на `-hl`
+- Gateway API маршрут: `backendRef` з полем `namespace`, що збігається з `metadata.namespace` маршруту, — заборонено (надлишкове поле, ламається при overlay-перенесеннях)
+
+**Приклади:**
+
+✓ `backendRef.name: my-svc-hl` (headless)
+✗ `backendRef.name: my-svc` (без суфікса `-hl`)
+✗ `backendRef.namespace: dev` при `metadata.namespace: dev` (redundant)
+
+## Визначення схеми YAML
+
+`kind: HTTPRoute` потребує `apiVersion: gateway.networking.k8s.io/v1` (підтримується GKE 1.26+, gateway class `gke-l7-regional-external-managed`; містить поле `timeouts`). `v1beta1` — deprecated, **заборонено**: `check k8s` автоматично апгрейдить до `v1`.
+
+**Приклад (Gateway API):**
+
+```yaml
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+```
+
+✗ `apiVersion: gateway.networking.k8s.io/v1beta1` — заборонено; `$schema` вказував би на `httproute_v1beta1.json`
+
+## Перевірки ConfigMap для Hasura-Deployment
+
+Rego-пакет: `k8s.hasura_configmap`
+
+**Цільові файли:** `configmap.yaml` у каталогах, де є Deployment з образом `hasura/graphql-engine`. JS (`manifests.mjs`) знаходить відповідні ConfigMap через cross-file збіг і передає їх conftest з цим namespace.
+
+**Що перевіряється (обов'язкові ключі у `data`):**
+
+| Ключ | Очікуване значення |
+|------|--------------------|
+| `HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS` | `"true"` |
+| `HASURA_GRAPHQL_ENABLE_RELAY` | `"false"` |
+| `HASURA_GRAPHQL_ENABLE_TELEMETRY` | `"false"` |
+| `HASURA_GRAPHQL_ENABLED_LOG_TYPES` | `"startup,http-log"` (точно) |
+| `HASURA_GRAPHQL_ENABLED_APIS` | `"metadata,graphql,pgdump"` (base/dev; overlay має патчем замінити на `"metadata,graphql"`) |
+| `HASURA_GRAPHQL_DISABLE_EVENTING` | ключ обов'язковий, значення довільне (рекомендовано `"true"`) |
+
+Семантика: `"true"`/`"false"` приймаються як boolean або рядок (case-insensitive); точний рядок — exact match.
+
+**Примітка:** відбір ConfigMap за сусідством із Hasura-Deployment — cross-file, у JS. Rego — пер-документна валідація полів `data`.
+
+## Перевірки HTTPRoute, парного з Hasura-Deployment
+
+Rego-пакет: `k8s.hasura_httproute`
+
+**Цільові файли:** `hr.yaml` (або будь-який HTTPRoute з `kind: HTTPRoute`) у каталогах, де є Deployment з образом `hasura/graphql-engine`. JS знаходить пару Deployment–HTTPRoute через `collectHasuraDeploymentsAndHttpRoutes` і передає conftest з цим namespace.
+
+**Що перевіряється — канон 4 правил у `spec.rules` (у порядку):**
+
+1. `matches: [{path: {type: Exact, value: "<prefix>/ql"}}]` (без headers) + `filters: [RequestRedirect ReplaceFullPath "<prefix>/ql/console" statusCode 302]`
+2. `matches: [{path: {type: Exact, value: "<prefix>/ql/"}}]` + такий самий redirect на `<prefix>/ql/console`
+3. `matches: [{path: {type: PathPrefix, value: "<prefix>/ql"}}]` + `filters: [URLRewrite ReplacePrefixMatch "/"]` + один `backendRef` на headless Service
+4. WebSocket: `matches: [{path: PathPrefix "<prefix>/ql", headers: [{Exact "Upgrade: websocket"}]}]` + `filters: [URLRewrite ReplacePrefixMatch "/", RequestHeaderModifier remove [Authorization]]` + той самий `backendRef`
+
+`<prefix>` визначається автоматично як рядок до `/ql` у першому matching-правилі. Додаткові правила поверх канону дозволені.
+
+**Примітка:** cross-file прив'язка HTTPRoute до Deployment — JS (`validateHasuraHttpRouteCanon`).
+
+## Структурні перевірки HPA і PDB
+
+Rego-пакет: `k8s.hpa_pdb`
+
+**Цільові файли:** `hpa.yaml` (`kind: HorizontalPodAutoscaler`) та `pdb.yaml` (`kind: PodDisruptionBudget`) у overlay-каталогах (не в `base/`).
+
+**Що перевіряється:**
+
+HPA (`kind: HorizontalPodAutoscaler` або `apiVersion: autoscaling/…`):
+
+- `apiVersion: autoscaling/v2` (не v1)
+- `kind: HorizontalPodAutoscaler`
+- `spec` — присутній об'єкт
+- `spec.behavior` — присутній; містить `scaleUp` і `scaleDown`, кожен з непорожнім масивом `policies`
+- `spec.metrics` — непорожній масив
+
+PDB (`kind: PodDisruptionBudget` або `apiVersion: policy/v1`):
+
+- `apiVersion: policy/v1`
+- `kind: PodDisruptionBudget`
+- `spec` — присутній об'єкт
+- `spec.selector` — присутній об'єкт
+- `spec.selector.matchLabels` — присутній об'єкт
+
+**Примітка:** cross-file перевірки (відповідність `expectedDeployName`, `expectedAppLabel`, `isDevLike`-сегмент) лишаються у JS (`hpaManifestViolations`, `pdbManifestViolations`).
+
+## Структурні перевірки `kustomization.yaml`
+
+Rego-пакет: `k8s.kustomization`
+
+**Цільові файли:** будь-який `kustomization.yaml` (`kind: Kustomization`, `apiVersion: kustomize.config.k8s.io/…`).
+
+**Що перевіряється:**
+
+- `resources[]` — має бути масивом рядків; непорожні рядки мають бути відсортовані за алфавітом (en, case-insensitive)
+- `patches[]` — має бути масивом; елементи мають бути відсортовані за tuple `(target.kind, target.name, target.namespace, path)` (case-insensitive)
+- Inline patch (поле `patch` як YAML-рядок JSON6902): у наборі операцій не може бути одночасно `op: remove` і `op: add` на той самий `path` — потрібен `op: replace`
+
+**Приклади:**
+
+✓ `resources: [deployment.yaml, hpa.yaml, svc.yaml]` (алфавіт)
+✗ `resources: [svc.yaml, deployment.yaml]` (не за алфавітом)
+✓ `op: replace` для зміни значення поля
+✗ `op: remove` + `op: add` на один `path` в одному patch
+
+**Примітка:** резолюція kustomize-дерева, перевірка існування refs на диску, парність `svc.yaml`/`svc-hl.yaml` — JS (`rules/k8s/fix.mjs`).
+
+## Пер-документні перевірки маніфестів Kubernetes
+
+Rego-пакет: `k8s.manifest`
+
+**Цільові файли:** будь-який `*.yaml` у шляху з `k8s/` (окрім `kustomization.yaml`, `base/`, `svc.yaml`, `svc-hl.yaml`). Conftest розрізає multi-doc YAML по `---` і запускає policy на кожен документ окремо.
+
+**Що перевіряється:**
+
+- `kind: Ingress` — заборонено; потрібен Gateway API (HTTPRoute / HealthCheckPolicy)
+- `apiVersion: autoscaling/v1` — заборонено; потрібен `autoscaling/v2`
+- `kind: Service` — анотації `cloud.google.com/neg` та `cloud.google.com/backend-config` заборонені
+- `kind: Deployment` — у кожного контейнера (включно з `initContainers`) обов'язкові `resources.requests.cpu` і `resources.requests.memory` (непорожній рядок або число > 0)
+- `kind: Deployment` з образом `hasura/graphql-engine` — образ має бути у білому списку `allowed_hasura_images` (зараз: `hasura/graphql-engine:v2.49.2.ubuntu.amd64`; `docker.io/` префікс допустимий; digest `@sha256:…` відрізається перед порівнянням)
+- `kind: Deployment` — `spec.strategy.type: RollingUpdate` з `maxUnavailable: 0` і `maxSurge: 1`
+- `kind: Deployment` — канонічний запис у `spec.template.spec.topologySpreadConstraints`: `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app: <app-label>` (перевіряється лише для Deployment з міткою `app` у `spec.selector.matchLabels`)
+
+**Примітка:** cross-file логіка (Kustomize-резолюція, парність svc/svc-hl, HPA/PDB за каталогом, schema modeline) лишається у JS `rules/k8s/fix.mjs`.
+
+## Перевірки NetworkPolicy
+
+Rego-пакет: `k8s.network_policy`
+
+**Цільові файли:** `networkpolicy.yaml` / будь-який YAML з `kind: NetworkPolicy` або `apiVersion: networking.k8s.io/…`.
+
+**Що перевіряється:**
+
+- `apiVersion: networking.k8s.io/v1`
+- `kind: NetworkPolicy`
+- `spec` — присутній об'єкт
+- `spec.podSelector.matchLabels` — присутній об'єкт; поле `app` обов'язкове і непорожнє
+- `spec.policyTypes` — містить `Ingress` і `Egress`
+- `spec.ingress` — хоча б одне правило з `from.podSelector`
+- **Superset-перевірка egress/ingress:** кожне правило з канон-сніпета має бути присутнє в `spec.egress` / `spec.ingress` (extra-правила дозволені). Канон обирається за анотацією `nitra.dev/workload-kind`:
+  - `StatefulSet` → [stateful-set.snippet.yaml](./template/stateful-set.snippet.yaml) (додає intra-replica ingress/egress)
+  - решта (default) → [deployment.snippet.yaml](./template/deployment.snippet.yaml)
+- Заборонено `egress: [{}]` (allow-all) — навіть як extra-правило
+
+**Передача snippets:** через `--data` при виклику conftest (JS передає `templateData` для `runConftestBatch`).
+
+**Примітка:** cross-file визначення `metadata.name` воркнавантаження і мітки `app` — JS (`validateNetworkPolicyForWorkload`).
+
+## Перевірки `svc-hl.yaml` (Headless Service)
+
+Rego-пакет: `k8s.svc_hl_yaml`
+
+**Цільові файли:** лише `svc-hl.yaml` (basename). JS відбирає файли через walk по `basename == "svc-hl.yaml"`.
+
+**Що перевіряється:**
+
+- `kind: Service` — `metadata.name` має закінчуватися на `-hl`
+- `kind: Service` — `spec.clusterIP` має бути `None` (headless)
+
+✓ `metadata.name: my-app-hl`, `spec.clusterIP: None`
+✗ `metadata.name: my-app` (без суфікса), `spec.clusterIP: 10.0.0.1`
+
+## Перевірки `svc.yaml` (ClusterIP Service)
+
+Rego-пакет: `k8s.svc_yaml`
+
+**Цільові файли:** лише `svc.yaml` (basename). JS відбирає файли через walk по `basename == "svc.yaml"` і передає conftest з цим namespace.
+
+**Що перевіряється:**
+
+- `kind: Service` — `spec.type` має бути `ClusterIP` (відсутній `spec` або `type != "ClusterIP"` — порушення)
+
+✓ `spec.type: ClusterIP`
+✗ `spec.type: LoadBalancer` або відсутній `spec`

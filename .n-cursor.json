@@ -4,28 +4,27 @@
     "adr",
     "bun",
     "changelog",
-    "flow",
+    "doc-files",
+    "ga",
     "image-avif",
     "image-compress",
-    "js-lint",
-    "js-lint-ci",
+    "js",
+    "k8s",
     "rust",
     "security",
-    "style-lint",
+    "style",
     "tauri",
     "test",
     "text",
+    "tool-surface",
     "vue"
   ],
   "skills": [
     "adr-normalize",
-    "coverage-fix",
-    "fix",
+    "doc-files",
     "lint",
     "llm-patch",
     "publish-telegram",
-    "start-check",
-    "taze",
-    "worktree"
+    "taze"
   ]
 }

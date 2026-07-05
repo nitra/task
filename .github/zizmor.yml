@@ -3,3 +3,8 @@ rules:
     config:
       policies:
         '*': ref-pin
+  cache-poisoning:
+    # rust.mdc (rust/toolchain_cache) вимагає Swatinem/rust-cache@v2 після
+    # dtolnay/rust-toolchain у будь-якому workflow, включно з release
+    ignore:
+      - release.yml
