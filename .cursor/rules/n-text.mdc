@@ -39,7 +39,7 @@ Rego-пакети, що перевіряються через conftest (auto-dis
 
 - `.markdownlint-cli2.jsonc`:
 
-```
+```jsonc
 {
   "gitignore": true,
   "config": {
