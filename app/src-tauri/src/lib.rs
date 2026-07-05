@@ -145,6 +145,48 @@ fn set_executor(
     )
 }
 
+/// Human done/audit: пише fact (якщо ще немає), ганяє ## Check, пише run;
+/// audit відкриває аудит-цикл; done тягне composite-агрегацію вгору.
+#[tauri::command]
+fn human_signal(
+    tasks_dir: String,
+    task_path: String,
+    signal: String,
+    summary: String,
+) -> Result<mt_core::signal::SignalOutcome, String> {
+    // fact пишемо лише якщо його ще немає (retry після Check-фейлу не перетирає).
+    if let Err(e) = mt_core::signal::write_fact(&tasks_dir, &task_path, &summary, None) {
+        let expected_existing = e.contains("Summary");
+        if expected_existing {
+            return Err(e);
+        }
+    }
+    match signal.as_str() {
+        "done" => mt_core::signal::done(&tasks_dir, &task_path, "human"),
+        "audit" => mt_core::signal::audit(&tasks_dir, &task_path, "human"),
+        other => Err(format!("invalid signal: {other}")),
+    }
+}
+
+/// Human failed: run_NNN (failed) з обов'язковими секціями діагностики.
+#[tauri::command]
+fn human_failed(
+    tasks_dir: String,
+    task_path: String,
+    completed: String,
+    blockers: String,
+    next_attempt: String,
+) -> Result<String, String> {
+    mt_core::signal::failed(
+        &tasks_dir,
+        &task_path,
+        "human",
+        &completed,
+        &blockers,
+        &next_attempt,
+    )
+}
+
 /// Інвалідація version chain вузла (+каскад по нащадках) → history/.
 #[tauri::command]
 fn invalidate_node(tasks_dir: String, task_path: String) -> Result<Vec<String>, String> {
@@ -287,7 +329,9 @@ pub fn run() {
             spawn_reject,
             set_executor,
             invalidate_node,
-            kill_node
+            kill_node,
+            human_signal,
+            human_failed
         ]);
 
     #[cfg(desktop)]

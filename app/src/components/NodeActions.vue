@@ -100,6 +100,54 @@
       </div>
     </div>
 
+    <div v-else-if="humanActive" class="node-actions">
+      <div class="node-actions__title">Human flow — заверши вузол сигналом</div>
+      <q-input
+        v-model="factSummary"
+        placeholder="## Summary результату (одне речення)"
+        dense
+        outlined
+        autogrow
+        class="q-mb-sm" />
+      <div class="row items-center q-gutter-sm">
+        <q-btn
+          @click="signal('done')"
+          :disable="!factSummary.trim()"
+          :loading="busy"
+          label="Done"
+          icon="sym_o_check_circle"
+          color="positive"
+          size="sm"
+          unelevated
+          dense />
+        <q-btn
+          @click="signal('audit')"
+          :disable="!factSummary.trim()"
+          :loading="busy"
+          label="Audit"
+          icon="sym_o_verified"
+          color="secondary"
+          size="sm"
+          outline
+          dense />
+        <q-btn @click="failOpen = !failOpen" label="Failed" icon="sym_o_cancel" color="negative" size="sm" flat dense />
+      </div>
+      <div v-if="failOpen" class="q-mt-sm">
+        <q-input v-model="failCompleted" placeholder="## Completed — що встигли" dense outlined class="q-mb-xs" />
+        <q-input v-model="failBlockers" placeholder="## Blockers — що заблокувало" dense outlined class="q-mb-xs" />
+        <q-input v-model="failNext" placeholder="## Next Attempt — рекомендація" dense outlined class="q-mb-xs" />
+        <q-btn
+          @click="sendFailed"
+          :disable="!(failCompleted.trim() && failBlockers.trim() && failNext.trim())"
+          :loading="busy"
+          label="Confirm failed"
+          color="negative"
+          size="sm"
+          unelevated
+          dense />
+      </div>
+    </div>
+
     <div class="node-actions node-actions--danger">
       <div class="row items-center q-gutter-sm">
         <q-btn
@@ -153,6 +201,16 @@ const modelTier = ref('AVG')
 const qualification = ref('')
 const danger = ref(null)
 const actionError = ref(null)
+const factSummary = ref('')
+const failOpen = ref(false)
+const failCompleted = ref('')
+const failBlockers = ref('')
+const failNext = ref('')
+
+// Human-вузол у робочому стані: сигнали done/audit/failed доступні людині.
+const humanActive = computed(
+  () => props.node.mode === 'human' && ['pending', 'waiting', 'failed'].includes(props.node.state)
+)
 
 const dangerHint = computed(() =>
   danger.value === 'kill'
@@ -233,6 +291,38 @@ function assign() {
       mode,
       modelTier: mode === 'agent' ? modelTier.value : null,
       qualification: mode === 'human' && qualification.value.trim() ? qualification.value.trim() : null
+    })
+  )
+}
+
+/**
+ * Human-сигнал done/audit: fact із ## Summary → ## Check → run_NNN.
+ * @param {'done'|'audit'} kind тип сигналу
+ * @returns {Promise<void>} завершення дії
+ */
+function signal(kind) {
+  return run(() =>
+    invoke('human_signal', {
+      tasksDir: props.tasksDir,
+      taskPath: props.node.path,
+      signal: kind,
+      summary: factSummary.value
+    })
+  )
+}
+
+/**
+ * Human-сигнал failed з обов'язковою діагностикою.
+ * @returns {Promise<void>} завершення дії
+ */
+function sendFailed() {
+  return run(() =>
+    invoke('human_failed', {
+      tasksDir: props.tasksDir,
+      taskPath: props.node.path,
+      completed: failCompleted.value,
+      blockers: failBlockers.value,
+      nextAttempt: failNext.value
     })
   )
 }
