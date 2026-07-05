@@ -3,9 +3,8 @@ type: Vue Component
 title: App.vue
 resource: app/src/App.vue
 docgen:
-  crc: bc826303
+  crc: 515f82bd
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
 ---
 
 Використовуючи роль технічного письменника, я згенерую лаконічну поведінкову документацію для файлу `/Users/vitalii/www/nitra/task/app/src/App.vue` у форматі чистого Markdown.

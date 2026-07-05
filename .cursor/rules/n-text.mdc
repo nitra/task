@@ -191,14 +191,14 @@ Rego-пакет: `text.cspell`
 
 Цільовий файл: `.cspell.json`
 
-**Що перевіряється:**
+### Що перевіряється
 
 - `version` — має відповідати канону (наразі `"0.2"`)
 - `language` — поле обов'язкове (presence-only, значення довільне, наприклад `"en,uk"`)
 - `ignorePaths` — масив має бути надмножиною канонічних glob-ів, включно з `docs/adr/**`
 - `import` — має містити підрядок `@nitra/cspell-dict`; заборонені будь-які записи з підрядком `@cspell/dict-` (використовуй лише `@nitra/cspell-dict`)
 
-**Приклади:**
+### Приклади
 
 ✓ правильно:
 
@@ -244,7 +244,7 @@ Rego-пакет: `text.lint_text`
 
 Цільовий файл: `.github/workflows/lint-text.yml`
 
-**Що перевіряється:**
+### Що перевіряється
 
 - `name` — має бути `"Lint Text"`
 - `on.push.branches` та `on.pull_request.branches` — мають містити `dev` і `main`
@@ -264,14 +264,14 @@ Rego-пакет: `text.markdownlint`
 
 Цільовий файл: `.markdownlint-cli2.jsonc`
 
-**Що перевіряється (generic walker по канонічному snippet):**
+### Що перевіряється (generic walker по канонічному snippet)
 
 - Top-level scalar leafs (наприклад `gitignore: true`)
 - 2-рівневі leafs: `config.<rule>` — скалярні значення правил (MD013, MD029, MD040, MD041 тощо)
 - 3-рівневі leafs: `config.MD024.siblings_only` — вкладене поле
 - Наявність самого об'єкта `config` (якщо відсутній — deny)
 
-**Приклади:**
+### Приклади
 
 ✓ правильно:
 
@@ -317,7 +317,7 @@ Rego-пакет: `text.oxfmtrc`
 
 Цільовий файл: `.oxfmtrc.json`
 
-**Що перевіряється:**
+### Що перевіряється
 
 - Наявність усіх обов'язкових ключів (presence-only): `arrowParens`, `printWidth`, `bracketSpacing`, `bracketSameLine`, `semi`, `singleQuote`, `tabWidth`, `trailingComma`, `useTabs`
 - Scalar leafs: точні значення відповідно до канонічного snippet
@@ -329,7 +329,7 @@ Rego-пакет: `text.package_json`
 
 Цільовий файл: `package.json`
 
-**Що перевіряється:**
+### Що перевіряється
 
 - Заборонені top-level поля: `prettier`
 - Заборонені пакети у `dependencies` / `devDependencies`: `prettier`, `@nitra/prettier-config`, `markdownlint-cli2` (використовуй `bunx` у lint-text)
@@ -338,7 +338,7 @@ Rego-пакет: `text.package_json`
 
 Список заборонених пакетів: [package.json.deny.json](./template/package.json.deny.json)
 
-**Приклади:**
+### Приклади
 
 ✓ правильно:
 
@@ -365,7 +365,7 @@ Rego-пакет: `text.vscode_extensions`
 
 Цільовий файл: `.vscode/extensions.json`
 
-**Що перевіряється:**
+### Що перевіряється
 
 - `recommendations` має бути надмножиною канонічного списку розширень
 
@@ -379,7 +379,7 @@ Rego-пакет: `text.vscode_settings`
 
 Цільовий файл: `.vscode/settings.json`
 
-**Що перевіряється (generic walker по канонічному snippet):**
+### Що перевіряється (generic walker по канонічному snippet)
 
 - Scalar leafs: `editor.formatOnSave` має бути `true`
 - Об'єктні блоки мовних налаштувань `[javascript]`, `[typescript]`, `[json]`, `[vue]`, `[css]`, `[html]`: `editor.defaultFormatter` має бути `"oxc.oxc-vscode"`

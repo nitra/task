@@ -11,7 +11,6 @@
       "agent:default",
       "process:allow-restart",
       "mcp-bridge:default",
-      "updater:default",
       {
         "identifier": "http:default",
         "allow": [
@@ -22,5 +21,13 @@
         ]
       }
     ]
+  },
+  "updater": {
+    "identifier": "updater",
+    "description": "Updater access — desktop only, the plugin isn't registered on Android/iOS.",
+    "local": true,
+    "windows": ["main"],
+    "permissions": ["updater:default"],
+    "platforms": ["macOS", "windows", "linux"]
   }
 }

@@ -9,8 +9,8 @@
       <q-btn @click="scanAll" icon="sym_o_refresh" flat round dense size="sm" :loading="loading" title="Refresh" />
     </div>
 
-    <q-banner v-if="error" class="error-banner q-mb-md" rounded dense>
-      {{ error }}
+    <q-banner v-if="errorMessage" class="error-banner q-mb-md" rounded dense>
+      {{ errorMessage }}
     </q-banner>
 
     <div v-if="Object.keys(stateCounts).length" class="state-summary q-mb-md">
@@ -43,11 +43,22 @@
       </div>
     </div>
 
-    <div v-if="!loading && workspaces.length === 0 && !error" class="empty-state">No workspaces found</div>
+    <div v-if="!loading && workspaces.length === 0 && !errorMessage" class="empty-state">No workspaces found</div>
 
     <div v-for="ws in workspaces" :key="ws.path" class="q-mb-lg">
-      <div class="workspace-label">
+      <div class="row items-center workspace-label">
         {{ ws.label }}
+        <q-space />
+        <q-btn
+          @click="startAuto(ws.path)"
+          :disable="autoRunning[ws.path]"
+          :label="autoRunning[ws.path] ? 'Auto running…' : 'Run auto'"
+          :icon="autoRunning[ws.path] ? 'sym_o_hourglass_top' : 'sym_o_play_circle'"
+          :loading="autoRunning[ws.path]"
+          size="xs"
+          flat
+          dense
+          class="workspace-auto-btn" />
       </div>
       <div v-if="workspaceNodes[ws.path]?.length" class="task-card">
         <TaskNodeItem
@@ -124,7 +135,9 @@ const auditOpen = ref(false)
 const workspaces = ref([])
 const workspaceNodes = ref({})
 const loading = ref(false)
-const error = ref(null)
+const errorMessage = ref(null)
+
+const autoRunning = ref({})
 
 const drawerOpen = ref(false)
 const selectedTask = ref(null)
@@ -154,6 +167,22 @@ const stateCounts = computed(() => {
   }
   return counts
 })
+
+/**
+ * Starts a one-shot `run --auto` batch pass over a workspace's waiting
+ * agent nodes; progress lands via the existing FS-watcher rescan, the
+ * final tally arrives as `mt-auto-finished`.
+ * @param {string} tasksDir workspace tasks dir to orchestrate
+ */
+async function startAuto(tasksDir) {
+  autoRunning.value = { ...autoRunning.value, [tasksDir]: true }
+  try {
+    await invoke('run_auto', { tasksDir })
+  } catch (error) {
+    autoRunning.value = { ...autoRunning.value, [tasksDir]: false }
+    errorMessage.value = String(error)
+  }
+}
 
 /**
  * Open the detail dialog for a node: load its version chain and task.md.
@@ -254,7 +283,7 @@ async function openArtifact(file) {
  */
 async function scanAll() {
   loading.value = true
-  error.value = null
+  errorMessage.value = null
   try {
     const wsResult = await dispatch('workspaces', {})
     if (!wsResult.ok) throw new Error(wsResult.error.message)
@@ -275,7 +304,7 @@ async function scanAll() {
       })
     )
   } catch (error) {
-    error.value = String(error)
+    errorMessage.value = String(error)
   } finally {
     loading.value = false
   }
@@ -310,7 +339,15 @@ onMounted(async () => {
   })
   // Фінал фонового агентського рану: помилки — у банер, стан — rescan.
   await listen('mt-run-finished', event => {
-    if (event.payload?.result === 'error') error.value = `run ${event.payload.path}: ${event.payload.error}`
+    if (event.payload?.result === 'error') errorMessage.value = `run ${event.payload.path}: ${event.payload.error}`
+    clearTimeout(rescanTimer)
+    rescanTimer = setTimeout(scanAll, 400)
+  })
+  // Фінал `run --auto`: знімає running-прапор воркспейсу, помилку — у банер.
+  await listen('mt-auto-finished', event => {
+    const { tasksDir, error: autoError } = event.payload ?? {}
+    if (tasksDir) autoRunning.value = { ...autoRunning.value, [tasksDir]: false }
+    if (autoError) errorMessage.value = `run --auto ${tasksDir}: ${autoError}`
     clearTimeout(rescanTimer)
     rescanTimer = setTimeout(scanAll, 400)
   })

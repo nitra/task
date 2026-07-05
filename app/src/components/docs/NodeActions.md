@@ -3,7 +3,7 @@ type: Vue Component
 title: NodeActions.vue
 resource: app/src/components/NodeActions.vue
 docgen:
-  crc: 0862137e
+  crc: 0878a697
   model: openai-codex/gpt-5.5
 ---
 

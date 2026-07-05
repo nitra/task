@@ -1,10 +1,10 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use mt_core::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
 use notify::Watcher;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 // The request journal (journal_*) and omlx_config now come from the shared
 // tauri-plugin-agent (invoked as plugin:agent|*). src/journal.rs stays only for
@@ -164,6 +164,54 @@ fn run_node(
         let _ = app.emit("mt-run-finished", payload);
     });
     Ok(plan)
+}
+
+/// Активні `run --auto` оркестратори (по tasks_dir) — guard від подвійного
+/// запуску одного воркспейсу; знімається сам собою по завершенню потоку.
+struct AutoState(Mutex<std::collections::HashSet<String>>);
+
+/// `agent_concurrency` з `.mt.json` воркспейсу (project root = parent tasks_dir).
+fn read_agent_concurrency(tasks_dir: &str) -> usize {
+    let project_root = PathBuf::from(tasks_dir)
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+    let raw = fs::read_to_string(project_root.join(".mt.json")).ok();
+    let config = mt_core::config::merge_config(raw.as_deref());
+    config
+        .get("agent_concurrency")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(5) as usize
+}
+
+/// Запускає `run --auto` для воркспейсу: одноразовий batch-прохід усіх
+/// waiting-агентських вузлів у фоновому потоці; прогрес видно через
+/// running_*-маркери + FS-watcher (`mt-changed`), підсумок — `mt-auto-finished`.
+#[tauri::command]
+fn run_auto(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AutoState>,
+    tasks_dir: String,
+) -> Result<(), String> {
+    {
+        let mut running = state.0.lock().map_err(|e| e.to_string())?;
+        if !running.insert(tasks_dir.clone()) {
+            return Err("run --auto вже виконується для цього воркспейсу".to_string());
+        }
+    }
+    let concurrency = read_agent_concurrency(&tasks_dir);
+    std::thread::spawn(move || {
+        let outcome = mt_core::orchestrate::run_auto(&tasks_dir, concurrency);
+        let payload = match outcome {
+            Ok(results) => serde_json::json!({ "tasksDir": tasks_dir, "results": results }),
+            Err(e) => serde_json::json!({ "tasksDir": tasks_dir, "results": [], "error": e }),
+        };
+        if let Ok(mut running) = app.state::<AutoState>().0.lock() {
+            running.remove(&tasks_dir);
+        }
+        let _ = app.emit("mt-auto-finished", payload);
+    });
+    Ok(())
 }
 
 /// Human done/audit: пише fact (якщо ще немає), ганяє ## Check, пише run;
@@ -329,6 +377,7 @@ fn watch_tasks_dirs(
 pub fn run() {
     let builder = tauri::Builder::default()
         .manage(WatchState(Mutex::new(None)))
+        .manage(AutoState(Mutex::new(std::collections::HashSet::new())))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
@@ -353,7 +402,8 @@ pub fn run() {
             kill_node,
             human_signal,
             human_failed,
-            run_node
+            run_node,
+            run_auto
         ]);
 
     #[cfg(desktop)]
