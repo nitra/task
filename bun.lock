@@ -18,7 +18,7 @@
       "name": "app",
       "version": "0.3.0",
       "dependencies": {
-        "@7n/tauri-components": "^0.7.0",
+        "@7n/tauri-components": "^0.8.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@quasar/extras": "^2.0.0",
         "@tauri-apps/api": "^2.11.0",
@@ -54,7 +54,7 @@
 
     "@7n/mt-linux-x64": ["@7n/mt-linux-x64@0.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-c4b1c435vfGZcRKkLnWcoKs8O6KTATFFx6gPGnid4ee+JDqzyhtxb5kzxYkcTQySO8iBHPAtUMEOBCHDrF1UjQ=="],
 
-    "@7n/tauri-components": ["@7n/tauri-components@0.7.0", "", { "dependencies": { "marked": "^18.0.5" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "@vue/test-utils": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "@vue/test-utils", "quasar"] }, "sha512-KDrLRiXOpAIU0NHh61TFOzWpVtkZTatgRkj9aGMoxRRJT1yEDUl2KJQkDOgXPbimFq6VWLDK9P1pe7Kp+MWwfw=="],
+    "@7n/tauri-components": ["@7n/tauri-components@0.8.0", "", { "dependencies": { "marked": "^18.0.5" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "@tauri-apps/plugin-process": "^2.0.0", "@tauri-apps/plugin-updater": "^2.0.0", "@vue/test-utils": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "@tauri-apps/plugin-process", "@tauri-apps/plugin-updater", "@vue/test-utils", "quasar"] }, "sha512-SRtW/kVwXZde2OukGk93+PMhLpleeNzuKaNzq5gtiT0yLxHp6DNXDSIOTtNnjd7HDXkFB2FT2h2y9nilSZC8JQ=="],
 
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.91.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-LAmu761tSN9r66ixvmciswUj/ZC+1Q4iAfpedTfSVLeswRwnY3n2Nb6Tsk+cLPP28aLOPWeMgIuTuCcMC6W/iw=="],
 
