@@ -4,8 +4,6 @@ title: app/src
 resource: app/src/
 ---
 
-# app/src
-
 | Файл                                 | Тип           |
 | ------------------------------------ | ------------- |
 | [App.vue](App.md)                    | Vue Component |

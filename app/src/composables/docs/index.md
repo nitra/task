@@ -4,8 +4,6 @@ title: app/src/composables
 resource: app/src/composables/
 ---
 
-# app/src/composables
-
 | Файл                                                   | Тип       |
 | ------------------------------------------------------ | --------- |
 | [use-agent.js](use-agent.md)                           | JS Module |
