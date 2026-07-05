@@ -1,10 +1,1 @@
-{
-  "recommendations": [
-    "DavidAnson.vscode-markdownlint",
-    "oxc.oxc-vscode",
-    "timonwong.shellcheck",
-    "dbaeumer.vscode-eslint",
-    "github.vscode-github-actions",
-    "stylelint.vscode-stylelint"
-  ]
-}
+{"recommendations":["DavidAnson.vscode-markdownlint","oxc.oxc-vscode","timonwong.shellcheck"]}

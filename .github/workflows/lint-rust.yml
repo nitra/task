@@ -36,7 +36,9 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
       - name: Rustfmt
+        working-directory: app/src-tauri
         run: cargo fmt --all -- --check
 
       - name: Clippy
+        working-directory: app/src-tauri
         run: cargo clippy --all-targets --all-features -- -D warnings
