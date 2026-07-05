@@ -44,3 +44,24 @@ Chosen option: "Thick-агент через MCP-stdio (`request` + `respond`), m
 **Файли:** `app/src/tool/agent-handler.js` (`handleRequest`, `handleRespond`), `app/src/tool/scope.js`, `app/src/tool/journal-store-node.js`, `app/src/composables/use-agent.js`, `app/bin/task.mjs` (режим `mcp`), `app/mcp-smoke.mjs`, `app/src/tests/agent-handler.test.js` (48 тестів), `app/src/tests/scope.test.js`, `src-tauri/src/journal.rs` (4 Rust unit-тести). Специфікація: `docs/specs/260615-agent-gateway.md`. Коміти: `fe88f95` (MCP + journal), `24147e7` (scope enforcement D-E1), `f7aa145` (Rust journal unit-tests).
 
 **Tool-surface rule у @nitra/cursor:** правило `tool-surface` синхронізовано в пакет `@nitra/cursor` (`npm/rules/tool-surface/`) з авто-активацією на фронтенд-залежностях; `tauri.mdc` отримав per-stack секцію (версія `1.4 → 1.5`); 693 тести пройшли після додавання правила.
+
+## Update 2026-06-15
+
+- Уточнено принцип agent-gateway: один embedded agent-loop (`handleRequest`/`handleRespond`) є спільним NL-інтерфейсом для людини в UI та зовнішніх агентів через MCP.
+- Зафіксовано транспорт MCP-stdio (`task mcp`) як тонку обгортку над наявним `dispatch`/Tool Surface.
+- Журнал запитів зберігається в global `appLocalDataDir/requests/<id>.json`, бо запит є операційною подією застосунку і може ще не мати resolved project.
+- Контракт MCP складається з `request(intent)` і `respond(requestId, message)`; clarification відновлює `messages[]` з журналу.
+- Файлова робота журналу виконується через Rust-модуль і два транспорти: Tauri-команди для webview та standalone `journal` binary для node MCP path.
+- Для Tool Surface додано tier-scope `read | write | destructive`; агент бачить і виконує лише дозволений scope відповідно до actor.
+
+## Update 2026-06-15
+
+- Live demo підтвердило наскрізний шлях MCP-client → `request(intent)` → локальний LLM → `create` → задача на диску.
+- Журнал-запис створено в `~/Library/Application Support/com.nitra.task/requests/` з actor `claude-opus/agent`, status `done` і повною `messages[]` ниткою.
+- GUI Journal (`AuditDialog`) читає той самий global app-data журнал, що й MCP-бінарник.
+
+## Update 2026-06-15
+
+- MCP-stdio підтверджено як єдиний транспорт agent-gateway: `app/bin/task.mjs` має режим `mcp`, який реєструє тули `request` і `respond` через `@modelcontextprotocol/sdk`.
+- E2E smoke/demo підтвердили discovery тулів і створення задачі `mcp-demo/task.md` без кастомної інтеграції з боку MCP-клієнта.
+- Контракт `request` лишається мінімальним `{ intent }`; `actor` береться з транспорту, а не з caller input.

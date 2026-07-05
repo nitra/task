@@ -1,11 +1,11 @@
 ---
+type: Rust Module
+title: lib.rs
+resource: app/src-tauri/src/lib.rs
 docgen:
-  source: app/src-tauri/src/lib.rs
-  crc: 67e637e4
+  crc: 6e451cdb
   score: 100
 ---
-
-# lib.rs
 
 ## Огляд
 

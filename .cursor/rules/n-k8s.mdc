@@ -90,7 +90,7 @@ Rego-пакет: `k8s.hasura_configmap`
 **Що перевіряється (обов'язкові ключі у `data`):**
 
 | Ключ | Очікуване значення |
-|------|--------------------|
+| --- | --- |
 | `HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS` | `"true"` |
 | `HASURA_GRAPHQL_ENABLE_RELAY` | `"false"` |
 | `HASURA_GRAPHQL_ENABLE_TELEMETRY` | `"false"` |
