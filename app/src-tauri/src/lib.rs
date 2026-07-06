@@ -47,6 +47,19 @@ fn node_artifacts(
     mt_core::artifacts::list_node_artifacts(&tasks_dir, &task_path)
 }
 
+/// Вміст `run-draft.md` — git-ignored чернетка, яку виконавець веде під час
+/// рану (## Completed/## Blockers/## Next Attempt). Не частина version chain
+/// (не проходить allowlist artifacts) — читається окремо для live-стрічки
+/// GUI поки вузол `running`. Відсутній файл → порожній рядок, не помилка.
+#[tauri::command]
+fn read_run_draft(tasks_dir: String, task_path: String) -> Result<String, String> {
+    mt_core::validate_name(&task_path)?;
+    let path = PathBuf::from(&tasks_dir)
+        .join(&task_path)
+        .join("run-draft.md");
+    Ok(fs::read_to_string(&path).unwrap_or_default())
+}
+
 /// Вміст одного артефакта вузла (allowlist імен — у mt-core).
 #[tauri::command]
 fn read_node_artifact(
@@ -182,6 +195,13 @@ fn read_agent_concurrency(tasks_dir: &str) -> usize {
         .get("agent_concurrency")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(5) as usize
+}
+
+/// `agent_concurrency` воркспейсу — для індикатора `[slots: X/N]` у GUI
+/// (спека «Ліміти worktree»).
+#[tauri::command]
+fn get_agent_concurrency(tasks_dir: String) -> usize {
+    read_agent_concurrency(&tasks_dir)
 }
 
 /// Запускає `run --auto` для воркспейсу: одноразовий batch-прохід усіх
@@ -389,6 +409,8 @@ pub fn run() {
             read_task,
             node_artifacts,
             read_node_artifact,
+            read_run_draft,
+            get_agent_concurrency,
             delete_task,
             get_project_paths,
             set_project_paths,

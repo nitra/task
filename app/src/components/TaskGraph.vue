@@ -48,6 +48,9 @@
     <div v-for="ws in workspaces" :key="ws.path" class="q-mb-lg">
       <div class="row items-center workspace-label">
         {{ ws.label }}
+        <span v-if="agentConcurrency[ws.path]" class="workspace-slots">
+          slots: {{ countRunning(workspaceNodes[ws.path]) }}/{{ agentConcurrency[ws.path] }}
+        </span>
         <q-space />
         <q-btn
           @click="startAuto(ws.path)"
@@ -90,6 +93,8 @@
 
         <q-separator />
 
+        <LiveRunFeed v-if="selectedTask?.state === 'running'" :node="selectedTask" :tasks-dir="selectedTasksDir" />
+
         <NodeActions v-if="selectedTask" @changed="onNodeChanged" :node="selectedTask" :tasks-dir="selectedTasksDir" />
 
         <q-card-section horizontal class="task-detail-body">
@@ -122,9 +127,12 @@ import TaskNodeItem from './TaskNodeItem.vue'
 import CreateTaskDialog from './CreateTaskDialog.vue'
 import ArtifactChain from './ArtifactChain.vue'
 import NodeActions from './NodeActions.vue'
+import LiveRunFeed from './LiveRunFeed.vue'
 import { stateConfig } from '../state-config.js'
 import { collectAttention } from '../attention.js'
 import { applyClaims } from '../claims.js'
+import { findNodeByPath } from '../tree.js'
+import { countRunning } from '../slots.js'
 import { dispatch } from '../tool/index.js'
 import { useAgent } from '../composables/use-agent.js'
 
@@ -138,6 +146,7 @@ const loading = ref(false)
 const errorMessage = ref(null)
 
 const autoRunning = ref({})
+const agentConcurrency = ref({})
 
 const drawerOpen = ref(false)
 const selectedTask = ref(null)
@@ -204,16 +213,24 @@ async function onSelect(node, tasksDir) {
  * @param {string} tasksDir workspace tasks dir
  */
 function onSelectDep(depId, tasksDir) {
-  const find = nodes => {
-    for (const node of nodes ?? []) {
-      if (node.path === depId) return node
-      const hit = find(node.children)
-      if (hit) return hit
-    }
-    return null
-  }
-  const dep = find(workspaceNodes.value[tasksDir])
+  const dep = findNodeByPath(workspaceNodes.value[tasksDir], depId)
   if (dep) onSelect(dep, tasksDir)
+}
+
+/**
+ * Re-points the open detail dialog's node at its fresh copy from the latest
+ * scan (by path) — called after every rescan so state/claim/actions stay
+ * live while the dialog is open (esp. for a `running` node). Closes the
+ * dialog if the node disappeared from the graph (e.g. `kill`).
+ */
+function refreshOpenNode() {
+  if (!drawerOpen.value || !selectedTask.value) return
+  const fresh = findNodeByPath(workspaceNodes.value[selectedTasksDir.value], selectedTask.value.path)
+  if (!fresh) {
+    drawerOpen.value = false
+    return
+  }
+  selectedTask.value = fresh
 }
 
 /**
@@ -221,23 +238,8 @@ function onSelectDep(depId, tasksDir) {
  * selected node so its state, actions and chain reflect the new files.
  */
 async function onNodeChanged() {
-  const path = selectedTask.value?.path
   await scanAll()
-  const find = nodes => {
-    for (const node of nodes ?? []) {
-      if (node.path === path) return node
-      const hit = find(node.children)
-      if (hit) return hit
-    }
-    return null
-  }
-  const fresh = find(workspaceNodes.value[selectedTasksDir.value])
-  if (!fresh) {
-    // Вузол зник із графу (kill) — закриваємо деталі.
-    drawerOpen.value = false
-    return
-  }
-  selectedTask.value = fresh
+  if (!drawerOpen.value) return
   await Promise.all([loadArtifacts(), openArtifact(selectedFile.value)])
 }
 
@@ -301,11 +303,17 @@ async function scanAll() {
         } catch {
           // remote недоступний — лишаємо локальний derived-стан
         }
+        try {
+          agentConcurrency.value[ws.path] = await invoke('get_agent_concurrency', { tasksDir: ws.path })
+        } catch {
+          // .mt.json недоступний — slots-індикатор просто не показується
+        }
       })
     )
   } catch (error) {
     errorMessage.value = String(error)
   } finally {
+    refreshOpenNode()
     loading.value = false
   }
 }
@@ -477,6 +485,17 @@ onUnmounted(() => clearTimeout(rescanTimer))
   opacity: 0.45;
   margin-bottom: 6px;
   padding-left: 4px;
+}
+
+.workspace-slots {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 0.7;
+  margin-left: 10px;
+  white-space: nowrap;
 }
 
 .task-card {
