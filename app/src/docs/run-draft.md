@@ -3,9 +3,8 @@ type: JS Module
 title: run-draft.js
 resource: app/src/run-draft.js
 docgen:
-  crc: ee1322e2
+  crc: deb536dc
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini

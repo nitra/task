@@ -3,7 +3,7 @@ type: Vue Component
 title: TaskGraph.vue
 resource: app/src/components/TaskGraph.vue
 docgen:
-  crc: dd06f027
+  crc: 21c306d0
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 

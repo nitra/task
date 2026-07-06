@@ -9,6 +9,7 @@ resource: app/src/
 | [App.vue](App.md)                    | Vue Component |
 | [attention.js](attention.md)         | JS Module     |
 | [claims.js](claims.md)               | JS Module     |
+| [format-ledger.js](format-ledger.md) | JS Module     |
 | [main.js](main.md)                   | JS Module     |
 | [run-draft.js](run-draft.md)         | JS Module     |
 | [slots.js](slots.md)                 | JS Module     |

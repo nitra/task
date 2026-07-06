@@ -2254,7 +2254,7 @@ dependencies = [
 [[package]]
 name = "mt-core"
 version = "0.1.0"
-source = "git+https://github.com/nitra/mt.git#65b8ebfc5de8f32daf7b14c69a8234ceb1c7481f"
+source = "git+https://github.com/nitra/mt.git?branch=claude%2Fcost-ledger#ddef842b2923fdcd903c3f2c8e900ce72cd32815"
 dependencies = [
  "chrono",
  "serde",

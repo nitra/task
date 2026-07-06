@@ -52,6 +52,7 @@
           slots: {{ countRunning(workspaceNodes[ws.path]) }}/{{ agentConcurrency[ws.path] }}
         </span>
         <q-space />
+        <q-btn @click="openLedger(ws)" icon="sym_o_query_stats" flat round dense size="xs" title="Cost ledger" />
         <q-btn
           @click="startAuto(ws.path)"
           :disable="autoRunning[ws.path]"
@@ -77,6 +78,7 @@
     <CreateTaskDialog v-model="createOpen" @created="onCreated" />
     <AgentDialog v-model="agentOpen" @ran="scanAll" :agent="agent" />
     <AuditDialog v-model="auditOpen" @changed="scanAll" :agent="agent" />
+    <CostLedgerDialog v-model="ledgerOpen" :tasks-dir="ledgerTasksDir" :workspace-label="ledgerWorkspaceLabel" />
 
     <q-dialog v-model="drawerOpen" transition-show="fade" transition-hide="fade">
       <q-card class="task-detail-card">
@@ -128,6 +130,7 @@ import CreateTaskDialog from './CreateTaskDialog.vue'
 import ArtifactChain from './ArtifactChain.vue'
 import NodeActions from './NodeActions.vue'
 import LiveRunFeed from './LiveRunFeed.vue'
+import CostLedgerDialog from './CostLedgerDialog.vue'
 import { stateConfig } from '../state-config.js'
 import { collectAttention } from '../attention.js'
 import { applyClaims } from '../claims.js'
@@ -146,6 +149,9 @@ const loading = ref(false)
 const errorMessage = ref(null)
 
 const autoRunning = ref({})
+const ledgerOpen = ref(false)
+const ledgerTasksDir = ref('')
+const ledgerWorkspaceLabel = ref('')
 const agentConcurrency = ref({})
 
 const drawerOpen = ref(false)
@@ -176,6 +182,16 @@ const stateCounts = computed(() => {
   }
   return counts
 })
+
+/**
+ * Opens the cost/time ledger dialog for a workspace.
+ * @param {{ path: string, label: string }} ws workspace to summarize
+ */
+function openLedger(ws) {
+  ledgerTasksDir.value = ws.path
+  ledgerWorkspaceLabel.value = ws.label
+  ledgerOpen.value = true
+}
 
 /**
  * Starts a one-shot `run --auto` batch pass over a workspace's waiting

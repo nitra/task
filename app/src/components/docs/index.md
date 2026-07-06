@@ -7,6 +7,7 @@ resource: app/src/components/
 | Файл                                        | Тип           |
 | ------------------------------------------- | ------------- |
 | [ArtifactChain.vue](ArtifactChain.md)       | Vue Component |
+| [CostLedgerDialog.vue](CostLedgerDialog.md) | Vue Component |
 | [CreateTaskDialog.vue](CreateTaskDialog.md) | Vue Component |
 | [LiveRunFeed.vue](LiveRunFeed.md)           | Vue Component |
 | [NodeActions.vue](NodeActions.md)           | Vue Component |

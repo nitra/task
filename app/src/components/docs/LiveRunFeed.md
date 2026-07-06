@@ -3,9 +3,8 @@ type: Vue Component
 title: LiveRunFeed.vue
 resource: app/src/components/LiveRunFeed.vue
 docgen:
-  crc: 93c362eb
+  crc: e372ddb3
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
 ---
 
 /Users/vitalii/www/nitra/task/app/src/components/LiveRunFeed.vue

@@ -47,6 +47,13 @@ fn node_artifacts(
     mt_core::artifacts::list_node_artifacts(&tasks_dir, &task_path)
 }
 
+/// Cost/time ledger воркспейсу: агрегація wall_sec/tokens/cost_usd по всіх
+/// run_NNN.md графу (per-node + TOTAL) — дані для аналітичного екрана.
+#[tauri::command]
+fn cost_ledger(tasks_dir: String) -> Result<mt_core::ledger::CostLedger, String> {
+    mt_core::ledger::build_cost_ledger(&tasks_dir)
+}
+
 /// Вміст `run-draft.md` — git-ignored чернетка, яку виконавець веде під час
 /// рану (## Completed/## Blockers/## Next Attempt). Не частина version chain
 /// (не проходить allowlist artifacts) — читається окремо для live-стрічки
@@ -411,6 +418,7 @@ pub fn run() {
             read_node_artifact,
             read_run_draft,
             get_agent_concurrency,
+            cost_ledger,
             delete_task,
             get_project_paths,
             set_project_paths,
