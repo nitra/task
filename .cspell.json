@@ -15,9 +15,7 @@
     "docs/adr/**",
     "docs/specs/**"
   ],
-  "import": [
-    "@nitra/cspell-dict/cspell-ext.json"
-  ],
+  "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "words": [
     "cdylib",
     "instrumenter",
