@@ -2254,7 +2254,7 @@ dependencies = [
 [[package]]
 name = "mt-core"
 version = "0.1.0"
-source = "git+https://github.com/nitra/mt.git?branch=claude%2Forchestrator#9249ed8845b9444dd5b55197bffaa77513d35118"
+source = "git+https://github.com/nitra/mt.git#aca9038e8335fe279b192513b52d07edcee3f8cc"
 dependencies = [
  "chrono",
  "serde",
