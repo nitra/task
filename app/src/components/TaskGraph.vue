@@ -52,6 +52,7 @@
           slots: {{ countRunning(workspaceNodes[ws.path]) }}/{{ agentConcurrency[ws.path] }}
         </span>
         <q-space />
+        <q-btn @click="openDag(ws)" icon="sym_o_account_tree" flat round dense size="xs" title="Dependency graph" />
         <q-btn @click="openLedger(ws)" icon="sym_o_query_stats" flat round dense size="xs" title="Cost ledger" />
         <q-btn
           @click="startAuto(ws.path)"
@@ -79,6 +80,11 @@
     <AgentDialog v-model="agentOpen" @ran="scanAll" :agent="agent" />
     <AuditDialog v-model="auditOpen" @changed="scanAll" :agent="agent" />
     <CostLedgerDialog v-model="ledgerOpen" :tasks-dir="ledgerTasksDir" :workspace-label="ledgerWorkspaceLabel" />
+    <DagViewDialog
+      v-model="dagOpen"
+      @select="onSelectDagNode"
+      :nodes="workspaceNodes[dagTasksDir] ?? []"
+      :workspace-label="dagWorkspaceLabel" />
 
     <q-dialog v-model="drawerOpen" transition-show="fade" transition-hide="fade">
       <q-card class="task-detail-card">
@@ -131,6 +137,7 @@ import ArtifactChain from './ArtifactChain.vue'
 import NodeActions from './NodeActions.vue'
 import LiveRunFeed from './LiveRunFeed.vue'
 import CostLedgerDialog from './CostLedgerDialog.vue'
+import DagViewDialog from './DagViewDialog.vue'
 import { stateConfig } from '../state-config.js'
 import { collectAttention } from '../attention.js'
 import { applyClaims } from '../claims.js'
@@ -152,6 +159,9 @@ const autoRunning = ref({})
 const ledgerOpen = ref(false)
 const ledgerTasksDir = ref('')
 const ledgerWorkspaceLabel = ref('')
+const dagOpen = ref(false)
+const dagTasksDir = ref('')
+const dagWorkspaceLabel = ref('')
 const agentConcurrency = ref({})
 
 const drawerOpen = ref(false)
@@ -182,6 +192,29 @@ const stateCounts = computed(() => {
   }
   return counts
 })
+
+/**
+ * Opens the cost/time ledger dialog for a workspace.
+ * @param {{ path: string, label: string }} ws workspace to summarize
+ */
+/**
+ * Opens the dependency-graph dialog for a workspace.
+ * @param {{ path: string, label: string }} ws workspace to visualize
+ */
+function openDag(ws) {
+  dagTasksDir.value = ws.path
+  dagWorkspaceLabel.value = ws.label
+  dagOpen.value = true
+}
+
+/**
+ * Follows a node selection from the DAG view into the usual detail dialog.
+ * @param {string} path selected node path
+ */
+function onSelectDagNode(path) {
+  const node = findNodeByPath(workspaceNodes.value[dagTasksDir.value], path)
+  if (node) onSelect(node, dagTasksDir.value)
+}
 
 /**
  * Opens the cost/time ledger dialog for a workspace.

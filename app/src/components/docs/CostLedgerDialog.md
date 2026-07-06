@@ -3,9 +3,8 @@ type: Vue Component
 title: CostLedgerDialog.vue
 resource: app/src/components/CostLedgerDialog.vue
 docgen:
-  crc: 72a2ec9e
+  crc: f0d2563b
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
 ---
 
 Компонент відображає детальний звіт про витрати (Cost Ledger) для заданого робочого простору. Він отримує дані про виконання завдань та відображає загальні підсумки й деталі по кожному елементу.
