@@ -18,8 +18,8 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: changelog-release
-  cancel-in-progress: false
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
 
 jobs:
   release:
@@ -58,8 +58,9 @@ jobs:
 
       - name: Tag and push
         if: steps.rel.outputs.version
+        env:
+          VER: ${{ steps.rel.outputs.version }}
         run: |
-          VER="${{ steps.rel.outputs.version }}"
           git tag "app@$VER" 2>/dev/null || true
           git tag "v$VER"
           git push origin HEAD:main "refs/tags/app@$VER" "refs/tags/v$VER"
@@ -68,4 +69,5 @@ jobs:
         if: steps.rel.outputs.version
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run release.yml --ref "v${{ steps.rel.outputs.version }}"
+          VER: ${{ steps.rel.outputs.version }}
+        run: gh workflow run release.yml --ref "v$VER"
