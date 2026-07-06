@@ -15,7 +15,9 @@
     "docs/adr/**",
     "docs/specs/**"
   ],
-  "import": ["@nitra/cspell-dict/cspell-ext.json"],
+  "import": [
+    "@nitra/cspell-dict/cspell-ext.json"
+  ],
   "words": [
     "cdylib",
     "instrumenter",
@@ -25,6 +27,7 @@
     "lipo",
     "mgmt",
     "millis",
+    "mktree",
     "mlmail",
     "modelcontextprotocol",
     "myllm",
@@ -33,6 +36,7 @@
     "omlx",
     "OptiQ",
     "rescan",
+    "rescans",
     "rlib",
     "roundtrips",
     "Rspack",
@@ -42,6 +46,7 @@
     "staticlib",
     "stry",
     "tctl",
+    "tmpdirs",
     "toplevel",
     "Агрегуюча",
     "апдейтер",
@@ -61,6 +66,7 @@
     "клікнутого",
     "конфігурованих",
     "краш",
+    "леджер",
     "логується",
     "макроса",
     "машинно",
