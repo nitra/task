@@ -13,3 +13,8 @@ app/src-tauri/gen/
 app/src-tauri/tauri.conf.json
 app/src-tauri/tauri.conf.dev.json
 app/src-tauri/capabilities/
+owner/src-tauri/target/
+owner/src-tauri/gen/
+owner/src-tauri/tauri.conf.json
+owner/src-tauri/tauri.conf.dev.json
+owner/src-tauri/capabilities/

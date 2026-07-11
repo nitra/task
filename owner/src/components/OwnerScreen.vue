@@ -6,9 +6,12 @@
         <span v-if="manualMode" class="mode-manual">(режим обрано вручну)</span>
       </div>
       <q-space />
+      <q-btn @click="plannerOpen = true" unelevated dense color="primary" icon="sym_o_neurology" label="нова ціль" />
       <q-btn-toggle v-model="manualMode" clearable dense flat toggle-color="primary" :options="modeOptions" />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
     </div>
+
+    <PlannerDialog v-model="plannerOpen" @drafted="rescan" />
 
     <div v-if="mode === 'decisions'" class="pane">
       <DecisionCard
@@ -31,6 +34,7 @@ import { chooseMode } from '../screen-mode.js'
 import BriefPane from './BriefPane.vue'
 import DecisionCard from './DecisionCard.vue'
 import MapPane from './MapPane.vue'
+import PlannerDialog from './PlannerDialog.vue'
 
 // Адаптивний перший екран: режим обирає детерміноване правило (screen-mode.js),
 // заголовок оголошує причину, ручний перемикач — вихід із адаптивності.
@@ -44,6 +48,7 @@ const MODE_TITLES = {
 }
 
 const manualMode = ref(null)
+const plannerOpen = ref(false)
 
 const decisions = computed(() => collectDecisions(workspaces.value, forest.value))
 const personal = computed(() => collectPersonal(workspaces.value, forest.value))

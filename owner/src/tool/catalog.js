@@ -43,6 +43,30 @@ export const TOOLS = [
   },
   {
     tier: 'write',
+    name: 'create_goal',
+    summary: 'Create a goal node (templated mt contract) to be decomposed by the planner.',
+    input: {
+      tasksDir: TASKS_DIR,
+      name: { type: 'string', required: true, description: 'New node id, kebab-case latin.' },
+      opts: { type: 'object', required: false, description: 'Optional { mode, budget_sec, hint }.' }
+    },
+    tauri: 'create_task'
+  },
+  {
+    tier: 'write',
+    name: 'draft_plan',
+    summary: 'Write the next immutable plan_NNN.md (Context/Children/Risks) — node enters plan-review.',
+    input: {
+      tasksDir: TASKS_DIR,
+      taskPath: TASK_PATH,
+      context: { type: 'string', required: true, description: 'Owner intent / plan context.' },
+      childrenYaml: { type: 'string', required: true, description: 'YAML `children:` block (mt plan format).' },
+      risks: { type: 'string', required: false, description: 'Plan risks, free text.' }
+    },
+    tauri: 'draft_plan'
+  },
+  {
+    tier: 'write',
     name: 'approve_plan',
     summary: 'Approve a composite plan: validates it and materializes the child nodes.',
     input: { tasksDir: TASKS_DIR, taskPath: TASK_PATH },

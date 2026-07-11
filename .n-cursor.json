@@ -19,13 +19,5 @@
     "tool-surface",
     "vue"
   ],
-  "skills": [
-    "adr-normalize",
-    "brainstorming",
-    "doc-files",
-    "lint",
-    "llm-patch",
-    "publish-telegram",
-    "taze"
-  ]
+  "skills": ["adr-normalize", "brainstorming", "doc-files", "lint", "llm-patch", "publish-telegram", "taze"]
 }

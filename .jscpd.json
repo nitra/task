@@ -9,6 +9,7 @@
     "**/CHANGELOG.md",
     "**/gen/schemas/**",
     ".cursor/skills/**",
-    ".pi/skills/**"
+    ".pi/skills/**",
+    ".github/workflows/**"
   ]
 }

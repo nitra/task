@@ -3,9 +3,8 @@ type: Vue Component
 title: OwnerScreen.vue
 resource: owner/src/components/OwnerScreen.vue
 docgen:
-  crc: e3a776cb
+  crc: d3ef392a
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
 ---
 
 Екран власника показує один із трьох пріоритетних станів: чергу рішень, бриф зі змінами або карту портфеля. Режим за замовчуванням обирається автоматично за поточним станом даних, але його можна вручну зафіксувати.

@@ -3,9 +3,8 @@ type: Vue Component
 title: CreateTaskDialog.vue
 resource: app/src/components/CreateTaskDialog.vue
 docgen:
-  crc: 830f62b8
+  crc: 39b7447d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
 ---
 
 Ось лаконічна поведінкова документація для файлу `/Users/vitalii/www/nitra/task/app/src/components/CreateTaskDialog.vue`.

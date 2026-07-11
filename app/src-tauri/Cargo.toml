@@ -5,10 +5,10 @@ description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
 default-run = "task"
-# Бінарники ТІЛЬКИ явні: авто-виявлення вимкнено, бо doc-files кладе
-# дзеркало документації у src/bin/docs/, а Tauri-бандлер трактує будь-який
-# авто-виявлений таргет як бінарник для копіювання (падав реліз, див.
-# CHANGELOG 0.4.1 — тека поверталась із кожною регенерацією док).
+# Бінарники ТІЛЬКИ явні, і ЖОДНОГО src/bin/: Tauri-бандлер сканує src/bin
+# по файловій системі (не cargo metadata) і трактує будь-яку підпапку як
+# бінарник — doc-files кладе туди дзеркало docs/ після кожної регенерації,
+# і реліз падає (v0.4.1, v0.5.0–v0.5.2). Тому journal живе в src/journal_bin.rs.
 autobins = false
 
 [lib]
@@ -24,7 +24,7 @@ path = "src/main.rs"
 # with the lib's Tauri commands; avoids linking the Tauri GUI stack.
 [[bin]]
 name = "journal"
-path = "src/bin/journal.rs"
+path = "src/journal_bin.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

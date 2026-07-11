@@ -3,9 +3,8 @@ type: Rust Module
 title: lib.rs
 resource: owner/src-tauri/src/lib.rs
 docgen:
-  crc: d2a9173b
+  crc: 0131e030
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

@@ -10,4 +10,5 @@ resource: owner/src/
 | [decisions.js](decisions.md)     | JS Module     |
 | [delta.js](delta.md)             | JS Module     |
 | [main.js](main.md)               | JS Module     |
+| [planner.js](planner.md)         | JS Module     |
 | [screen-mode.js](screen-mode.md) | JS Module     |

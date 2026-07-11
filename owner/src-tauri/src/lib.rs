@@ -1,11 +1,13 @@
 //! Owner-бекенд: тонка обгортка над mt-core для черги рішень власника —
-//! скан лісу, plan-review (approve/reject), прийняття роботи людиною.
+//! скан лісу, plan-review (approve/reject), прийняття роботи людиною,
+//! чернетки планів декомпозиції (M1-плановик).
 //! Виконання агентів тут свідомо немає: owner-вікно вирішує, app виконує.
 
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use mt_core::{TaskNode, WorkspaceInfo};
+use mt_core::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
 use notify::Watcher;
 use tauri::{Emitter, Manager as _};
 
@@ -35,6 +37,67 @@ fn get_project_paths() -> Vec<String> {
 #[tauri::command]
 fn set_project_paths(paths: Vec<String>) -> Result<(), String> {
     config::set_project_paths(paths)
+}
+
+/// Вузол-ціль для декомпозиції: штатний шаблонний контракт mt-core.
+#[tauri::command]
+fn create_task(tasks_dir: String, name: String, opts: CreateOpts) -> Result<CreateOutcome, String> {
+    mt_core::create_task(tasks_dir, name, opts)
+}
+
+/// Наступний вільний номер plan_NNN.md у директорії вузла.
+fn next_plan_nnn(dir: &Path) -> u64 {
+    let max = fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            e.file_name()
+                .to_str()?
+                .strip_prefix("plan_")?
+                .strip_suffix(".md")?
+                .parse::<u64>()
+                .ok()
+        })
+        .max()
+        .unwrap_or(0);
+    max + 1
+}
+
+/// Чернетка плану декомпозиції від плановика: наступний immutable
+/// `plan_NNN.md` (`## Context` / `## Children` / `## Risks`). Children
+/// валідуються парсером mt-core ДО запису (fail-closed) — вузол одразу
+/// переходить у derived-стан plan_review і потрапляє в чергу рішень.
+#[tauri::command]
+fn draft_plan(
+    tasks_dir: String,
+    task_path: String,
+    context: String,
+    children_yaml: String,
+    risks: Option<String>,
+) -> Result<String, String> {
+    mt_core::validate_name(&task_path)?;
+    let dir = PathBuf::from(&tasks_dir).join(&task_path);
+    if !dir.join("task.md").is_file() {
+        return Err(format!("node not found: {task_path}"));
+    }
+    let children = mt_core::spawn::parse_children(&children_yaml)?;
+    if children.is_empty() {
+        return Err("## Children порожня — плановик не дав жодної дитини".to_string());
+    }
+    let file = format!("plan_{:03}.md", next_plan_nnn(&dir));
+    let created_at = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
+    let yaml = if children_yaml.ends_with('\n') {
+        children_yaml
+    } else {
+        format!("{children_yaml}\n")
+    };
+    let risks = risks.unwrap_or_default();
+    let body = format!(
+        "---\nschema_version: 1\ncreated_at: {created_at}\ndecision: composite\n---\n\n## Context\n\n{context}\n\n## Children\n\n```yaml\n{yaml}```\n\n## Risks\n\n{risks}\n",
+    );
+    fs::write(dir.join(&file), body).map_err(|e| e.to_string())?;
+    Ok(file)
 }
 
 /// Read-модель plan-review: актуальний план вузла з розібраними `## Children`.
@@ -111,11 +174,14 @@ fn watch_tasks_dirs(
 pub fn run() {
     let builder = tauri::Builder::default()
         .manage(WatchState(Mutex::new(None)))
+        .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             scan_tasks,
             find_all_tasks_dirs,
             get_project_paths,
             set_project_paths,
+            create_task,
+            draft_plan,
             plan_review_info,
             spawn_approve,
             spawn_reject,
@@ -136,4 +202,59 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CHILDREN: &str = "children:\n  - id: collect\n    mode: agent\n    deps: []\n    task: Зібрати дані\n  - id: verify\n    mode: human\n    deps: [collect]\n    task: Перевірити\n";
+
+    fn goal_node() -> (tempfile::TempDir, String) {
+        let tmp = tempfile::tempdir().unwrap();
+        let node = tmp.path().join("goal");
+        fs::create_dir_all(&node).unwrap();
+        fs::write(node.join("task.md"), "---\nschema_version: 1\n---\n\n## Task\n").unwrap();
+        (tmp, node.to_string_lossy().into_owned())
+    }
+
+    #[test]
+    fn draft_plan_writes_next_nnn_and_parses_back() {
+        let (tmp, node) = goal_node();
+        fs::write(Path::new(&node).join("plan_001.md"), "старий план").unwrap();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+
+        let file = draft_plan(
+            tasks_dir.clone(),
+            "goal".to_string(),
+            "інтент власника".to_string(),
+            CHILDREN.to_string(),
+            Some("ризики".to_string()),
+        )
+        .unwrap();
+        assert_eq!(file, "plan_002.md");
+
+        // Записаний план читається штатною read-моделлю mt-core.
+        let review = mt_core::spawn::plan_review(&tasks_dir, "goal").unwrap();
+        assert_eq!(review.nnn, 2);
+        assert_eq!(review.children.len(), 2);
+        assert_eq!(review.children[1].deps, ["collect"]);
+        assert!(!review.decided);
+    }
+
+    #[test]
+    fn draft_plan_rejects_invalid_children_without_writing() {
+        let (tmp, node) = goal_node();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+        let err = draft_plan(
+            tasks_dir,
+            "goal".to_string(),
+            "інтент".to_string(),
+            "children: []\n".to_string(),
+            None,
+        )
+        .unwrap_err();
+        assert!(err.contains("Children"));
+        assert!(!Path::new(&node).join("plan_001.md").exists());
+    }
 }

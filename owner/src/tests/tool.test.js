@@ -12,9 +12,15 @@ describe('owner tool catalog', () => {
     }
   })
 
-  it('вердикти (write) — in-app only: без cli-шляху', () => {
+  it('вердикти і чернетки (write) — in-app only: без cli-шляху', () => {
     const writeTools = TOOLS.filter(t => t.tier === 'write')
-    expect(writeTools.map(t => t.name).toSorted()).toEqual(['approve_plan', 'mark_done', 'reject_plan'])
+    expect(writeTools.map(t => t.name).toSorted()).toEqual([
+      'approve_plan',
+      'create_goal',
+      'draft_plan',
+      'mark_done',
+      'reject_plan'
+    ])
     for (const tool of writeTools) expect(tool.cli).toBeUndefined()
   })
 

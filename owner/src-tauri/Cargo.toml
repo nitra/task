@@ -14,13 +14,18 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+tauri-plugin-http = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 mt-core = { git = "https://github.com/nitra/mt.git" }
 notify = "8"
+chrono = "0.4"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-window-state = "2"
 
 [profile.dev]
 strip = true
+
+[dev-dependencies]
+tempfile = "3"
