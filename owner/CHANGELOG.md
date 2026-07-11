@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1] - 2026-07-11
+
+### Changed
+
+- 🐛 fix(app): codesign релізу — journal назад у src/bin, docs-дзеркало у .gitignore
+
 ## [0.2.0] - 2026-07-11
 
 ### Added
