@@ -5,10 +5,19 @@ description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
 default-run = "task"
+# Бінарники ТІЛЬКИ явні: авто-виявлення вимкнено, бо doc-files кладе
+# дзеркало документації у src/bin/docs/, а Tauri-бандлер трактує будь-який
+# авто-виявлений таргет як бінарник для копіювання (падав реліз, див.
+# CHANGELOG 0.4.1 — тека поверталась із кожною регенерацією док).
+autobins = false
 
 [lib]
 name = "task_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "task"
+path = "src/main.rs"
 
 # Headless journal FS binary — spawned by the node MCP bin so that agent-side
 # request journaling also goes through Rust (FS-in-Rust). Shares src/journal.rs
