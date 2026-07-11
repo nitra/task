@@ -5,26 +5,23 @@ description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
 default-run = "task"
-# Бінарники ТІЛЬКИ явні, і ЖОДНОГО src/bin/: Tauri-бандлер сканує src/bin
-# по файловій системі (не cargo metadata) і трактує будь-яку підпапку як
-# бінарник — doc-files кладе туди дзеркало docs/ після кожної регенерації,
-# і реліз падає (v0.4.1, v0.5.0–v0.5.2). Тому journal живе в src/journal_bin.rs.
-autobins = false
-
 [lib]
 name = "task_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-[[bin]]
-name = "task"
-path = "src/main.rs"
-
 # Headless journal FS binary — spawned by the node MCP bin so that agent-side
 # request journaling also goes through Rust (FS-in-Rust). Shares src/journal.rs
 # with the lib's Tauri commands; avoids linking the Tauri GUI stack.
+#
+# journal МУСИТЬ жити саме у src/bin/ — Tauri-бандлер знаходить і ПІДПИСУЄ
+# додаткові бінарники скануванням src/bin по ФС (перевірено v0.4.1); винесення
+# в інший шлях лишає бінарник у бандлі непідписаним (падав codesign v0.5.3).
+# Зворотний бік: doc-files кладе у src/bin дзеркало docs/, яке бандлер трактує
+# як ще один бінарник (падали v0.5.0–v0.5.2) — тому src/bin/docs/ у .gitignore:
+# CI-checkout завжди чистий, а локальна генерація доки не комітиться.
 [[bin]]
 name = "journal"
-path = "src/journal_bin.rs"
+path = "src/bin/journal.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

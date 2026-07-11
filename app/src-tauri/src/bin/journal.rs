@@ -4,7 +4,7 @@
 //! Usage: journal create '<json{intent,actor}>' | load <id> | update <id> '<patch>' | list
 //! Prints JSON to stdout; exits 2 on error.
 
-#[path = "journal.rs"]
+#[path = "../journal.rs"]
 mod journal;
 
 use std::process;
