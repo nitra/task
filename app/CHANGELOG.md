@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0] - 2026-07-11
+
+### Added
+
+- GUI: live-стрічка run-draft.md для запущених вузлів (Completed/Blockers/Next Attempt, поллінг 2.5s), індикатор `[slots: X/N]` на воркспейс — Фаза 3 закрита.
+- GUI: cost/time ledger на воркспейс — агрегація wall_sec/tokens/cost_usd по всіх run_NNN.md графу (per-node + TOTAL), доступна через іконку на панелі воркспейсу.
+- GUI: DAG-візуалізація dependency-графу на воркспейс — layered SVG (leaf-и зліва, deps-ребра як стрілки), клік на вузол відкриває деталі.
+
 ## [0.4.1] - 2026-07-06
 
 ### Fixed
