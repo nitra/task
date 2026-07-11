@@ -3,9 +3,8 @@ type: JS Module
 title: dag-layout.js
 resource: app/src/dag-layout.js
 docgen:
-  crc: a34930d2
+  crc: 8644e996
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini

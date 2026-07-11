@@ -4,6 +4,12 @@ metadata:
   name: teleport-config
   namespace: teleport
 data:
+  HASURA_GRAPHQL_DISABLE_EVENTING: "true"
+  HASURA_GRAPHQL_ENABLED_APIS: "metadata,graphql,pgdump"
+  HASURA_GRAPHQL_ENABLED_LOG_TYPES: "startup,http-log"
+  HASURA_GRAPHQL_ENABLE_RELAY: "false"
+  HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: "true"
+  HASURA_GRAPHQL_ENABLE_TELEMETRY: "false"
   teleport.yaml: |
     teleport:
       nodename: teleport
@@ -51,6 +57,12 @@ metadata:
   name: teleport-github-connector
   namespace: teleport
 data:
+  HASURA_GRAPHQL_DISABLE_EVENTING: "true"
+  HASURA_GRAPHQL_ENABLED_APIS: "metadata,graphql,pgdump"
+  HASURA_GRAPHQL_ENABLED_LOG_TYPES: "startup,http-log"
+  HASURA_GRAPHQL_ENABLE_RELAY: "false"
+  HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: "true"
+  HASURA_GRAPHQL_ENABLE_TELEMETRY: "false"
   connector.yaml: |
     kind: github
     version: v3

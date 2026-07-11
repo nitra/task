@@ -5,6 +5,8 @@
     "timonwong.shellcheck",
     "dbaeumer.vscode-eslint",
     "github.vscode-github-actions",
-    "stylelint.vscode-stylelint"
+    "stylelint.vscode-stylelint",
+    "rust-lang.rust-analyzer",
+    ", "Vue.volar""
   ]
 }

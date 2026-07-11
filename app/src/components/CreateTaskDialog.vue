@@ -157,7 +157,7 @@ const filteredWorkspaces = computed(() => {
 /**
  * Quasar q-select filter handler: store the term and trigger the update.
  * @param {string} val current filter input
- * @param {Function} update Quasar's update callback
+ * @param {() => void} update Quasar's update callback
  */
 function filterWorkspaces(val, update) {
   wsFilter.value = val

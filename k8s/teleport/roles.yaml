@@ -1,33 +1,39 @@
-# Teleport RBAC ролі — застосовуються через tctl після першого запуску
-# tctl create -f roles.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: teleport-roles
+  namespace: teleport
+data:
+  roles.yaml: |
+    # Teleport RBAC ролі — застосовуються через tctl після першого запуску
 
-# Розробник — доступ тільки до власних dev pods (де owner == його email)
-kind: role
-version: v7
-metadata:
-  name: developer
-spec:
-  allow:
-    node_labels:
-      owner: '{{internal.logins}}' # динамічно підставляється з identity провайдера
-    logins: [dev]
-    # SSH-сесії дозволені лише до нод з label app=dev-pod
-    node_labels_expression: 'labels["app"] == "dev-pod"'
-  deny: {}
-  options:
-    max_session_ttl: 8h
-    disconnect_expired_cert: yes
----
-# Адмін — доступ до всіх нод
-kind: role
-version: v7
-metadata:
-  name: admin
-spec:
-  allow:
-    node_labels:
-      '*': '*'
-    logins: [dev, root]
-  deny: {}
-  options:
-    max_session_ttl: 12h
+    # Розробник — доступ тільки до власних dev pods (де owner == його email)
+    kind: role
+    version: v7
+    metadata:
+      name: developer
+    spec:
+      allow:
+        node_labels:
+          owner: '{{internal.logins}}' # динамічно підставляється з identity провайдера
+        logins: [dev]
+        # SSH-сесії дозволені лише до нод з label app=dev-pod
+        node_labels_expression: 'labels["app"] == "dev-pod"'
+      deny: {}
+      options:
+        max_session_ttl: 8h
+        disconnect_expired_cert: yes
+    ---
+    # Адмін — доступ до всіх нод
+    kind: role
+    version: v7
+    metadata:
+      name: admin
+    spec:
+      allow:
+        node_labels:
+          '*': '*'
+        logins: [dev, root]
+      deny: {}
+      options:
+        max_session_ttl: 12h

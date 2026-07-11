@@ -3,9 +3,8 @@ type: Vue Component
 title: DagViewDialog.vue
 resource: app/src/components/DagViewDialog.vue
 docgen:
-  crc: cb063e2c
+  crc: 38c96218
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
 ---
 
 Компонент відображає діаграму залежностей (Dependency Graph) у модальному діалоговому вікні. Він візуалізує взаємозв'язки між вузлами (компонентами) у певному робочому просторі.
