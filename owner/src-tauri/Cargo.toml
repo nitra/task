@@ -1,0 +1,26 @@
+[package]
+name = "owner"
+version = "0.1.0"
+description = "Owner desktop app — decision queue over the mt task forest"
+authors = ["nitra"]
+edition = "2021"
+
+[lib]
+name = "owner_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+mt-core = { git = "https://github.com/nitra/mt.git" }
+notify = "8"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-window-state = "2"
+
+[profile.dev]
+strip = true

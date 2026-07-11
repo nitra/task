@@ -8,10 +8,12 @@ export default [
       '.claude/worktrees/**',
       'app/src-tauri/**',
       'app/dist/**',
+      'owner/src-tauri/**',
+      'owner/dist/**',
       'docs/**'
     ]
   },
   ...getConfig({
-    vue: ['app']
+    vue: ['app', 'owner']
   })
 ]

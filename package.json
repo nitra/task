@@ -3,15 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
-    "app"
+    "app",
+    "owner"
   ],
   "type": "module",
   "scripts": {
     "start": "bun --cwd=app run tauri dev --config src-tauri/tauri.conf.dev.json",
+    "owner": "bun --cwd=owner run tauri dev --config src-tauri/tauri.conf.dev.json",
     "android": "bun --cwd=app run tauri android dev",
     "tauri": "bun --cwd=app run tauri",
     "lint": "bun run lint-js && bun run lint-text && bun run lint-style && bun run lint-ga && bun run lint-rust && bun run lint-image && bun run lint-security && oxfmt .",
-    "lint-rust": "cargo fmt --all --manifest-path app/src-tauri/Cargo.toml && cargo clippy --manifest-path app/src-tauri/Cargo.toml --fix --allow-staged --allow-dirty --all-targets --all-features && cargo clippy --manifest-path app/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
+    "lint-rust": "cargo fmt --all --manifest-path app/src-tauri/Cargo.toml && cargo clippy --manifest-path app/src-tauri/Cargo.toml --fix --allow-staged --allow-dirty --all-targets --all-features && cargo clippy --manifest-path app/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings && cargo fmt --all --manifest-path owner/src-tauri/Cargo.toml && cargo clippy --manifest-path owner/src-tauri/Cargo.toml --fix --allow-staged --allow-dirty --all-targets --all-features && cargo clippy --manifest-path owner/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
     "lint-ga": "n-cursor lint ga",
     "lint-image": "npx @nitra/minify-image --src=. --write",
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints",

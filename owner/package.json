@@ -1,0 +1,37 @@
+{
+  "name": "owner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "owner": "bun bin/owner.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
+  },
+  "dependencies": {
+    "@7n/tauri-components": "^0.8.0",
+    "@quasar/extras": "^2.0.2",
+    "@tauri-apps/api": "^2.11.1",
+    "quasar": "^2.21.2",
+    "vue": "^3.5.39"
+  },
+  "devDependencies": {
+    "@quasar/vite-plugin": "^1.12.0",
+    "@tauri-apps/cli": "^2.11.4",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "@vue/test-utils": "^2.4.11",
+    "happy-dom": "^20.10.6",
+    "sass": "^1.101.0",
+    "unplugin-auto-import": "^21.0.0",
+    "vite": "^8.1.4"
+  },
+  "engines": {
+    "bun": ">=1.3",
+    "node": ">=24"
+  }
+}

@@ -46,6 +46,27 @@
         "vue-macros": "^3.1.2",
       },
     },
+    "owner": {
+      "name": "owner",
+      "version": "0.1.0",
+      "dependencies": {
+        "@7n/tauri-components": "^0.8.0",
+        "@quasar/extras": "^2.0.2",
+        "@tauri-apps/api": "^2.11.1",
+        "quasar": "^2.21.2",
+        "vue": "^3.5.39",
+      },
+      "devDependencies": {
+        "@quasar/vite-plugin": "^1.12.0",
+        "@tauri-apps/cli": "^2.11.4",
+        "@vitejs/plugin-vue": "^6.0.7",
+        "@vue/test-utils": "^2.4.11",
+        "happy-dom": "^20.10.6",
+        "sass": "^1.101.0",
+        "unplugin-auto-import": "^21.0.0",
+        "vite": "^8.1.4",
+      },
+    },
   },
   "packages": {
     "@7n/llm-lib": ["@7n/llm-lib@2.0.4", "", { "peerDependencies": { "@earendil-works/pi-ai": "~0.80.2", "@earendil-works/pi-coding-agent": "~0.80.2" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"], "bin": { "n-llm-chains-report": "bin/chains-report.mjs" } }, "sha512-08fg7w9G/wgAzdhWGO48WivFGHI8LJHQaI/m0vjCa2Fqo6ifAp8XvgIsr7oE4bvJDQNslMoSTY6BxgJuTU6MKg=="],
@@ -1953,6 +1974,8 @@
     "optionator": ["optionator@0.9.4", "", { "dependencies": { "deep-is": "^0.1.3", "fast-levenshtein": "^2.0.6", "levn": "^0.4.1", "prelude-ls": "^1.2.1", "type-check": "^0.4.0", "word-wrap": "^1.2.5" } }, "sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g=="],
 
     "own-keys": ["own-keys@1.0.1", "", { "dependencies": { "get-intrinsic": "^1.2.6", "object-keys": "^1.1.1", "safe-push-apply": "^1.0.0" } }, "sha512-qFOyK5PjiWZd+QQIh+1jhdb9LpxTF0qs7Pm8o5QHYZ0M3vKqSqzsZaEB6oWlxZ+q2sJBMI/Ktgd2N5ZwQoRHfg=="],
+
+    "owner": ["owner@workspace:owner"],
 
     "oxc-parser": ["oxc-parser@0.137.0", "", { "dependencies": { "@oxc-project/types": "^0.137.0" }, "optionalDependencies": { "@oxc-parser/binding-android-arm-eabi": "0.137.0", "@oxc-parser/binding-android-arm64": "0.137.0", "@oxc-parser/binding-darwin-arm64": "0.137.0", "@oxc-parser/binding-darwin-x64": "0.137.0", "@oxc-parser/binding-freebsd-x64": "0.137.0", "@oxc-parser/binding-linux-arm-gnueabihf": "0.137.0", "@oxc-parser/binding-linux-arm-musleabihf": "0.137.0", "@oxc-parser/binding-linux-arm64-gnu": "0.137.0", "@oxc-parser/binding-linux-arm64-musl": "0.137.0", "@oxc-parser/binding-linux-ppc64-gnu": "0.137.0", "@oxc-parser/binding-linux-riscv64-gnu": "0.137.0", "@oxc-parser/binding-linux-riscv64-musl": "0.137.0", "@oxc-parser/binding-linux-s390x-gnu": "0.137.0", "@oxc-parser/binding-linux-x64-gnu": "0.137.0", "@oxc-parser/binding-linux-x64-musl": "0.137.0", "@oxc-parser/binding-openharmony-arm64": "0.137.0", "@oxc-parser/binding-wasm32-wasi": "0.137.0", "@oxc-parser/binding-win32-arm64-msvc": "0.137.0", "@oxc-parser/binding-win32-ia32-msvc": "0.137.0", "@oxc-parser/binding-win32-x64-msvc": "0.137.0" } }, "sha512-yFImD+WLElJpLKy8llG1qe4DCmMsL18peRp8XP1JKfig/gISbJkglnpDtX2aTmAn10kZF7164HbN2H8QPsXxGg=="],
 

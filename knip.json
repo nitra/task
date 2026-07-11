@@ -42,6 +42,9 @@
     },
     "app": {
       "entry": ["src/**/*.test.js", "src/test-utils/**/*.js", "test/happy-dom.preload.js", "src/tool/journal.js"]
+    },
+    "owner": {
+      "entry": ["src/**/*.test.js", "bin/owner.mjs"]
     }
   }
 }
