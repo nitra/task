@@ -3,9 +3,8 @@ type: Vue Component
 title: PlannerDialog.vue
 resource: owner/src/components/PlannerDialog.vue
 docgen:
-  crc: 4e0880fa
+  crc: 7a415e46
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
 ---
 
 Цей компонент відображає діалог для декомпозиції нової цілі. Він дозволяє користувачеві вказати ціль у природній мові, вибрати робочий простір та ID вузла, а потім згенерувати та обрати один із запропонованих планів.

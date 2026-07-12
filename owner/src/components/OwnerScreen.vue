@@ -7,6 +7,14 @@
       </div>
       <q-space />
       <q-btn @click="plannerOpen = true" unelevated dense color="primary" icon="sym_o_neurology" label="нова ціль" />
+      <q-btn
+        @click="runSemantic(workspaces, forest)"
+        flat
+        dense
+        round
+        icon="sym_o_psychology_alt"
+        title="Семантичний прогін критика (LLM)"
+        :loading="criticRunning" />
       <q-btn-toggle v-model="manualMode" clearable dense flat toggle-color="primary" :options="modeOptions" />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
     </div>
@@ -19,7 +27,12 @@
         :key="decision.workspace.path + decision.node.path"
         @acted="rescan"
         :decision="decision" />
-      <div v-if="decisions.length === 0" class="pane-empty">Черга рішень порожня.</div>
+      <CriticCard
+        v-for="verdict in criticVerdicts"
+        :key="verdict.workspace.path + verdict.path + verdict.rule + verdict.finding"
+        @dismiss="dismiss(verdict)"
+        :verdict="verdict" />
+      <div v-if="decisions.length === 0 && criticVerdicts.length === 0" class="pane-empty">Черга рішень порожня.</div>
     </div>
     <BriefPane v-else-if="mode === 'brief'" class="pane" :delta="delta" :personal="personal" />
     <MapPane v-else class="pane" :workspaces="workspaces" :forest="forest" />
@@ -27,19 +40,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useCritic } from '../composables/use-critic.js'
 import { useForest } from '../composables/use-forest.js'
 import { collectDecisions, collectPersonal } from '../decisions.js'
 import { chooseMode } from '../screen-mode.js'
 import BriefPane from './BriefPane.vue'
+import CriticCard from './CriticCard.vue'
 import DecisionCard from './DecisionCard.vue'
 import MapPane from './MapPane.vue'
 import PlannerDialog from './PlannerDialog.vue'
 
 // Адаптивний перший екран: режим обирає детерміноване правило (screen-mode.js),
 // заголовок оголошує причину, ручний перемикач — вихід із адаптивності.
+// Детермінований критик оновлюється з кожним rescan; семантичний — кнопкою.
 
 const { workspaces, forest, delta, loading, rescan, watchForest } = useForest()
+const { verdicts: criticVerdicts, running: criticRunning, refreshDeterministic, runSemantic, dismiss } = useCritic()
+
+watch(forest, value => refreshDeterministic(workspaces.value, value))
 
 const MODE_TITLES = {
   decisions: 'Черга рішень',
@@ -53,7 +72,9 @@ const plannerOpen = ref(false)
 const decisions = computed(() => collectDecisions(workspaces.value, forest.value))
 const personal = computed(() => collectPersonal(workspaces.value, forest.value))
 
-const auto = computed(() => chooseMode({ decisionCount: decisions.value.length, deltaCount: delta.value.length }))
+const auto = computed(() =>
+  chooseMode({ decisionCount: decisions.value.length + criticVerdicts.value.length, deltaCount: delta.value.length })
+)
 const mode = computed(() => manualMode.value ?? auto.value.mode)
 const headline = computed(() => (manualMode.value ? MODE_TITLES[manualMode.value] : auto.value.headline))
 
