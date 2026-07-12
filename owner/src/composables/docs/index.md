@@ -10,3 +10,4 @@ resource: owner/src/composables/
 | [use-critic.js](use-critic.md)     | JS Module |
 | [use-forest.js](use-forest.md)     | JS Module |
 | [use-planner.js](use-planner.md)   | JS Module |
+| [use-staff.js](use-staff.md)       | JS Module |

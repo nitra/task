@@ -10,6 +10,14 @@
       {{ decision.headline }}
     </q-card-section>
 
+    <q-card-section v-if="brief" class="decision-brief">
+      <p class="brief-row"><b>Контекст:</b> {{ brief.context }}</p>
+      <p v-if="brief.options.length > 0" class="brief-row"><b>Варіанти:</b> {{ brief.options.join(' · ') }}</p>
+      <p class="brief-row"><b>Рекомендація:</b> {{ brief.recommendation }}</p>
+      <p class="brief-row"><b>Якщо відхилити:</b> {{ brief.ifDeclined }}</p>
+    </q-card-section>
+    <q-card-section v-else-if="briefError" class="brief-error">Штаб недоступний: {{ briefError }}</q-card-section>
+
     <q-card-section v-if="planChildren.length > 0" class="decision-plan">
       <div class="plan-title">План: {{ planChildren.length }} підзадач</div>
       <ul class="plan-children">
@@ -27,6 +35,14 @@
 
     <q-card-actions align="right">
       <q-btn
+        v-if="!brief && !briefError"
+        @click="loadBriefing"
+        flat
+        dense
+        icon="sym_o_auto_awesome"
+        label="бриф"
+        :loading="briefLoading" />
+      <q-btn
         v-if="canAct('approve') && planChildren.length === 0"
         @click="loadPlan"
         flat
@@ -36,7 +52,7 @@
         :loading="busy === 'plan'" />
       <q-btn
         v-if="canAct('approve')"
-        @click="approve"
+        @click="openApproveConfirm"
         unelevated
         dense
         color="positive"
@@ -76,6 +92,30 @@
       </q-card>
     </q-dialog>
 
+    <q-dialog v-model="askApproveConfirm">
+      <q-card class="decision-dialog">
+        <q-card-section class="dialog-title">Перед підписом — заперечення критика</q-card-section>
+        <q-card-section v-if="objectionLoading" class="objection-loading">
+          <q-spinner size="18px" /> генерую найсильніше заперечення…
+        </q-card-section>
+        <q-card-section v-else-if="objection" class="objection-text">{{ objection }}</q-card-section>
+        <q-card-section v-else-if="objectionError" class="objection-error">
+          Критик недоступний: {{ objectionError }}
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn @click="askApproveConfirm = false" flat dense label="скасувати" />
+          <q-btn
+            @click="confirmApprove"
+            unelevated
+            dense
+            color="positive"
+            :label="objection ? 'я бачив заперечення — approve' : 'продовжити без перевірки — approve'"
+            :disable="objectionLoading"
+            :loading="busy === 'approve'" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-dialog v-model="askSummary">
       <q-card class="decision-dialog">
         <q-card-section class="dialog-title">Summary факту — що досягнуто</q-card-section>
@@ -101,6 +141,9 @@
 import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { effectivePolicyFor } from '../composables/use-autonomy.js'
+import { useStaff } from '../composables/use-staff.js'
+import { extractMission } from '../mission.js'
+import { buildDecisionDigest } from '../staff.js'
 import { dispatch } from '../tool/index.js'
 
 const AUTONOMY_LABELS = {
@@ -117,14 +160,23 @@ const props = defineProps({
 const emit = defineEmits(['acted'])
 
 const $q = useQuasar()
+const { requestBriefing, requestObjection } = useStaff()
 
 const busy = ref('')
 const askReason = ref(false)
 const askSummary = ref(false)
+const askApproveConfirm = ref(false)
 const reason = ref('')
 const summary = ref('')
 const planChildren = ref([])
 const autonomyRows = ref([])
+const brief = ref(null)
+const briefLoading = ref(false)
+const briefError = ref('')
+const objection = ref('')
+const objectionLoading = ref(false)
+const objectionError = ref('')
+let digestCache = null
 
 // Колір бейджа за ціною помилки: 0–1 критично, 2 попередження, далі — інфо.
 const STAKE_COLORS = ['negative', 'negative', 'warning']
@@ -162,7 +214,69 @@ async function act(name, input) {
 }
 
 /**
- * Підвантажує дітей плану для картки plan-review (рудимент брифу штабу).
+ * Дайджест рішення для штабу (кешується — бриф і заперечення не сканують
+ * ліс двічі): контракт вузла + (для plan-review) підзадачі плану.
+ * @returns {Promise<string>} дайджест
+ */
+async function loadDigest() {
+  if (digestCache) return digestCache
+  const [read, plan] = await Promise.all([
+    dispatch('read_node', { tasksDir: props.decision.workspace.path, taskPath: props.decision.node.path }),
+    canAct('approve')
+      ? dispatch('plan_review', { tasksDir: props.decision.workspace.path, taskPath: props.decision.node.path })
+      : Promise.resolve({ ok: false })
+  ])
+  const mission = read.ok ? extractMission(read.output, 500) : ''
+  const children = plan.ok ? plan.output.children : []
+  digestCache = buildDecisionDigest({ decision: props.decision, mission, children })
+  return digestCache
+}
+
+/**
+ * Генерує бриф рішення (контекст/варіанти/рекомендація/наслідок відмови).
+ * @returns {Promise<void>}
+ */
+async function loadBriefing() {
+  briefLoading.value = true
+  briefError.value = ''
+  try {
+    brief.value = await requestBriefing(await loadDigest())
+  } catch (error) {
+    briefError.value = String(error?.message ?? error)
+  } finally {
+    briefLoading.value = false
+  }
+}
+
+/**
+ * Відкриває гейт перед approve (анти-rubber-stamping): показує найсильніше
+ * заперечення критика; генерується один раз на картку.
+ * @returns {Promise<void>}
+ */
+async function openApproveConfirm() {
+  askApproveConfirm.value = true
+  if (objection.value || objectionError.value) return
+  objectionLoading.value = true
+  try {
+    objection.value = await requestObjection(await loadDigest())
+  } catch (error) {
+    objectionError.value = String(error?.message ?? error)
+  } finally {
+    objectionLoading.value = false
+  }
+}
+
+/**
+ * Власник явно побачив заперечення (чи його відсутність) — проводить approve.
+ * @returns {Promise<void>}
+ */
+async function confirmApprove() {
+  askApproveConfirm.value = false
+  await approve()
+}
+
+/**
+ * Підвантажує дітей плану для картки plan-review.
  * @returns {Promise<void>}
  */
 async function loadPlan() {
@@ -244,6 +358,27 @@ async function markDone() {
   opacity: 0.8;
 }
 
+.decision-brief {
+  padding-top: 8px;
+  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.brief-row {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.brief-error {
+  padding-top: 8px;
+  padding-bottom: 0;
+  font-size: 12px;
+  color: #ff453a;
+}
+
 .decision-plan {
   padding-top: 8px;
   padding-bottom: 0;
@@ -290,6 +425,25 @@ async function markDone() {
 
 .decision-dialog {
   min-width: 420px;
+}
+
+.objection-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.objection-text {
+  font-size: 13px;
+  border-left: 3px solid #bf5af2;
+  padding-left: 10px;
+}
+
+.objection-error {
+  font-size: 12px;
+  color: #ff9f0a;
 }
 
 .dialog-title {

@@ -3,6 +3,7 @@ import { createOpenAiChat } from '@7n/tauri-components'
 import { useOmlx } from '@7n/tauri-components/vue'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { criticPrompt, parseCriticReply, runDeterministicCritic } from '../critic.js'
+import { extractMission } from '../mission.js'
 import { dispatch } from '../tool/index.js'
 
 // Критик як споживач: детермінований прогін — безкоштовний, автоматичний при
@@ -36,16 +37,8 @@ function flatten(nodes) {
 async function workspaceDigest(workspace, nodes) {
   const rows = []
   for (const node of flatten(nodes).slice(0, DIGEST_NODES)) {
-    let mission = ''
     const read = await dispatch('read_node', { tasksDir: workspace.path, taskPath: node.path })
-    if (read.ok) {
-      const body = read.output.split('## Task', 2)[1] ?? read.output
-      mission = body
-        .replaceAll(/<!--[\s\S]*?-->/g, ' ')
-        .replaceAll(/\s+/g, ' ')
-        .trim()
-        .slice(0, DIGEST_TASK_CHARS)
-    }
+    const mission = read.ok ? extractMission(read.output, DIGEST_TASK_CHARS) : ''
     const deps = (node.deps ?? []).length > 0 ? ` deps=[${node.deps.join(',')}]` : ''
     rows.push(`- ${node.path} [${node.state}]${deps}: ${mission}`)
   }
