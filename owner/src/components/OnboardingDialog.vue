@@ -26,6 +26,9 @@
           <q-icon name="sym_o_neurology" size="14px" /> «нова ціль» декомпозує задум на підзадачі людям і агентам;
           <q-icon name="sym_o_psychology_alt" size="14px" /> критик шукає вади плану, яких не видно зсередини гілки.
         </p>
+        <a href="#" @click.prevent="openGuide" class="ob-guide-link">
+          <q-icon name="sym_o_open_in_new" size="13px" /> Повний ілюстрований гід (відкриється у браузері)
+        </a>
       </q-card-section>
 
       <q-card-section class="ob-paths">
@@ -79,6 +82,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { markOnboarded } from '../onboarding.js'
 import { usePlanner } from '../composables/use-planner.js'
 import { dispatch } from '../tool/index.js'
@@ -86,6 +90,10 @@ import { dispatch } from '../tool/index.js'
 // Онбординг першого запуску: пояснення черги рішень + два практичні кроки —
 // project paths (без них ліс порожній) і модель LLM. Відкривається також
 // кнопкою «?» у тулбарі — це і довідка, і налаштування.
+
+// Приватний артефакт claude.ai — відкривається лише в браузері, де власник
+// уже залогінений під тим самим акаунтом, що його опублікував.
+const GUIDE_URL = 'https://claude.ai/code/artifact/70a0e7d8-2f21-42e0-90bc-01825cfe4484'
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true }
@@ -109,6 +117,19 @@ watch(
     if (read.ok) paths.value = read.output
   }
 )
+
+/**
+ * Відкриває ілюстрований гід у системному браузері (не у вебвʼю застосунку —
+ * приватний артефакт вимагає активної сесії claude.ai).
+ * @returns {Promise<void>}
+ */
+async function openGuide() {
+  try {
+    await openUrl(GUIDE_URL)
+  } catch {
+    // поза Tauri (тести) — no-op
+  }
+}
 
 /**
  * Додає шлях до списку (дедуплікація; збереження — кнопкою «почати»).
@@ -198,6 +219,20 @@ async function start() {
 .ob-note {
   opacity: 0.7;
   font-size: 12px;
+}
+
+.ob-guide-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #bf5af2;
+  text-decoration: none;
+}
+
+.ob-guide-link:hover {
+  text-decoration: underline;
 }
 
 .ob-section {

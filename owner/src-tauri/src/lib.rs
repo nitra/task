@@ -230,6 +230,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .manage(WatchState(Mutex::new(None)))
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             scan_tasks,
             find_all_tasks_dirs,
