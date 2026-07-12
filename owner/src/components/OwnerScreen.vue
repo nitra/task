@@ -17,9 +17,11 @@
         :loading="criticRunning" />
       <q-btn-toggle v-model="manualMode" clearable dense flat toggle-color="primary" :options="modeOptions" />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
+      <q-btn @click="onboardingOpen = true" flat dense round icon="sym_o_help" title="Що це і як налаштувати" />
     </div>
 
     <PlannerDialog v-model="plannerOpen" @drafted="rescan" />
+    <OnboardingDialog v-model="onboardingOpen" @started="startAfterOnboarding" />
 
     <div v-if="mode === 'decisions'" class="pane">
       <DecisionCard
@@ -35,7 +37,7 @@
       <div v-if="decisions.length === 0 && criticVerdicts.length === 0" class="pane-empty">Черга рішень порожня.</div>
     </div>
     <BriefPane v-else-if="mode === 'brief'" class="pane" :delta="delta" :personal="personal" />
-    <MapPane v-else class="pane" :workspaces="workspaces" :forest="forest" />
+    <MapPane v-else @setup="onboardingOpen = true" class="pane" :workspaces="workspaces" :forest="forest" />
   </div>
 </template>
 
@@ -45,10 +47,12 @@ import { useCritic } from '../composables/use-critic.js'
 import { useForest } from '../composables/use-forest.js'
 import { collectDecisions, collectPersonal } from '../decisions.js'
 import { chooseMode } from '../screen-mode.js'
+import { isOnboarded } from '../onboarding.js'
 import BriefPane from './BriefPane.vue'
 import CriticCard from './CriticCard.vue'
 import DecisionCard from './DecisionCard.vue'
 import MapPane from './MapPane.vue'
+import OnboardingDialog from './OnboardingDialog.vue'
 import PlannerDialog from './PlannerDialog.vue'
 
 // Адаптивний перший екран: режим обирає детерміноване правило (screen-mode.js),
@@ -68,6 +72,7 @@ const MODE_TITLES = {
 
 const manualMode = ref(null)
 const plannerOpen = ref(false)
+const onboardingOpen = ref(false)
 
 const decisions = computed(() => collectDecisions(workspaces.value, forest.value))
 const personal = computed(() => collectPersonal(workspaces.value, forest.value))
@@ -84,9 +89,20 @@ const modeOptions = [
   { value: 'map', icon: 'sym_o_map', title: MODE_TITLES.map }
 ]
 
-onMounted(async () => {
+/**
+ * Скан + live-нагляд лісу — після онбордингу чи одразу на старті.
+ * @returns {Promise<void>}
+ */
+async function startAfterOnboarding() {
   await rescan()
   await watchForest()
+}
+
+onMounted(async () => {
+  // Перший запуск: спершу онбординг (пояснення + project paths), скан — після
+  // «почати»; інакше — одразу скан.
+  if (isOnboarded()) await startAfterOnboarding()
+  else onboardingOpen.value = true
 })
 </script>
 

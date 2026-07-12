@@ -3,9 +3,8 @@ type: Vue Component
 title: MapPane.vue
 resource: owner/src/components/MapPane.vue
 docgen:
-  crc: f1a8bcfc
+  crc: 9c08f165
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
 ---
 
 Компонент показує карту воркспейсів як набір карток із коротким зведенням станів у кожному з них. Він призначений для швидкого огляду поточного розподілу станів без будь-яких дій із даними.

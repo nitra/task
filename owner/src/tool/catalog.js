@@ -36,6 +36,23 @@ export const TOOLS = [
   },
   {
     tier: 'read',
+    name: 'project_paths',
+    summary: 'Read the configured project search paths (roots where mt workspaces are discovered).',
+    input: {},
+    tauri: 'get_project_paths'
+  },
+  {
+    tier: 'write',
+    name: 'set_project_paths',
+    summary: 'Persist the project search paths shared by the GUI and headless consumers.',
+    input: {
+      // type 'array' — dispatch-валідатор перевіряє лише required (масив не object)
+      paths: { type: 'array', required: true, description: 'Array of absolute directory paths.' }
+    },
+    tauri: 'set_project_paths'
+  },
+  {
+    tier: 'read',
     name: 'read_node',
     summary: 'Read the task.md contract of a node (digest source for the critic).',
     input: { tasksDir: TASKS_DIR, taskPath: TASK_PATH },

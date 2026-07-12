@@ -16,18 +16,23 @@
         <span v-if="Object.keys(stateCounts(workspace)).length === 0" class="map-empty">порожній граф</span>
       </q-card-section>
     </q-card>
-    <div v-if="workspaces.length === 0" class="map-empty">Воркспейсів не знайдено — перевір project paths.</div>
+    <div v-if="workspaces.length === 0" class="map-empty">
+      Воркспейсів не знайдено.
+      <q-btn @click="emit('setup')" flat dense color="primary" icon="sym_o_settings" label="налаштувати шляхи пошуку" />
+    </div>
   </div>
 </template>
 
 <script setup>
 // Карта портфеля — фонове ситуаційне чуття: ліс воркспейсів зі зведенням
-// станів. Свідомо read-only: дії живуть у черзі рішень, не на карті.
+// станів. Свідомо read-only: дії живуть у черзі рішень, не на карті;
+// єдиний виняток — CTA налаштування шляхів, коли ліс порожній.
 
 const props = defineProps({
   workspaces: { type: Array, required: true },
   forest: { type: Object, required: true }
 })
+const emit = defineEmits(['setup'])
 
 /**
  * Зведення станів вузлів воркспейсу (рекурсивно по дереву).
