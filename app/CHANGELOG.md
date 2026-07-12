@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.6] - 2026-07-12
+
+### Fixed
+
+- eslint 10.7: виправлено порушення нових unicorn-правил (prefer-await, better-dom-traversing та ін.)
+
 ## [0.5.5] - 2026-07-12
 
 ### Changed

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1] - 2026-07-12
+
+### Changed
+
+- release: app@0.5.4, owner@0.2.1
+
 ## [0.3.0] - 2026-07-12
 
 ### Added
