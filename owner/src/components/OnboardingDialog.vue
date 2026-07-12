@@ -26,7 +26,7 @@
           <q-icon name="sym_o_neurology" size="14px" /> «нова ціль» декомпозує задум на підзадачі людям і агентам;
           <q-icon name="sym_o_psychology_alt" size="14px" /> критик шукає вади плану, яких не видно зсередини гілки.
         </p>
-        <a href="#" @click.prevent="openGuide" class="ob-guide-link">
+        <a @click.prevent="openGuide" href="#" class="ob-guide-link">
           <q-icon name="sym_o_open_in_new" size="13px" /> Повний ілюстрований гід (відкриється у браузері)
         </a>
       </q-card-section>

@@ -3,7 +3,7 @@ type: Vue Component
 title: OnboardingDialog.vue
 resource: owner/src/components/OnboardingDialog.vue
 docgen:
-  crc: 8b7009b2
+  crc: 4bf54905
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
 ---
 
