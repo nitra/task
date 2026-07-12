@@ -67,9 +67,9 @@ describe('buildCreateOpts', () => {
   })
 
   it('drops empty optional fields so .mt.json defaults apply', () => {
-    expect(buildCreateOpts({ mode: 'agent', modelTier: '', budgetSec: '', hint: '   ', deps: [], skills: [] })).toEqual(
-      { mode: 'agent' }
-    )
+    expect(
+      buildCreateOpts({ mode: 'agent', modelTier: '', budgetSec: '', hint: ' '.repeat(3), deps: [], skills: [] })
+    ).toEqual({ mode: 'agent' })
   })
 
   it('omits agent-only fields for human mode', () => {

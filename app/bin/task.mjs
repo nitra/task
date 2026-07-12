@@ -217,12 +217,11 @@ async function main() {
   return envelope.ok ? 0 : 2
 }
 
-main()
-  .then(code => {
-    // null = long-running mode (MCP server) — let the process live on its own handles.
-    if (code !== null) process.exit(code)
-  })
-  .catch(error => {
-    process.stderr.write(`${String(error?.message ?? error)}\n`)
-    process.exit(1)
-  })
+try {
+  const code = await main()
+  // null = long-running mode (MCP server) — let the process live on its own handles.
+  if (code !== null) process.exit(code)
+} catch (error) {
+  process.stderr.write(`${String(error?.message ?? error)}\n`)
+  process.exit(1)
+}

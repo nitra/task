@@ -3,9 +3,8 @@ type: JS Module
 title: task-create.js
 resource: app/src/task-create.js
 docgen:
-  crc: b9f5c463
+  crc: 419e7332
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: best-of-2:retry-won,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

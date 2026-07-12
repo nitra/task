@@ -59,10 +59,12 @@ export function useProjectPaths() {
   /**
    * Persist the current paths to the Rust config (fire-and-forget).
    */
-  function persist() {
-    invoke('set_project_paths', { paths: projectPaths.value }).catch(() => {
+  async function persist() {
+    try {
+      await invoke('set_project_paths', { paths: projectPaths.value })
+    } catch {
       // best-effort; not under Tauri (tests) or transient FS error
-    })
+    }
   }
 
   /**

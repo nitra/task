@@ -21,7 +21,7 @@ export function validateTaskName(name) {
   if (!name) return 'Вкажіть назву задачі'
   for (const segment of name.split('/')) {
     if (!segment) return 'Порожній сегмент — приберіть зайвий «/»'
-    if (![...segment].every(ch => isSegmentChar(ch))) return 'Лише a-z, 0-9, «-»; сегменти через «/»'
+    if ([...segment].some(ch => !isSegmentChar(ch))) return 'Лише a-z, 0-9, «-»; сегменти через «/»'
   }
   return null
 }

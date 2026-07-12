@@ -13,6 +13,7 @@ const tree = () => [
   }
 ]
 
+/* eslint-disable unicorn/better-dom-traversing -- children тут — вузли task-дерева, не DOM */
 describe('applyClaims', () => {
   it('активний claim → running, прострочений → stalled (рекурсивно)', () => {
     const nodes = applyClaims(tree(), [

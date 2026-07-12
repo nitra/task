@@ -3,7 +3,7 @@ type: Vue Component
 title: OwnerScreen.vue
 resource: owner/src/components/OwnerScreen.vue
 docgen:
-  crc: d3ef392a
+  crc: a6bff8fc
   model: openai-codex/gpt-5.4-mini
 ---
 

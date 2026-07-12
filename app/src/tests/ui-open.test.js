@@ -4,7 +4,7 @@ import { mountQuasar } from '../test-utils/quasar.js'
 
 beforeEach(() => {
   const store = {}
-  globalThis.localStorage = {
+  vi.stubGlobal('localStorage', {
     getItem: key => (key in store ? store[key] : null),
     setItem: (key, value) => {
       store[key] = String(value)
@@ -12,7 +12,7 @@ beforeEach(() => {
     removeItem: key => {
       delete store[key]
     }
-  }
+  })
 })
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn(() => Promise.resolve([])) }))
