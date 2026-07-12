@@ -10,8 +10,8 @@ export function formatDuration(sec) {
   const s = Math.round(sec)
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
-  const r = s % 60
   if (h > 0) return `${h}h ${m}m`
+  const r = s % 60
   if (m > 0) return `${m}m ${r}s`
   return `${r}s`
 }

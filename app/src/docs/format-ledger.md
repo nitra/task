@@ -3,9 +3,8 @@ type: JS Module
 title: format-ledger.js
 resource: app/src/format-ledger.js
 docgen:
-  crc: e5a514ea
+  crc: 81e5f952
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

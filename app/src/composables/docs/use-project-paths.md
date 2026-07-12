@@ -3,9 +3,8 @@ type: JS Module
 title: use-project-paths.js
 resource: app/src/composables/use-project-paths.js
 docgen:
-  crc: 99c09765
+  crc: 02e55a8e
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: best-of-2:retry-won,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

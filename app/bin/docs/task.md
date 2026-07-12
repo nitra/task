@@ -3,9 +3,8 @@ type: JS Module
 title: task.mjs
 resource: app/bin/task.mjs
 docgen:
-  crc: 86954155
+  crc: c2c46484
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
