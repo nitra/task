@@ -1,0 +1,125 @@
+import { ref } from 'vue'
+import { createOpenAiChat } from '@7n/tauri-components'
+import { useOmlx } from '@7n/tauri-components/vue'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { criticPrompt, parseCriticReply, runDeterministicCritic } from '../critic.js'
+import { dispatch } from '../tool/index.js'
+
+// Критик як споживач: детермінований прогін — безкоштовний, автоматичний при
+// кожному rescan; семантичний (LLM) — на вимогу власника, по одному виклику
+// на воркспейс. Вердикти живуть у памʼяті сесії; відхилені власником не
+// повертаються до наступного повного прогону.
+
+// Межі дайджесту: скільки вузлів і скільки символів контракту на вузол.
+const DIGEST_NODES = 30
+const DIGEST_TASK_CHARS = 400
+
+const verdicts = ref([])
+const running = ref(false)
+
+/**
+ * Плаский список вузлів дерева у порядку обходу.
+ * @param {object[]} nodes дерево вузлів зі scan
+ * @returns {object[]} вузли без вкладеності
+ */
+function flatten(nodes) {
+  return (nodes ?? []).flatMap(node => [node, ...flatten(node.children)])
+}
+
+/**
+ * Текстовий дайджест воркспейсу для семантичного критика: стан + місія
+ * кожного вузла (обрізано за лімітами контексту).
+ * @param {{ label: string, path: string }} workspace воркспейс
+ * @param {object[]} nodes дерево вузлів
+ * @returns {Promise<string>} дайджест
+ */
+async function workspaceDigest(workspace, nodes) {
+  const rows = []
+  for (const node of flatten(nodes).slice(0, DIGEST_NODES)) {
+    let mission = ''
+    const read = await dispatch('read_node', { tasksDir: workspace.path, taskPath: node.path })
+    if (read.ok) {
+      const body = read.output.split('## Task', 2)[1] ?? read.output
+      mission = body
+        .replaceAll(/<!--[\s\S]*?-->/g, ' ')
+        .replaceAll(/\s+/g, ' ')
+        .trim()
+        .slice(0, DIGEST_TASK_CHARS)
+    }
+    const deps = (node.deps ?? []).length > 0 ? ` deps=[${node.deps.join(',')}]` : ''
+    rows.push(`- ${node.path} [${node.state}]${deps}: ${mission}`)
+  }
+  return `Воркспейс ${workspace.label} (${rows.length} вузлів):\n${rows.join('\n')}`
+}
+
+/**
+ * Композабл критика: вердикти + прогони (детермінований і семантичний).
+ * @returns {{ verdicts: import('vue').Ref<object[]>, running: import('vue').Ref<boolean>, refreshDeterministic: (workspaces: object[], forest: Record<string, object[]>) => void, runSemantic: (workspaces: object[], forest: Record<string, object[]>) => Promise<void>, dismiss: (verdict: object) => void }} поверхня критика
+ */
+export function useCritic() {
+  const { baseUrl, model, apiKey } = useOmlx({
+    storagePrefix: 'owner',
+    defaultModel: 'gemma-4-e4b-it-OptiQ-4bit'
+  })
+
+  /**
+   * Детермінований прогін: дешевий, викликається після кожного rescan.
+   * Семантичні вердикти сесії зберігаються, детерміновані — заміщуються.
+   * @param {object[]} workspaces воркспейси лісу
+   * @param {Record<string, object[]>} forest дерева вузлів
+   */
+  function refreshDeterministic(workspaces, forest) {
+    const semantic = verdicts.value.filter(v => v.rule === 'semantic')
+    verdicts.value = [...runDeterministicCritic(workspaces, forest, Date.now()), ...semantic]
+  }
+
+  /**
+   * Семантичний прогін (LLM): один виклик на воркспейс, паралельно.
+   * @param {object[]} workspaces воркспейси лісу
+   * @param {Record<string, object[]>} forest дерева вузлів
+   * @returns {Promise<void>}
+   */
+  async function runSemantic(workspaces, forest) {
+    running.value = true
+    try {
+      const chat = createOpenAiChat({
+        baseUrl: baseUrl.value,
+        model: model.value,
+        apiKey: apiKey.value || undefined,
+        fetchFn: tauriFetch
+      })
+      const found = await Promise.all(
+        workspaces.map(async workspace => {
+          try {
+            const digest = await workspaceDigest(workspace, forest[workspace.path])
+            const { system, user } = criticPrompt(digest)
+            const reply = await chat({
+              messages: [
+                { role: 'system', content: system },
+                { role: 'user', content: user }
+              ],
+              tools: []
+            })
+            return parseCriticReply(reply.content ?? '', workspace)
+          } catch {
+            return [] // воркспейс не прочитався чи модель мовчить — не валимо прогін
+          }
+        })
+      )
+      const deterministic = verdicts.value.filter(v => v.rule !== 'semantic')
+      verdicts.value = [...deterministic, ...found.flat()]
+    } finally {
+      running.value = false
+    }
+  }
+
+  /**
+   * Власник відхилив вердикт — прибрати із сесії (анти-шум).
+   * @param {object} verdict вердикт до відхилення
+   */
+  function dismiss(verdict) {
+    verdicts.value = verdicts.value.filter(v => v !== verdict)
+  }
+
+  return { verdicts, running, refreshDeterministic, runSemantic, dismiss }
+}

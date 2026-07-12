@@ -36,6 +36,13 @@ export const TOOLS = [
   },
   {
     tier: 'read',
+    name: 'read_node',
+    summary: 'Read the task.md contract of a node (digest source for the critic).',
+    input: { tasksDir: TASKS_DIR, taskPath: TASK_PATH },
+    tauri: 'read_task'
+  },
+  {
+    tier: 'read',
     name: 'plan_review',
     summary: 'Read the current plan of a composite node: children specs and decision state.',
     input: { tasksDir: TASKS_DIR, taskPath: TASK_PATH },

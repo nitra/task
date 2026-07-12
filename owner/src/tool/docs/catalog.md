@@ -3,7 +3,7 @@ type: JS Module
 title: catalog.js
 resource: owner/src/tool/catalog.js
 docgen:
-  crc: 897bb793
+  crc: 2df4c141
   model: openai-codex/gpt-5.5
   score: 100
   issues: judge:inaccurate:0.95

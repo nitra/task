@@ -100,6 +100,14 @@ fn draft_plan(
     Ok(file)
 }
 
+/// Текст контракту вузла (task.md) — сировина дайджесту семантичного критика.
+#[tauri::command]
+fn read_task(tasks_dir: String, task_path: String) -> Result<String, String> {
+    mt_core::validate_name(&task_path)?;
+    let path = PathBuf::from(&tasks_dir).join(&task_path).join("task.md");
+    fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
 /// Read-модель plan-review: актуальний план вузла з розібраними `## Children`.
 #[tauri::command]
 fn plan_review_info(
@@ -182,6 +190,7 @@ pub fn run() {
             set_project_paths,
             create_task,
             draft_plan,
+            read_task,
             plan_review_info,
             spawn_approve,
             spawn_reject,

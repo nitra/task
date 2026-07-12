@@ -7,6 +7,7 @@ resource: owner/src/
 | Файл                             | Тип           |
 | -------------------------------- | ------------- |
 | [App.vue](App.md)                | Vue Component |
+| [critic.js](critic.md)           | JS Module     |
 | [decisions.js](decisions.md)     | JS Module     |
 | [delta.js](delta.md)             | JS Module     |
 | [main.js](main.md)               | JS Module     |
