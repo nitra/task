@@ -3,9 +3,8 @@ type: Vue Component
 title: OnboardingDialog.vue
 resource: owner/src/components/OnboardingDialog.vue
 docgen:
-  crc: 8dfb55d6
+  crc: 8b7009b2
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
 ---
 
 Використовуючи ваш стиль технічного письменника, я згенерував поведінкову документацію для файлу `/Users/vitalii/www/nitra/task/owner/src/components/OnboardingDialog.vue`.

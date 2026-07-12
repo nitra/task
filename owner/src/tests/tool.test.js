@@ -20,7 +20,8 @@ describe('owner tool catalog', () => {
       'draft_plan',
       'mark_done',
       'reject_plan',
-      'set_project_paths'
+      'set_project_paths',
+      'write_autonomy'
     ])
     for (const tool of writeTools) expect(tool.cli).toBeUndefined()
   })

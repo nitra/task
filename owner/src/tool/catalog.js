@@ -108,6 +108,28 @@ export const TOOLS = [
     tauri: 'spawn_reject'
   },
   {
+    tier: 'read',
+    name: 'read_autonomy',
+    summary: "Read a node's own autonomy policy (empty — no file, full inheritance from ancestors).",
+    input: { tasksDir: TASKS_DIR, taskPath: TASK_PATH },
+    tauri: 'read_autonomy'
+  },
+  {
+    tier: 'write',
+    name: 'write_autonomy',
+    summary: "Write a node's own autonomy policy (autonomy.yml; validated fail-closed before write).",
+    input: {
+      tasksDir: TASKS_DIR,
+      taskPath: TASK_PATH,
+      yaml: {
+        type: 'string',
+        required: true,
+        description: 'Flat `class: auto|approve` lines (own autonomy.js format).'
+      }
+    },
+    tauri: 'write_autonomy'
+  },
+  {
     tier: 'write',
     name: 'mark_done',
     summary: 'Accept a node as done by the human owner: writes the fact, runs ## Check.',

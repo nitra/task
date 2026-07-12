@@ -17,6 +17,12 @@
           {{ child.name }}
         </li>
       </ul>
+      <div v-if="autonomyRows.length > 0" class="plan-autonomy">
+        <q-icon name="sym_o_shield" size="14px" />
+        <span v-for="row in autonomyRows" :key="row.key" class="autonomy-chip" :class="`gate-${row.gate}`">
+          {{ row.label }}: {{ row.gate === 'approve' ? 'підпис' : 'auto' }}
+        </span>
+      </div>
     </q-card-section>
 
     <q-card-actions align="right">
@@ -94,7 +100,16 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
+import { effectivePolicyFor } from '../composables/use-autonomy.js'
 import { dispatch } from '../tool/index.js'
+
+const AUTONOMY_LABELS = {
+  deploy: 'деплой',
+  external_comms: 'зовнішні комунікації',
+  spend: 'витрати',
+  worktree_edit: 'worktree',
+  default: 'усе інше'
+}
 
 const props = defineProps({
   decision: { type: Object, required: true }
@@ -109,6 +124,7 @@ const askSummary = ref(false)
 const reason = ref('')
 const summary = ref('')
 const planChildren = ref([])
+const autonomyRows = ref([])
 
 // Колір бейджа за ціною помилки: 0–1 критично, 2 попередження, далі — інфо.
 const STAKE_COLORS = ['negative', 'negative', 'warning']
@@ -155,9 +171,19 @@ async function loadPlan() {
     tasksDir: props.decision.workspace.path,
     taskPath: props.decision.node.path
   })
-  busy.value = ''
   if (envelope.ok) planChildren.value = envelope.output.children
   else $q.notify({ type: 'negative', message: envelope.error.message })
+
+  // Лише декларовані предками класи — недекларовані «за замовчуванням approve»
+  // не показуємо рядком, інакше кожен план виглядав би однаково повним замком.
+  const effective = await effectivePolicyFor(props.decision.workspace.path, props.decision.node.path)
+  autonomyRows.value = Object.entries(effective).map(([key, gate]) => ({
+    key,
+    gate,
+    label: AUTONOMY_LABELS[key] ?? key
+  }))
+
+  busy.value = ''
 }
 
 /**
@@ -234,6 +260,32 @@ async function markDone() {
   padding-left: 18px;
   font-family: 'SF Mono', ui-monospace, monospace;
   font-size: 12px;
+}
+
+.plan-autonomy {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  opacity: 0.85;
+}
+
+.autonomy-chip {
+  font-size: 11px;
+  border-radius: 6px;
+  padding: 1px 6px;
+  border: 1px solid rgb(128 128 128 / 30%);
+}
+
+.autonomy-chip.gate-approve {
+  color: #ff9f0a;
+  border-color: rgb(255 159 10 / 40%);
+}
+
+.autonomy-chip.gate-auto {
+  color: #30d158;
+  border-color: rgb(48 209 88 / 40%);
 }
 
 .decision-dialog {

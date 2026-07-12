@@ -45,6 +45,53 @@ fn create_task(tasks_dir: String, name: String, opts: CreateOpts) -> Result<Crea
     mt_core::create_task(tasks_dir, name, opts)
 }
 
+/// Валідує `autonomy.yml` (M3): непорожні рядки без `#` — мають бути
+/// `клас: auto|approve`. Дзеркалить парсер owner/src/autonomy.js — файл
+/// не входить у контракт mt-core (a.md перезаписується цілком при зміні
+/// виконавця), тож owner сам відповідає за цілісність свого шару.
+fn validate_autonomy(yaml: &str) -> Result<(), String> {
+    for line in yaml.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (key, gate) = line
+            .split_once(':')
+            .ok_or_else(|| format!("autonomy.yml: невалідний рядок {line:?}"))?;
+        let gate = gate.trim();
+        if gate != "auto" && gate != "approve" {
+            return Err(format!(
+                "autonomy.yml: клас {} — невідомий гейт {gate:?}",
+                key.trim()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Власна політика вузла (порожній рядок — файлу немає, повне успадкування).
+#[tauri::command]
+fn read_autonomy(tasks_dir: String, task_path: String) -> Result<String, String> {
+    mt_core::validate_name(&task_path)?;
+    let path = PathBuf::from(&tasks_dir)
+        .join(&task_path)
+        .join("autonomy.yml");
+    Ok(fs::read_to_string(&path).unwrap_or_default())
+}
+
+/// Пише власну політику вузла після валідації (fail-closed: битий рядок —
+/// відмова без запису).
+#[tauri::command]
+fn write_autonomy(tasks_dir: String, task_path: String, yaml: String) -> Result<(), String> {
+    mt_core::validate_name(&task_path)?;
+    let dir = PathBuf::from(&tasks_dir).join(&task_path);
+    if !dir.join("task.md").is_file() {
+        return Err(format!("node not found: {task_path}"));
+    }
+    validate_autonomy(&yaml)?;
+    fs::write(dir.join("autonomy.yml"), yaml).map_err(|e| e.to_string())
+}
+
 /// Наступний вільний номер plan_NNN.md у директорії вузла.
 fn next_plan_nnn(dir: &Path) -> u64 {
     let max = fs::read_dir(dir)
@@ -191,6 +238,8 @@ pub fn run() {
             create_task,
             draft_plan,
             read_task,
+            read_autonomy,
+            write_autonomy,
             plan_review_info,
             spawn_approve,
             spawn_reject,
@@ -223,7 +272,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let node = tmp.path().join("goal");
         fs::create_dir_all(&node).unwrap();
-        fs::write(node.join("task.md"), "---\nschema_version: 1\n---\n\n## Task\n").unwrap();
+        fs::write(
+            node.join("task.md"),
+            "---\nschema_version: 1\n---\n\n## Task\n",
+        )
+        .unwrap();
         (tmp, node.to_string_lossy().into_owned())
     }
 
@@ -265,5 +318,53 @@ mod tests {
         .unwrap_err();
         assert!(err.contains("Children"));
         assert!(!Path::new(&node).join("plan_001.md").exists());
+    }
+
+    #[test]
+    fn autonomy_roundtrips_and_missing_file_reads_empty() {
+        let (tmp, _node) = goal_node();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+
+        assert_eq!(
+            read_autonomy(tasks_dir.clone(), "goal".to_string()).unwrap(),
+            ""
+        );
+
+        write_autonomy(
+            tasks_dir.clone(),
+            "goal".to_string(),
+            "deploy: approve\nworktree_edit: auto\n".to_string(),
+        )
+        .unwrap();
+        assert_eq!(
+            read_autonomy(tasks_dir, "goal".to_string()).unwrap(),
+            "deploy: approve\nworktree_edit: auto\n"
+        );
+    }
+
+    #[test]
+    fn autonomy_rejects_unknown_gate_without_writing() {
+        let (tmp, node) = goal_node();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+        let err = write_autonomy(
+            tasks_dir,
+            "goal".to_string(),
+            "deploy: sometimes\n".to_string(),
+        )
+        .unwrap_err();
+        assert!(err.contains("невідомий гейт"));
+        assert!(!Path::new(&node).join("autonomy.yml").exists());
+    }
+
+    #[test]
+    fn autonomy_rejects_unknown_node() {
+        let tmp = tempfile::tempdir().unwrap();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+        assert!(write_autonomy(
+            tasks_dir,
+            "ghost".to_string(),
+            "deploy: approve\n".to_string()
+        )
+        .is_err());
     }
 }

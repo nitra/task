@@ -6,6 +6,7 @@ resource: owner/src/components/
 
 | Файл                                        | Тип           |
 | ------------------------------------------- | ------------- |
+| [AutonomyMatrix.vue](AutonomyMatrix.md)     | Vue Component |
 | [BriefPane.vue](BriefPane.md)               | Vue Component |
 | [CriticCard.vue](CriticCard.md)             | Vue Component |
 | [DecisionCard.vue](DecisionCard.md)         | Vue Component |

@@ -3,9 +3,8 @@ type: Vue Component
 title: DecisionCard.vue
 resource: owner/src/components/DecisionCard.vue
 docgen:
-  crc: 861610e2
+  crc: 745aafaf
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
 ---
 
 Компонент показує одну decision-картку з контекстом workspace, поточним станом, headline та, за потреби, переліком підзадач плану. Він дає змогу переглянути план, схвалити його, відхилити з причиною або прийняти вузол як виконаний із summary.

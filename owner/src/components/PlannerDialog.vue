@@ -40,6 +40,9 @@
               dense />
           </div>
         </q-expansion-item>
+        <q-expansion-item dense label="Матриця автономії цієї цілі" header-class="planner-expander">
+          <AutonomyMatrix v-model="autonomy" class="planner-autonomy" />
+        </q-expansion-item>
       </q-card-section>
 
       <q-card-section v-if="results.length > 0" class="planner-alternatives">
@@ -91,13 +94,16 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
+import { serializeAutonomy } from '../autonomy.js'
 import { useForest } from '../composables/use-forest.js'
 import { usePlanner } from '../composables/use-planner.js'
 import { childrenToYaml, validNodeId } from '../planner.js'
 import { dispatch } from '../tool/index.js'
+import AutonomyMatrix from './AutonomyMatrix.vue'
 
 // «Нова ціль» (M1): інтент → 2 альтернативи від плановика → вибір → create_goal
-// + draft_plan. Далі рішення живе у штатній черзі (plan_review → approve).
+// + draft_plan (+ опційна матриця автономії, M3). Далі рішення живе у штатній
+// черзі (plan_review → approve).
 
 defineProps({
   modelValue: { type: Boolean, required: true }
@@ -114,6 +120,7 @@ const intent = ref('')
 const results = ref([])
 const generating = ref(false)
 const busy = ref('')
+const autonomy = ref({})
 
 const workspaceOptions = computed(() => workspaces.value.map(w => ({ label: w.label, value: w.path })))
 const idValid = computed(() => validNodeId(nodeId.value))
@@ -157,6 +164,16 @@ async function pick(result) {
     })
     if (!drafted.ok) throw new Error(drafted.error.message)
 
+    // Політика — опційна: порожня матриця = повне успадкування, файл не пишемо.
+    if (Object.keys(autonomy.value).length > 0) {
+      const wrote = await dispatch('write_autonomy', {
+        tasksDir: workspace.value,
+        taskPath: nodeId.value,
+        yaml: serializeAutonomy(autonomy.value)
+      })
+      if (!wrote.ok) throw new Error(wrote.error.message)
+    }
+
     $q.notify({ type: 'positive', message: `${drafted.output} записано — план чекає approve у черзі рішень` })
     emit('drafted')
     emit('update:modelValue', false)
@@ -190,6 +207,10 @@ async function pick(result) {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: 8px 4px;
+}
+
+.planner-autonomy {
   padding: 8px 4px;
 }
 
