@@ -1,0 +1,19 @@
+app/src/material-symbols-outlined.css
+  s_899197902c9b62::t_7978c9616087b4 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "34232b42db581c8c0e4df18b485e9b30fd70ccda",
+  "prompts": {},
+  "sessions": {
+    "s_899197902c9b62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6220396b-6750-408d-9018-b5153cdb0963",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
