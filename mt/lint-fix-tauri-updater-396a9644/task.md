@@ -1,6 +1,6 @@
 ---
 schema_version: 1
-created_at: 2026-07-14T13:49:47.969Z
+created_at: 2026-07-13T18:44:35.779Z
 budget_sec: 1800
 audit: optional
 hint: atomic
@@ -21,6 +21,7 @@ npx @nitra/cursor lint --no-fix --cwd ../.. tauri
 ## Inputs
 
 Target-файли:
+
 - `app/src`
 - `owner/src`
 - `owner/src-tauri/src/lib.rs`
