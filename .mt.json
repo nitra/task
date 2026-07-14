@@ -18,5 +18,6 @@
   },
   "stale_worktree_min": 30,
   "grace_period": 60,
-  "min_free_disk_gb": 10
+  "min_free_disk_gb": 10,
+  "node_executor": "npx @nitra/cursor mt-run-node"
 }
