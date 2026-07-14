@@ -462,8 +462,8 @@ mod tests {
     #[test]
     fn builds_azure_web_url_with_encoded_project_spaces() {
         assert_eq!(
-            azure_web_url("https://dev.azure.com/anadoluefes", "My SFA", 42),
-            "https://dev.azure.com/anadoluefes/My%20SFA/_build/results?buildId=42"
+            azure_web_url("https://dev.azure.com/contoso", "My SFA", 42),
+            "https://dev.azure.com/contoso/My%20SFA/_build/results?buildId=42"
         );
     }
 
