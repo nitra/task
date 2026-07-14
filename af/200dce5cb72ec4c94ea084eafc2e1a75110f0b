@@ -1,0 +1,180 @@
+owner/package.json
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 23-25
+app/src-tauri/src/docs/git_util.md
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-38
+app/src-tauri/gen/schemas/capabilities.json
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1
+owner/src-tauri/capabilities/updater.json
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-14
+mt/lint-fix-tauri-updater-396a9644/task.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-23,25-27
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 24
+app/src-tauri/gen/schemas/acl-manifests.json
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1
+owner/stryker-vue-macros-ignorer.mjs
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-48
+mt/lint-fix-bun-package-json-9529d0c2/task.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-23,25
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 24
+app/.changes/260713-2141.md
+  s_e3e2c8a1378c74::t_ac8062dcfe44e2 1-2,4
+  s_e3e2c8a1378c74::t_958fcb040f40af 3,5
+owner/src-tauri/capabilities/default.json
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 5-7,13-25
+mt/lint-fix-test-package-json-8917df84/task.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-23,25
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 24
+app/src-tauri/src/docs/index.md
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 7-14
+mt/lint-fix-style-lint-2ec724ef/task.md
+  s_e3e2c8a1378c74::t_23eecad6130e7d 1-23,25
+  s_e3e2c8a1378c74::t_436f117ddae049 24
+app/src/docs/pipeline-state-config.md
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-29
+app/src/pipeline-state-config.js
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-28
+app/src/components/docs/PipelineRunDetailsDialog.md
+  s_e3e2c8a1378c74::t_955e8298d9d155 32
+  s_e3e2c8a1378c74::t_1c2cb13998e6b5 14
+  s_e3e2c8a1378c74::t_684369cdf1d61a 6
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 11,15,33
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-5,7-9,12-13,16-31,34-37
+  s_e3e2c8a1378c74::t_16b454fae1c471 10
+app/src/tests/pipeline-status-dialog.test.js
+  s_e3e2c8a1378c74::t_cf2ecd59e09fff 124
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-44,46-90,95-123,125-134
+  s_e3e2c8a1378c74::t_d608af85a8f22e 45
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 91-94
+app/src-tauri/gen/schemas/desktop-schema.json
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 24-26,42-45,96-99,109-111,225-227,249-251,341-343,361-363,389-391,409-411,455-458,465-468,476-478,3097-3099,3104-3106,3111-3113,3118-3120,3125-3127,3149
+mt/lint-fix-text-markdownlint-e388ac1f/a.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-8
+app/package.json
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 27
+app/src-tauri/src/docs/lib.md
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 6
+app/src/components/TaskGraph.vue
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 153,178-180,245-252
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 58-64,96-99
+  s_e3e2c8a1378c74::t_a060d3675f184f 57,253-254
+mt/lint-fix-text-oxfmt-84e59da8/a.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-8
+owner/docs/stryker.config.md
+  s_e3e2c8a1378c74::t_bd5463356090cb 18,35
+  s_e3e2c8a1378c74::t_842fb4122d156f 1-17,19-34,36-48
+app/src/docs/format-relative-time.md
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-18,20-35
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 19
+app/src/components/docs/PipelineStatusDialog.md
+  s_e3e2c8a1378c74::t_0f48c6998ff82b 14
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-5,7-9,12-13,16-31,34-37
+  s_e3e2c8a1378c74::t_0307925591e0d7 32
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 11,15,33
+  s_e3e2c8a1378c74::t_cf74e49e667a25 10
+  s_e3e2c8a1378c74::t_842fb4122d156f 6
+app/src-tauri/src/pipeline.rs
+  s_e3e2c8a1378c74::t_2e2aafb34942d6 469-474
+  s_e3e2c8a1378c74::t_92ebf3daa162be 237-243,245-247,263-267,272,277-279
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 2-24,26-219,223-226,231-234,293-468,497-502,504-507,509-511,587
+  s_e3e2c8a1378c74::t_947d4cba95a6db 1
+  s_e3e2c8a1378c74::t_b02132c8703136 220-222,227-230,235-236,244,248-262,268-271,276,280-292
+  s_e3e2c8a1378c74::t_15f5b75a97ea5f 25
+  s_e3e2c8a1378c74::t_7ed76e6a6e5ce9 503,508,512-518,520-586
+  s_e3e2c8a1378c74::t_981a271cd1cac7 519
+  s_e3e2c8a1378c74::t_73ad9b37bd46b0 273-275
+  s_e3e2c8a1378c74::t_21333d536fc9bd 475-496
+mt/lint-fix-test-package-json-8917df84/a.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-8
+mt/lint-fix-doc-files-check-5df61846/task.md
+  s_e3e2c8a1378c74::t_bd5463356090cb 24
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 1-23,25-26
+mt/lint-fix-doc-files-check-5df61846/a.md
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 1-8
+app/src/docs/index.md
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 7-22
+app/src/tests/format-relative-time.test.js
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-33
+app/src/components/docs/TaskGraph.md
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 6
+owner/src/components/docs/OnboardingDialog.md
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 6
+mt/lint-fix-bun-package-json-9529d0c2/a.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-8
+owner/stryker.config.mjs
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-23
+mt/lint-fix-text-oxfmt-84e59da8/task.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-23,25
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 24
+mt/lint-fix-vue-package-json-7bc34482/task.md
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 24
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-23,25
+owner/docs/index.md
+  s_e3e2c8a1378c74::t_842fb4122d156f 10
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 7-9,11-12
+app/src-tauri/src/git_util.rs
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-15
+owner/.changes/260713-2141.md
+  s_e3e2c8a1378c74::t_122e56eee3ddaf 2,5
+  s_e3e2c8a1378c74::t_ac8062dcfe44e2 1,3-4
+mt/lint-fix-text-markdownlint-e388ac1f/task.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-23,25
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 24
+mt/lint-fix-tauri-updater-396a9644/a.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-8
+mt/lint-fix-tauri-tooling-8f795b61/a.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-8
+.mt.json
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 21-22
+mt/lint-fix-vue-package-json-7bc34482/a.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-8
+app/src-tauri/src/lib.rs
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 14-15,322,431-433
+app/src-tauri/src/docs/pipeline.md
+  s_e3e2c8a1378c74::t_a2c2fe621cdb70 6
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-5,7-44
+mt/lint-fix-tauri-tooling-8f795b61/task.md
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 1-23,25
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 24
+app/src/components/docs/index.md
+  s_e3e2c8a1378c74::t_4f8ceaad11e5d5 16
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 7-15,17-18
+package.json
+  s_e3e2c8a1378c74::t_34b66740e64263 28
+owner/src-tauri/Cargo.toml
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 16,27
+app/src/components/PipelineRunDetailsDialog.vue
+  s_e3e2c8a1378c74::t_3866f059c148c4 28-37
+  s_e3e2c8a1378c74::t_fe4b8d4354df12 139
+  s_e3e2c8a1378c74::t_14f6132845798a 130-138,140-143
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-27,38-129,144-150
+app/src/components/PipelineStatusDialog.vue
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-97,101-190
+  s_e3e2c8a1378c74::t_690155e0c9fbd0 98
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 99-100
+app/src/format-relative-time.js
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 1-23
+app/src-tauri/gen/schemas/macOS-schema.json
+  s_e3e2c8a1378c74::t_d55c1cb7305d84 24-26,42-45,96-99,109-111,225-227,249-251,341-343,361-363,389-391,409-411,455-458,465-468,476-478,3097-3099,3104-3106,3111-3113,3118-3120,3125-3127,3149
+owner/docs/stryker-vue-macros-ignorer.md
+  s_e3e2c8a1378c74::t_8f4a2421b6ef12 1-39
+mt/lint-fix-style-lint-2ec724ef/a.md
+  s_e3e2c8a1378c74::t_23eecad6130e7d 1-8
+bun.lock
+  s_e3e2c8a1378c74::t_44224265100cd7 9,27,52,59-60,455
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "af200dce5cb72ec4c94ea084eafc2e1a75110f0b",
+  "prompts": {},
+  "sessions": {
+    "s_e3e2c8a1378c74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2d566d0-8687-4e2b-bca4-6eafb3522bf5",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
