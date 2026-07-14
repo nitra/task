@@ -237,7 +237,7 @@ const runPlan = ref(null)
 
 const dangerHint = computed(() =>
   danger.value === 'kill'
-    ? 'архівує вузол і всіх нащадків у .history/ та прибирає з графу'
+    ? 'прибирає вузол з графу: якщо він (і нащадки) ще не мав запусків — видаляє назавжди, інакше архівує у .history/'
     : 'архівує version chain вузла і нащадків у history/; вузол повернеться у waiting'
 )
 
