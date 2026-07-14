@@ -1,0 +1,21 @@
+app/src/components/NodeActions.vue
+  s_289200e0021bd9::t_a5c13ceff7e653 240
+app/src-tauri/Cargo.lock
+  s_289200e0021bd9::t_0f166f52eb758a 2257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "a42cd65aa15fac5a405711611c3f21102dff7375",
+  "prompts": {},
+  "sessions": {
+    "s_289200e0021bd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7c6799e7-da96-47e1-82f5-903369cac6e8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
