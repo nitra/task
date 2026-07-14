@@ -3,9 +3,8 @@ type: JS Module
 title: stryker-vue-macros-ignorer.mjs
 resource: owner/stryker-vue-macros-ignorer.mjs
 docgen:
-  crc: 30a5e9f9
+  crc: f206e553
   model: omlx/gemma-4-e2b-it-4bit
-  tier: local-min-retry
   score: 0
   issues: refusal-filler,best-of-2:retry-lost
 ---

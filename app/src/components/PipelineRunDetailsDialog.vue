@@ -1,63 +1,58 @@
 <template>
-  <q-dialog v-model="open" transition-show="fade" transition-hide="fade">
-    <q-card class="run-details-card">
-      <q-card-section class="row items-center no-wrap q-pb-sm">
-        <q-icon name="sym_o_fact_check" size="20px" class="q-mr-sm" />
-        <span class="run-details-title">{{ run?.name }}</span>
-        <q-space />
-        <q-btn v-close-popup icon="sym_o_close" flat round dense size="sm" />
-      </q-card-section>
-
-      <q-separator />
-
-      <q-card-section class="q-pa-md scroll run-details-body">
-        <div v-if="loading" class="text-center q-pa-xl">
-          <q-spinner size="40px" color="primary" />
-        </div>
-        <div v-else-if="errorMessage" class="text-red">{{ errorMessage }}</div>
-        <template v-else-if="details">
-          <div class="run-details-conclusion row items-center q-mb-md">
+  <BaseDialog
+    v-model="open"
+    :title="run?.name ?? ''"
+    icon="sym_o_fact_check"
+    :width="480"
+    body-class="q-pa-md scroll run-details-body"
+    transition-show="fade"
+    transition-hide="fade">
+    <div v-if="loading" class="text-center q-pa-xl">
+      <q-spinner size="40px" color="primary" />
+    </div>
+    <div v-else-if="errorMessage" class="text-red">{{ errorMessage }}</div>
+    <template v-else-if="details">
+      <div class="run-details-conclusion row items-center q-mb-md">
+        <q-icon
+          :name="pipelineStateConfig(null, details.conclusion).icon"
+          :style="{ color: pipelineStateConfig(null, details.conclusion).color }"
+          size="18px"
+          class="q-mr-sm" />
+        {{ pipelineStateConfig(null, details.conclusion).label }}
+      </div>
+      <div v-if="details.jobs.length" class="run-details-jobs">
+        <div v-for="job in details.jobs" :key="job.name" class="run-details-job-block">
+          <div class="run-details-job row items-center">
             <q-icon
-              :name="pipelineStateConfig(null, details.conclusion).icon"
-              :style="{ color: pipelineStateConfig(null, details.conclusion).color }"
-              size="18px"
+              :name="pipelineStateConfig(null, job.conclusion).icon"
+              :style="{ color: pipelineStateConfig(null, job.conclusion).color }"
+              size="15px"
               class="q-mr-sm" />
-            {{ pipelineStateConfig(null, details.conclusion).label }}
+            {{ job.name }}
           </div>
-          <div v-if="details.jobs.length" class="run-details-jobs">
-            <div v-for="job in details.jobs" :key="job.name" class="run-details-job-block">
-              <div class="run-details-job row items-center">
-                <q-icon
-                  :name="pipelineStateConfig(null, job.conclusion).icon"
-                  :style="{ color: pipelineStateConfig(null, job.conclusion).color }"
-                  size="15px"
-                  class="q-mr-sm" />
-                {{ job.name }}
-              </div>
-              <pre v-if="job.message" class="run-details-message">{{ job.message }}</pre>
-            </div>
-          </div>
-          <div v-else class="run-details-empty">
-            per-job breakdown недоступний для цього провайдера — див. деталі за посиланням
-          </div>
-          <q-btn
-            v-if="details.url"
-            @click="openUrl(details.url)"
-            label="View log"
-            icon="sym_o_open_in_new"
-            flat
-            dense
-            size="sm"
-            class="q-mt-md" />
-        </template>
-      </q-card-section>
-    </q-card>
-  </q-dialog>
+          <pre v-if="job.message" class="run-details-message">{{ job.message }}</pre>
+        </div>
+      </div>
+      <div v-else class="run-details-empty">
+        per-job breakdown недоступний для цього провайдера — див. деталі за посиланням
+      </div>
+      <q-btn
+        v-if="details.url"
+        @click="openUrl(details.url)"
+        label="View log"
+        icon="sym_o_open_in_new"
+        flat
+        dense
+        size="sm"
+        class="q-mt-md" />
+    </template>
+  </BaseDialog>
 </template>
 
 <script setup>
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { BaseDialog } from '@7n/tauri-components/components'
 import { pipelineStateConfig } from '../pipeline-state-config.js'
 
 const props = defineProps({
@@ -97,23 +92,8 @@ watch(open, async isOpen => {
 </script>
 
 <style scoped>
-.run-details-card {
-  width: 480px;
-  max-width: 92vw;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  border-radius: 12px;
-}
-
-.run-details-title {
-  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.run-details-body {
-  flex: 1;
+:deep(.run-details-body) {
+  max-height: 60vh;
   overflow-y: auto;
 }
 
