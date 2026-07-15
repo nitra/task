@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.2] - 2026-07-15
+
+### Changed
+
+- `PipelineRunDetailsDialog` переведено на спільний `BaseDialog` із `@7n/tauri-components` (усунення дублювання діалогової обгортки з `CostLedgerDialog`).
+
 ## [0.6.1] - 2026-07-15
 
 ### Fixed
