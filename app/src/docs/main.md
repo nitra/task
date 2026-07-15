@@ -3,9 +3,8 @@ type: JS Module
 title: main.js
 resource: app/src/main.js
 docgen:
-  crc: 8df017e5
+  crc: 6c5173d0
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 90
   issues: internal-name:App,judge:inaccurate:0.97
   judgeModel: openai-codex/gpt-5.4-mini

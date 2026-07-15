@@ -15,7 +15,10 @@
 </template>
 
 <script setup>
+import { useUpdater } from '@7n/tauri-components/vue'
 import OwnerScreen from './components/OwnerScreen.vue'
+
+useUpdater()
 </script>
 
 <style scoped>
