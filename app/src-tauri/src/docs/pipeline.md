@@ -3,7 +3,7 @@ type: Rust Module
 title: pipeline.rs
 resource: app/src-tauri/src/pipeline.rs
 docgen:
-  crc: 1d650e8a
+  crc: cfedb4c9
   model: omlx/gemma-4-e2b-it-4bit
   score: 0
   issues: refusal-filler,anchor-miss:https://github.com/owner/repo(.git,anchor-miss:https://github.com/nitra/task.git,anchor-miss:https://github.com/nitra/task,anchor-miss:https://dev.azure.com/contoso,best-of-2:retry-lost

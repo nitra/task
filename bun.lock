@@ -16,7 +16,7 @@
     },
     "app": {
       "name": "app",
-      "version": "0.5.6",
+      "version": "0.6.0",
       "dependencies": {
         "@7n/tauri-components": "^0.8.0",
         "@modelcontextprotocol/sdk": "^1.29.0",
@@ -49,7 +49,7 @@
     },
     "owner": {
       "name": "owner",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "dependencies": {
         "@7n/tauri-components": "^0.8.0",
         "@quasar/extras": "^2.0.2",
@@ -63,6 +63,7 @@
       },
       "devDependencies": {
         "@quasar/vite-plugin": "^1.12.0",
+        "@stryker-mutator/core": "^9.6.1",
         "@tauri-apps/cli": "^2.11.4",
         "@vitejs/plugin-vue": "^6.0.7",
         "@vue/test-utils": "^2.4.11",

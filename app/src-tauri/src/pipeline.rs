@@ -44,7 +44,9 @@ pub fn list_pipeline_runs(tasks_dir: String) -> Result<Vec<PipelineRunSummary>, 
     if has_yaml_files(&repo_root.join(".github/workflows")) {
         summaries.extend(fetch_github_runs(&repo_root)?);
     }
-    if has_yaml_files(&repo_root.join(".azurepipelines")) || repo_root.join("azure-pipelines.yml").is_file() {
+    if has_yaml_files(&repo_root.join(".azurepipelines"))
+        || repo_root.join("azure-pipelines.yml").is_file()
+    {
         summaries.extend(fetch_azure_runs(&repo_root)?);
     }
 
@@ -54,7 +56,11 @@ pub fn list_pipeline_runs(tasks_dir: String) -> Result<Vec<PipelineRunSummary>, 
 /// Деталі одного рану: список джобів (GitHub) або лише conclusion+посилання
 /// (Azure v1 — per-job breakdown вимагає Timeline API поза `az pipelines`).
 #[tauri::command]
-pub fn pipeline_run_details(tasks_dir: String, run_id: String, provider: String) -> Result<RunDetails, String> {
+pub fn pipeline_run_details(
+    tasks_dir: String,
+    run_id: String,
+    provider: String,
+) -> Result<RunDetails, String> {
     let repo_root = git_util::repo_root(&tasks_dir)?;
     match provider.as_str() {
         "github" => github_run_details(&repo_root, &run_id),
@@ -70,7 +76,11 @@ fn has_yaml_files(dir: &Path) -> bool {
         return false;
     };
     entries.filter_map(Result::ok).any(|e| {
-        let ext = e.path().extension().and_then(|s| s.to_str()).map(str::to_lowercase);
+        let ext = e
+            .path()
+            .extension()
+            .and_then(|s| s.to_str())
+            .map(str::to_lowercase);
         matches!(ext.as_deref(), Some("yml") | Some("yaml"))
     })
 }
@@ -91,7 +101,13 @@ fn run_cli(program: &str, args: &[&str], cwd: &Path) -> Result<String, String> {
 /// `owner/repo` з `git remote get-url origin`, для GitHub-хостингу.
 fn github_owner_repo(repo_root: &Path) -> Result<(String, String), String> {
     let out = Command::new("git")
-        .args(["-C", &repo_root.to_string_lossy(), "remote", "get-url", "origin"])
+        .args([
+            "-C",
+            &repo_root.to_string_lossy(),
+            "remote",
+            "get-url",
+            "origin",
+        ])
         .output()
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
@@ -145,7 +161,16 @@ fn fetch_github_runs(repo_root: &Path) -> Result<Vec<PipelineRunSummary>, String
     let slug = format!("{owner}/{repo}");
     let out = run_cli(
         "gh",
-        &["workflow", "list", "--repo", &slug, "--json", "id,name,state", "--limit", "100"],
+        &[
+            "workflow",
+            "list",
+            "--repo",
+            &slug,
+            "--json",
+            "id,name,state",
+            "--limit",
+            "100",
+        ],
         repo_root,
     )?;
     let workflows: Vec<GhWorkflow> = serde_json::from_str(&out).map_err(|e| e.to_string())?;
@@ -161,14 +186,28 @@ fn fetch_github_runs(repo_root: &Path) -> Result<Vec<PipelineRunSummary>, String
                 let result = run_cli(
                     "gh",
                     &[
-                        "run", "list", "--repo", &slug, "--workflow", &wf_id, "--limit", "1", "--json",
+                        "run",
+                        "list",
+                        "--repo",
+                        &slug,
+                        "--workflow",
+                        &wf_id,
+                        "--limit",
+                        "1",
+                        "--json",
                         "conclusion,status,updatedAt,url,databaseId",
                     ],
                     &cwd,
                 )
                 .ok()
                 .and_then(|out| serde_json::from_str::<Vec<GhRun>>(&out).ok())
-                .and_then(|mut runs| if runs.is_empty() { None } else { Some(runs.remove(0)) });
+                .and_then(|mut runs| {
+                    if runs.is_empty() {
+                        None
+                    } else {
+                        Some(runs.remove(0))
+                    }
+                });
 
                 match result {
                     Some(run) => PipelineRunSummary {
@@ -202,7 +241,15 @@ fn github_run_details(repo_root: &Path, run_id: &str) -> Result<RunDetails, Stri
     let slug = format!("{owner}/{repo}");
     let out = run_cli(
         "gh",
-        &["run", "view", run_id, "--repo", &slug, "--json", "jobs,conclusion,url"],
+        &[
+            "run",
+            "view",
+            run_id,
+            "--repo",
+            &slug,
+            "--json",
+            "jobs,conclusion,url",
+        ],
         repo_root,
     )?;
     #[derive(serde::Deserialize)]
@@ -217,16 +264,26 @@ fn github_run_details(repo_root: &Path, run_id: &str) -> Result<RunDetails, Stri
         url: String,
     }
     let view: GhRunView = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-    let has_failed_job = view.jobs.iter().any(|j| j.conclusion.as_deref() == Some("failure"));
-    let log_excerpts =
-        if has_failed_job { github_failed_log_excerpts(repo_root, &slug, run_id) } else { HashMap::new() };
+    let has_failed_job = view
+        .jobs
+        .iter()
+        .any(|j| j.conclusion.as_deref() == Some("failure"));
+    let log_excerpts = if has_failed_job {
+        github_failed_log_excerpts(repo_root, &slug, run_id)
+    } else {
+        HashMap::new()
+    };
     Ok(RunDetails {
         jobs: view
             .jobs
             .into_iter()
             .map(|j| {
                 let message = log_excerpts.get(&j.name).cloned();
-                RunJob { name: j.name, conclusion: j.conclusion, message }
+                RunJob {
+                    name: j.name,
+                    conclusion: j.conclusion,
+                    message,
+                }
             })
             .collect(),
         url: view.url,
@@ -241,11 +298,19 @@ fn github_run_details(repo_root: &Path, run_id: &str) -> Result<RunDetails, Stri
 /// "Post job cleanup" (git config тощо) ПІСЛЯ фактичної помилки, тож
 /// останні N рядків файлу — це прибирання, а не причина провалу. Джерело —
 /// `gh run view --log-failed` (рядки `job\tstep\ttimestamp message`).
-fn github_failed_log_excerpts(repo_root: &Path, slug: &str, run_id: &str) -> HashMap<String, String> {
+fn github_failed_log_excerpts(
+    repo_root: &Path,
+    slug: &str,
+    run_id: &str,
+) -> HashMap<String, String> {
     const LINES_BEFORE_ERROR: usize = 15;
     const LINES_AFTER_ERROR: usize = 3;
     const FALLBACK_TAIL: usize = 40;
-    let Ok(out) = run_cli("gh", &["run", "view", run_id, "--repo", slug, "--log-failed"], repo_root) else {
+    let Ok(out) = run_cli(
+        "gh",
+        &["run", "view", run_id, "--repo", slug, "--log-failed"],
+        repo_root,
+    ) else {
         return HashMap::new();
     };
     let mut by_job: HashMap<String, Vec<String>> = HashMap::new();
@@ -255,13 +320,19 @@ fn github_failed_log_excerpts(repo_root: &Path, slug: &str, run_id: &str) -> Has
         let _step = parts.next().unwrap_or("");
         let rest = parts.next().unwrap_or("");
         let message = rest.split_once(' ').map_or(rest, |(_, m)| m);
-        by_job.entry(job.to_string()).or_default().push(strip_ansi(message));
+        by_job
+            .entry(job.to_string())
+            .or_default()
+            .push(strip_ansi(message));
     }
     by_job
         .into_iter()
         .map(|(job, lines)| {
             let (start, end) = match lines.iter().rposition(|l| l.contains("##[error]")) {
-                Some(i) => (i.saturating_sub(LINES_BEFORE_ERROR), (i + LINES_AFTER_ERROR + 1).min(lines.len())),
+                Some(i) => (
+                    i.saturating_sub(LINES_BEFORE_ERROR),
+                    (i + LINES_AFTER_ERROR + 1).min(lines.len()),
+                ),
                 None => (lines.len().saturating_sub(FALLBACK_TAIL), lines.len()),
             };
             (job, lines[start..end].join("\n"))
@@ -310,7 +381,11 @@ struct AzRun {
 /// Читає `organization`/`project` з `az devops configure -l` (глобальні
 /// дефолти CLI — репо не знає свій ADO org/project напряму, лише через них).
 fn azure_defaults() -> Result<(String, String), String> {
-    let out = run_cli("az", &["devops", "configure", "-l"], &std::env::current_dir().unwrap_or_default())?;
+    let out = run_cli(
+        "az",
+        &["devops", "configure", "-l"],
+        &std::env::current_dir().unwrap_or_default(),
+    )?;
     let mut organization = None;
     let mut project = None;
     for line in out.lines() {
@@ -330,7 +405,11 @@ fn azure_defaults() -> Result<(String, String), String> {
 }
 
 fn azure_web_url(organization: &str, project: &str, run_id: i64) -> String {
-    format!("{}/{}/_build/results?buildId={run_id}", organization.trim_end_matches('/'), project.replace(' ', "%20"))
+    format!(
+        "{}/{}/_build/results?buildId={run_id}",
+        organization.trim_end_matches('/'),
+        project.replace(' ', "%20")
+    )
 }
 
 /// Усі pipelines проєкту, прив'язані до цього репозиторію (ADO tfsgit-дзеркало
@@ -347,8 +426,18 @@ fn fetch_azure_runs(repo_root: &Path) -> Result<Vec<PipelineRunSummary>, String>
     let out = run_cli(
         "az",
         &[
-            "pipelines", "list", "--repository", repo_name, "--repository-type", "tfsgit", "--query-order",
-            "ModifiedDesc", "--detect", "false", "-o", "json",
+            "pipelines",
+            "list",
+            "--repository",
+            repo_name,
+            "--repository-type",
+            "tfsgit",
+            "--query-order",
+            "ModifiedDesc",
+            "--detect",
+            "false",
+            "-o",
+            "json",
         ],
         repo_root,
     )?;
@@ -364,12 +453,30 @@ fn fetch_azure_runs(repo_root: &Path) -> Result<Vec<PipelineRunSummary>, String>
                 let id_str = p.id.to_string();
                 let run = run_cli(
                     "az",
-                    &["pipelines", "runs", "list", "--pipeline-ids", &id_str, "--top", "1", "--detect", "false", "-o", "json"],
+                    &[
+                        "pipelines",
+                        "runs",
+                        "list",
+                        "--pipeline-ids",
+                        &id_str,
+                        "--top",
+                        "1",
+                        "--detect",
+                        "false",
+                        "-o",
+                        "json",
+                    ],
                     &cwd,
                 )
                 .ok()
                 .and_then(|out| serde_json::from_str::<Vec<AzRun>>(&out).ok())
-                .and_then(|mut runs| if runs.is_empty() { None } else { Some(runs.remove(0)) });
+                .and_then(|mut runs| {
+                    if runs.is_empty() {
+                        None
+                    } else {
+                        Some(runs.remove(0))
+                    }
+                });
 
                 match run {
                     Some(run) => PipelineRunSummary {
@@ -469,7 +576,10 @@ mod tests {
 
     #[test]
     fn strips_ansi_color_codes() {
-        assert_eq!(strip_ansi("\u{1b}[31m\u{1b}[31m✖\u{1b}[39m  Missing generic font family"), "✖  Missing generic font family");
+        assert_eq!(
+            strip_ansi("\u{1b}[31m\u{1b}[31m✖\u{1b}[39m  Missing generic font family"),
+            "✖  Missing generic font family"
+        );
         assert_eq!(strip_ansi("plain text, no codes"), "plain text, no codes");
     }
 
@@ -477,7 +587,10 @@ mod tests {
     fn strips_gh_literal_caret_escape_codes() {
         // `gh run view --log-failed` emits ESC as the visible two-char literal
         // `^[`, not the real control byte — confirmed against a live failing run.
-        assert_eq!(strip_ansi("^[[2m14:16^[[22m  ^[[31m^[[31m✖^[[39m  Missing generic font family"), "14:16  ✖  Missing generic font family");
+        assert_eq!(
+            strip_ansi("^[[2m14:16^[[22m  ^[[31m^[[31m✖^[[39m  Missing generic font family"),
+            "14:16  ✖  Missing generic font family"
+        );
     }
 
     #[test]
@@ -485,8 +598,14 @@ mod tests {
         let lines: Vec<String> = (0..20).map(|i| format!("line {i}")).collect();
         let mut with_error = lines.clone();
         with_error[10] = "##[error]boom".to_string();
-        with_error.extend(["Post job cleanup.".to_string(), "Post job cleanup.".to_string()]);
-        let error_idx = with_error.iter().rposition(|l| l.contains("##[error]")).unwrap();
+        with_error.extend([
+            "Post job cleanup.".to_string(),
+            "Post job cleanup.".to_string(),
+        ]);
+        let error_idx = with_error
+            .iter()
+            .rposition(|l| l.contains("##[error]"))
+            .unwrap();
         assert_eq!(error_idx, 10);
         let start = error_idx.saturating_sub(15);
         let end = (error_idx + 3 + 1).min(with_error.len());
@@ -500,7 +619,17 @@ fn azure_run_details(run_id: &str) -> Result<RunDetails, String> {
     let (organization, project) = azure_defaults()?;
     let out = run_cli(
         "az",
-        &["pipelines", "runs", "show", "--id", run_id, "--detect", "false", "-o", "json"],
+        &[
+            "pipelines",
+            "runs",
+            "show",
+            "--id",
+            run_id,
+            "--detect",
+            "false",
+            "-o",
+            "json",
+        ],
         &PathBuf::from("."),
     )?;
     let run: AzRun = serde_json::from_str(&out).map_err(|e| e.to_string())?;
@@ -568,7 +697,12 @@ fn azure_run_jobs(organization: &str, project: &str, run_id: &str) -> Vec<RunJob
         .records
         .into_iter()
         .filter(|r| matches!(r.record_type.as_str(), "Job" | "Task"))
-        .filter(|r| !matches!(r.result.as_deref(), None | Some("succeeded") | Some("skipped")))
+        .filter(|r| {
+            !matches!(
+                r.result.as_deref(),
+                None | Some("succeeded") | Some("skipped")
+            )
+        })
         .map(|r| {
             let message = r
                 .issues
@@ -580,7 +714,11 @@ fn azure_run_jobs(organization: &str, project: &str, run_id: &str) -> Vec<RunJob
             RunJob {
                 name: r.name,
                 conclusion: r.result.as_deref().map(normalize_azure_result),
-                message: if message.is_empty() { None } else { Some(message) },
+                message: if message.is_empty() {
+                    None
+                } else {
+                    Some(message)
+                },
             }
         })
         .collect()

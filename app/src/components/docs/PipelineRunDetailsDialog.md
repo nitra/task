@@ -3,7 +3,7 @@ type: Vue Component
 title: PipelineRunDetailsDialog.vue
 resource: app/src/components/PipelineRunDetailsDialog.vue
 docgen:
-  crc: 4ded7429
+  crc: 91a8641f
   model: omlx/gemma-4-e2b-it-4bit
 ---
 
