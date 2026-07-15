@@ -15,5 +15,6 @@ resource: owner/src/
 | [mission.js](mission.md)         | JS Module     |
 | [onboarding.js](onboarding.md)   | JS Module     |
 | [planner.js](planner.md)         | JS Module     |
+| [scope.js](scope.md)             | JS Module     |
 | [screen-mode.js](screen-mode.md) | JS Module     |
 | [staff.js](staff.md)             | JS Module     |

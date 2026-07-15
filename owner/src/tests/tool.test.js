@@ -20,6 +20,7 @@ describe('owner tool catalog', () => {
       'draft_plan',
       'mark_done',
       'reject_plan',
+      'set_identity',
       'set_project_paths',
       'write_autonomy'
     ])

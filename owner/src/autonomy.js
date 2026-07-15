@@ -10,9 +10,15 @@ export const GATES = Object.freeze(['auto', 'approve'])
 // Відкритий словник класів дій зі спеки; 'default' — фолбек для нездекларованих.
 export const ACTION_CLASSES = Object.freeze(['deploy', 'external_comms', 'spend', 'worktree_edit'])
 
+// Зарезервовані метаключі поза словником класів дій (M5, спека
+// 260714-cognitive-delegation): owner — handle власника піддерева,
+// since — дата делегування. Дзеркалить RESERVED_KEYS Rust-бекенда.
+export const RESERVED_KEYS = Object.freeze(['owner', 'since'])
+
 /**
  * Розбирає текст `autonomy.yml` (плоскі рядки `клас: gate`) у політику вузла.
- * Порожні рядки й `#`-коментарі ігноруються.
+ * Порожні рядки, `#`-коментарі та зарезервовані метаключі (owner/since)
+ * ігноруються — власність читає effectiveOwnerOf у scope.js.
  * @param {string} text сирий вміст файлу (порожній рядок — вузол без своєї політики)
  * @returns {Record<string, 'auto'|'approve'>} декларована на вузлі політика
  */
@@ -24,6 +30,7 @@ export function parseAutonomy(text) {
     const sep = line.indexOf(':')
     if (sep === -1) throw new Error(`autonomy.yml: невалідний рядок ${JSON.stringify(line)}`)
     const key = line.slice(0, sep).trim()
+    if (RESERVED_KEYS.includes(key)) continue
     const value = line.slice(sep + 1).trim()
     if (!GATES.includes(value)) throw new Error(`autonomy.yml: клас ${key} — невідомий гейт ${JSON.stringify(value)}`)
     policy[key] = value

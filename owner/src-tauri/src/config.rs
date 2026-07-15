@@ -1,8 +1,11 @@
-//! Конфіг owner-застосунку — project search paths.
+//! Конфіг owner-застосунку — project search paths та ідентичність власника.
 //!
-//! Зберігається у `appLocalDataDir/config.json` (`{ "project_paths": [...] }`).
-//! Fallback-ланцюжок читання: власний конфіг → конфіг app (`com.nitra.task`,
-//! щоб обидва застосунки бачили той самий ліс без налаштування) → `~/www`.
+//! Зберігається у `appLocalDataDir/config.json`
+//! (`{ "project_paths": [...], "identity": "handle" }`).
+//! Fallback-ланцюжок читання шляхів: власний конфіг → конфіг app
+//! (`com.nitra.task`, щоб обидва застосунки бачили той самий ліс без
+//! налаштування) → `~/www`. Ідентичність — handle (як `assignee` у `h.md`,
+//! PII лишається поза git) — тільки з власного конфігу, без fallback.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -47,15 +50,44 @@ pub fn get_project_paths() -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Зберігає project paths у власний конфіг owner.
-pub fn set_project_paths(paths: Vec<String>) -> Result<(), String> {
+/// Читає весь власний конфіг (відсутній/битий файл — порожній обʼєкт).
+fn read_own_config() -> Value {
+    own_config_path()
+        .ok()
+        .and_then(|p| fs::read_to_string(p).ok())
+        .and_then(|raw| serde_json::from_str(&raw).ok())
+        .unwrap_or_else(|| json!({}))
+}
+
+/// Мерджить один ключ у власний конфіг, зберігаючи решту ключів.
+fn merge_own_config(key: &str, value: Value) -> Result<(), String> {
     let path = own_config_path()?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let body = serde_json::to_string_pretty(&json!({ "project_paths": paths }))
-        .map_err(|e| e.to_string())?;
+    let mut config = read_own_config();
+    config
+        .as_object_mut()
+        .ok_or("config.json: корінь не обʼєкт")?
+        .insert(key.to_string(), value);
+    let body = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     fs::write(path, body).map_err(|e| e.to_string())
+}
+
+/// Зберігає project paths у власний конфіг owner (інші ключі не чіпає).
+pub fn set_project_paths(paths: Vec<String>) -> Result<(), String> {
+    merge_own_config("project_paths", json!(paths))
+}
+
+/// Handle власника з конфігу (None — ідентичність ще не налаштована).
+pub fn get_identity() -> Option<String> {
+    let handle = read_own_config().get("identity")?.as_str()?.to_string();
+    (!handle.is_empty()).then_some(handle)
+}
+
+/// Зберігає handle власника (порожній — скидає ідентичність).
+pub fn set_identity(handle: String) -> Result<(), String> {
+    merge_own_config("identity", json!(handle.trim()))
 }
 
 #[cfg(test)]

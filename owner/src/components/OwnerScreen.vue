@@ -17,6 +17,15 @@
         :loading="criticRunning" />
       <q-btn-toggle v-model="manualMode" clearable dense flat toggle-color="primary" :options="modeOptions" />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
+      <q-btn
+        @click="onboardingOpen = true"
+        flat
+        dense
+        no-caps
+        size="sm"
+        icon="sym_o_person"
+        :label="identity ?? 'хто ти?'"
+        title="Ідентичність власника — визначає твій скоуп (онбординг)" />
       <q-btn @click="onboardingOpen = true" flat dense round icon="sym_o_help" title="Що це і як налаштувати" />
     </div>
 
@@ -59,7 +68,7 @@ import PlannerDialog from './PlannerDialog.vue'
 // заголовок оголошує причину, ручний перемикач — вихід із адаптивності.
 // Детермінований критик оновлюється з кожним rescan; семантичний — кнопкою.
 
-const { workspaces, forest, delta, loading, rescan, watchForest } = useForest()
+const { workspaces, forest, delta, loading, scopes, identity, rescan, watchForest } = useForest()
 const { verdicts: criticVerdicts, running: criticRunning, refreshDeterministic, runSemantic, dismiss } = useCritic()
 
 watch(forest, value => refreshDeterministic(workspaces.value, value))
@@ -74,8 +83,8 @@ const manualMode = ref(null)
 const plannerOpen = ref(false)
 const onboardingOpen = ref(false)
 
-const decisions = computed(() => collectDecisions(workspaces.value, forest.value))
-const personal = computed(() => collectPersonal(workspaces.value, forest.value))
+const decisions = computed(() => collectDecisions(workspaces.value, forest.value, scopes.value))
+const personal = computed(() => collectPersonal(workspaces.value, forest.value, scopes.value))
 
 const auto = computed(() =>
   chooseMode({ decisionCount: decisions.value.length + criticVerdicts.value.length, deltaCount: delta.value.length })

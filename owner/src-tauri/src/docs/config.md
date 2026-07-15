@@ -3,9 +3,8 @@ type: Rust Module
 title: config.rs
 resource: owner/src-tauri/src/config.rs
 docgen:
-  crc: b075356c
+  crc: 9ab105c1
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min-retry
   score: 85
   issues: anchor-miss:absent.json,anchor-miss:empty.json,anchor-miss:full.json,best-of-2:retry-won,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
