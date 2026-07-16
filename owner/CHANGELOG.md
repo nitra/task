@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.0] - 2026-07-16
+
+### Added
+
+- Auto-update: owner тепер має tauri-plugin-updater + tauri-plugin-process, useUpdater() у App.vue, Dialog-плагін Quasar для промпту оновлення
+
 ## [0.8.0] - 2026-07-15
 
 ### Changed
