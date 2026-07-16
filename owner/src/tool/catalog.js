@@ -132,6 +132,60 @@ export const TOOLS = [
   },
   {
     tier: 'read',
+    name: 'scan_escalations',
+    summary: 'Collect escalation series of a workspace (escalation_NNN.md files) — raw input for queue routing.',
+    input: { tasksDir: TASKS_DIR },
+    tauri: 'scan_escalations'
+  },
+  {
+    tier: 'write',
+    name: 'escalate',
+    summary:
+      'Escalate a node to its customer with a mandatory note (fail-closed) — writes immutable escalation_NNN.md.',
+    input: {
+      tasksDir: TASKS_DIR,
+      taskPath: TASK_PATH,
+      to: { type: 'string', required: true, description: 'Addressee handle — effective owner of the parent node.' },
+      reason: {
+        type: 'string',
+        required: true,
+        description: 'The note: what happened / what was tried / what is asked / by when.'
+      }
+    },
+    tauri: 'escalate'
+  },
+  {
+    tier: 'write',
+    name: 'resolve_escalation',
+    summary: 'Resolve an open escalation with a verdict (addressee only) — writes escalation-resolved_NNN.md.',
+    input: {
+      tasksDir: TASKS_DIR,
+      taskPath: TASK_PATH,
+      nnn: { type: 'number', required: true, description: 'Escalation series number to resolve.' },
+      verdict: { type: 'string', required: true, description: 'The customer verdict for the branch owner.' }
+    },
+    tauri: 'resolve_escalation'
+  },
+  {
+    tier: 'write',
+    name: 'delegate',
+    summary: 'Delegate a node atomically: executor flag (h.md/a.md) plus autonomy.yml (owner: for a human) in one act.',
+    input: {
+      tasksDir: TASKS_DIR,
+      taskPath: TASK_PATH,
+      mode: { type: 'string', required: true, description: "Executor kind: 'human' or 'agent'." },
+      owner: {
+        type: 'string',
+        required: false,
+        description: 'Owner handle (required for human, forbidden meaning for agent).'
+      },
+      autonomyYaml: { type: 'string', required: false, description: 'Autonomy envelope lines `class: auto|approve`.' },
+      qualification: { type: 'string', required: false, description: 'Required executor qualification (human).' }
+    },
+    tauri: 'delegate'
+  },
+  {
+    tier: 'read',
     name: 'read_autonomy',
     summary: "Read a node's own autonomy policy (empty — no file, full inheritance from ancestors).",
     input: { tasksDir: TASKS_DIR, taskPath: TASK_PATH },

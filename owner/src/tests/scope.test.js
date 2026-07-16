@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveScope, deriveScopes, effectiveOwnerOf } from '../scope.js'
+import { deriveScope, deriveScopes, effectiveOwnerOf, escalationAddressee } from '../scope.js'
 
 describe('effectiveOwnerOf', () => {
   it('повертає власника вузла або найближчого розміченого предка', () => {
@@ -64,5 +64,24 @@ describe('deriveScopes', () => {
     expect(scopes['/a/mt'].marked).toBe(true)
     expect(scopes['/b/mt'].marked).toBe(false)
     expect(scopes['/b/mt'].classify('x')).toBe('mine')
+  })
+})
+
+describe('escalationAddressee (M6)', () => {
+  const owners = { goal: 'vkozlov', 'goal/api': 'olena', 'goal/api/deep': 'olena' }
+
+  it('замовник — ефективний власник найближчого предка поза моєю ділянкою', () => {
+    expect(escalationAddressee(owners, 'olena', 'goal/api')).toBe('vkozlov')
+    expect(escalationAddressee(owners, 'olena', 'goal/api/deep/task')).toBe('vkozlov')
+  })
+
+  it('null — вузол не мій, я власник кореня або ідентичності немає', () => {
+    expect(escalationAddressee(owners, 'olena', 'goal')).toBeNull()
+    expect(escalationAddressee(owners, 'vkozlov', 'goal')).toBeNull()
+    expect(escalationAddressee(owners, null, 'goal/api')).toBeNull()
+  })
+
+  it('null — предок «нічия земля» (спершу признач власника)', () => {
+    expect(escalationAddressee({ 'goal/api': 'olena' }, 'olena', 'goal/api')).toBeNull()
   })
 })

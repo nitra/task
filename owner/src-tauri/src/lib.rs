@@ -186,7 +186,7 @@ fn check_scope(
         Ok(())
     } else {
         Err(format!(
-            "вузол {task_path} належить {owner} — поза твоїм скоупом (ескалація/делегування — M6)"
+            "вузол {task_path} належить {owner} — поза твоїм скоупом (запиши ескалацію замовникові через escalate)"
         ))
     }
 }
@@ -222,8 +222,8 @@ fn write_autonomy(tasks_dir: String, task_path: String, yaml: String) -> Result<
     fs::write(dir.join("autonomy.yml"), yaml).map_err(|e| e.to_string())
 }
 
-/// Наступний вільний номер plan_NNN.md у директорії вузла.
-fn next_plan_nnn(dir: &Path) -> u64 {
+/// Наступний вільний номер `<prefix>NNN.md` у директорії вузла.
+fn next_nnn(dir: &Path, prefix: &str) -> u64 {
     let max = fs::read_dir(dir)
         .into_iter()
         .flatten()
@@ -231,7 +231,7 @@ fn next_plan_nnn(dir: &Path) -> u64 {
         .filter_map(|e| {
             e.file_name()
                 .to_str()?
-                .strip_prefix("plan_")?
+                .strip_prefix(prefix)?
                 .strip_suffix(".md")?
                 .parse::<u64>()
                 .ok()
@@ -263,7 +263,7 @@ fn draft_plan(
     if children.is_empty() {
         return Err("## Children порожня — плановик не дав жодної дитини".to_string());
     }
-    let file = format!("plan_{:03}.md", next_plan_nnn(&dir));
+    let file = format!("plan_{:03}.md", next_nnn(&dir, "plan_"));
     let created_at = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
     let yaml = if children_yaml.ends_with('\n') {
         children_yaml
@@ -331,6 +331,294 @@ fn human_done(
     mt_core::signal::done(&tasks_dir, &task_path, "human")
 }
 
+/// Ескалація вузла (M6, спека 260714): immutable `escalation_NNN.md` —
+/// «записка вгору» від власника гілки замовникові вузла; розвʼязання —
+/// парний `escalation-resolved_NNN.md`. Derived state mt-core не змінюється:
+/// маршрутизація черги деривується з цих файлів на app-рівні.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Escalation {
+    pub nnn: u64,
+    pub from: String,
+    pub to: String,
+    pub created_at: String,
+    pub reason: String,
+    pub resolved: bool,
+    pub verdict: Option<String>,
+}
+
+/// Значення ключа у простому YAML-фронтматері (`---`-блок на початку файлу).
+fn frontmatter_value(text: &str, key: &str) -> Option<String> {
+    let mut inside = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            if inside {
+                return None;
+            }
+            inside = true;
+            continue;
+        }
+        if inside {
+            if let Some((k, v)) = trimmed.split_once(':') {
+                if k.trim() == key && !v.trim().is_empty() {
+                    return Some(v.trim().to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Тіло секції `## <name>` (до наступного `## ` або кінця файлу).
+fn section_body(text: &str, name: &str) -> String {
+    let header = format!("## {name}");
+    let Some(start) = text.find(&header) else {
+        return String::new();
+    };
+    let after = &text[start + header.len()..];
+    let end = after.find("\n## ").unwrap_or(after.len());
+    after[..end].trim().to_string()
+}
+
+/// Розбирає пару файлів однієї ескалації (сирий текст + опційний resolved).
+fn parse_escalation(nnn: u64, raw: &str, resolved_raw: Option<&str>) -> Option<Escalation> {
+    Some(Escalation {
+        nnn,
+        from: frontmatter_value(raw, "from")?,
+        to: frontmatter_value(raw, "to")?,
+        created_at: frontmatter_value(raw, "created_at").unwrap_or_default(),
+        reason: section_body(raw, "Reason"),
+        resolved: resolved_raw.is_some(),
+        verdict: resolved_raw.map(|t| section_body(t, "Verdict")),
+    })
+}
+
+/// Ескалації однієї теки вузла: `escalation_NNN.md` + resolved-двійники.
+fn node_escalations(dir: &Path) -> Vec<Escalation> {
+    let mut found: Vec<Escalation> = fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name();
+            let nnn: u64 = name
+                .to_str()?
+                .strip_prefix("escalation_")?
+                .strip_suffix(".md")?
+                .parse()
+                .ok()?;
+            let raw = fs::read_to_string(e.path()).ok()?;
+            let resolved =
+                fs::read_to_string(dir.join(format!("escalation-resolved_{nnn:03}.md"))).ok();
+            parse_escalation(nnn, &raw, resolved.as_deref())
+        })
+        .collect();
+    found.sort_by_key(|e| e.nnn);
+    found
+}
+
+/// Рекурсивно збирає ескалації лісу: `шлях вузла → серія ескалацій`.
+fn collect_escalations(
+    root: &Path,
+    dir: &Path,
+    acc: &mut std::collections::HashMap<String, Vec<Escalation>>,
+) {
+    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if !path.is_dir()
+            || path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_none_or(|n| n.starts_with('.'))
+        {
+            continue;
+        }
+        if path.join("task.md").is_file() {
+            let series = node_escalations(&path);
+            if !series.is_empty() {
+                if let Ok(rel) = path.strip_prefix(root) {
+                    acc.insert(rel.to_string_lossy().replace('\\', "/"), series);
+                }
+            }
+        }
+        collect_escalations(root, &path, acc);
+    }
+}
+
+/// Ескалації воркспейсу одним проходом ФС — сировина маршрутизації черги
+/// (відкрита ескалація зʼявляється у черзі адресата і зникає з черги автора).
+#[tauri::command]
+fn scan_escalations(
+    tasks_dir: String,
+) -> Result<std::collections::HashMap<String, Vec<Escalation>>, String> {
+    let root = PathBuf::from(&tasks_dir);
+    if !root.is_dir() {
+        return Err(format!("tasks dir not found: {tasks_dir}"));
+    }
+    let mut acc = std::collections::HashMap::new();
+    collect_escalations(&root, &root, &mut acc);
+    Ok(acc)
+}
+
+/// Один handle: непорожній, один токен без пробілів (як owner у autonomy.yml).
+fn validate_handle(value: &str, field: &str) -> Result<(), String> {
+    if value.trim().is_empty() || value.split_whitespace().count() != 1 {
+        return Err(format!(
+            "{field} — має бути один handle без пробілів, отримано {value:?}"
+        ));
+    }
+    Ok(())
+}
+
+/// Ядро ескалації з явним `from` (чиста ФС-логіка — тестується без конфігу).
+fn escalate_as(
+    tasks_dir: &str,
+    task_path: &str,
+    from: &str,
+    to: &str,
+    reason: &str,
+) -> Result<String, String> {
+    mt_core::validate_name(task_path)?;
+    let dir = PathBuf::from(tasks_dir).join(task_path);
+    if !dir.join("task.md").is_file() {
+        return Err(format!("node not found: {task_path}"));
+    }
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(
+            "ескалація без записки не проходить: опиши, що сталося, що ти спробував і що просиш"
+                .to_string(),
+        );
+    }
+    validate_handle(to, "to")?;
+    if from == to {
+        return Err(
+            "ескалація самому собі не має сенсу — адресат мусить бути замовником вузла"
+                .to_string(),
+        );
+    }
+    if node_escalations(&dir).iter().any(|e| !e.resolved) {
+        return Err(format!(
+            "у вузла {task_path} вже є відкрита ескалація — дочекайся вердикту"
+        ));
+    }
+    let file = format!("escalation_{:03}.md", next_nnn(&dir, "escalation_"));
+    let created_at = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
+    let body = format!(
+        "---\nschema_version: 1\nfrom: {from}\nto: {to}\ncreated_at: {created_at}\n---\n\n## Reason\n\n{reason}\n"
+    );
+    fs::write(dir.join(&file), body).map_err(|e| e.to_string())?;
+    Ok(file)
+}
+
+/// Ескалація вгору (M6): власник гілки вичерпав свої опції і передає рішення
+/// замовникові. Записка (`## Reason`) обовʼязкова — fail-closed без неї:
+/// голий факт без «що я спробував» провокує rubber-stamping або
+/// мікроменеджмент. `from` — ідентичність застосунку, не параметр.
+#[tauri::command]
+fn escalate(
+    tasks_dir: String,
+    task_path: String,
+    to: String,
+    reason: String,
+) -> Result<String, String> {
+    let from = config::get_identity()
+        .ok_or("ідентичність не налаштована — виконай set_identity перед ескалацією")?;
+    assert_owned(&tasks_dir, &task_path)?;
+    escalate_as(&tasks_dir, &task_path, &from, &to, &reason)
+}
+
+/// Ядро вердикту по ескалації з явним `me` (чиста ФС-логіка).
+fn resolve_escalation_as(
+    tasks_dir: &str,
+    task_path: &str,
+    me: &str,
+    nnn: u64,
+    verdict: &str,
+) -> Result<String, String> {
+    mt_core::validate_name(task_path)?;
+    let dir = PathBuf::from(tasks_dir).join(task_path);
+    let verdict = verdict.trim();
+    if verdict.is_empty() {
+        return Err("вердикт порожній — поясни рішення власникові гілки".to_string());
+    }
+    let series = node_escalations(&dir);
+    let escalation = series
+        .iter()
+        .find(|e| e.nnn == nnn)
+        .ok_or_else(|| format!("ескалації {nnn:03} у вузла {task_path} немає"))?;
+    if escalation.resolved {
+        return Err(format!("ескалацію {nnn:03} вже розвʼязано"));
+    }
+    if me != escalation.to {
+        return Err(format!(
+            "ескалація адресована {} — вердикт може дати лише адресат",
+            escalation.to
+        ));
+    }
+    let file = format!("escalation-resolved_{nnn:03}.md");
+    let created_at = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ");
+    let body = format!(
+        "---\nschema_version: 1\nfrom: {me}\nescalation_ref: escalation_{nnn:03}.md\ncreated_at: {created_at}\n---\n\n## Verdict\n\n{verdict}\n"
+    );
+    fs::write(dir.join(&file), body).map_err(|e| e.to_string())?;
+    Ok(file)
+}
+
+/// Вердикт замовника по ескалації: immutable `escalation-resolved_NNN.md`.
+/// Розвʼязати може лише адресат (`to`) — це його рішення, не власника гілки.
+#[tauri::command]
+fn resolve_escalation(
+    tasks_dir: String,
+    task_path: String,
+    nnn: u64,
+    verdict: String,
+) -> Result<String, String> {
+    let me =
+        config::get_identity().ok_or("ідентичність не налаштована — виконай set_identity")?;
+    resolve_escalation_as(&tasks_dir, &task_path, &me, nnn, &verdict)
+}
+
+/// Атомарний акт делегування (M6, оргнапрям-агностичний): виконавчий прапор
+/// (`h.md` людині / `a.md` машині — штатний механізм mt-core) + один
+/// `autonomy.yml` межового вузла (`owner:` для людини + конверт автономії).
+/// Уся валідація — до першого запису (fail-closed).
+#[tauri::command]
+fn delegate(
+    tasks_dir: String,
+    task_path: String,
+    mode: mt_core::Mode,
+    owner: Option<String>,
+    autonomy_yaml: Option<String>,
+    qualification: Option<String>,
+) -> Result<String, String> {
+    mt_core::validate_name(&task_path)?;
+    let dir = PathBuf::from(&tasks_dir).join(&task_path);
+    if !dir.join("task.md").is_file() {
+        return Err(format!("node not found: {task_path}"));
+    }
+    let envelope = autonomy_yaml.unwrap_or_default();
+    validate_autonomy(&envelope)?;
+    let policy = match mode {
+        mt_core::Mode::Human => {
+            let owner = owner.ok_or("делегування людині без owner-handle не має сенсу")?;
+            validate_handle(&owner, "owner")?;
+            let since = chrono::Utc::now().format("%Y-%m-%d");
+            format!("owner: {owner}\nsince: {since}\n{envelope}")
+        }
+        // Машина — не власник: ШІ-гілка лишається у моєму скоупі.
+        mt_core::Mode::Agent => envelope,
+    };
+    validate_autonomy(&policy)?;
+    assert_owned(&tasks_dir, &task_path)?;
+    let flag = mt_core::write_executor_flag(&dir, mode, "AVG", &[], qualification.as_deref())?;
+    if policy.trim().is_empty() {
+        return Ok(flag.to_string());
+    }
+    fs::write(dir.join("autonomy.yml"), policy).map_err(|e| e.to_string())?;
+    Ok(flag.to_string())
+}
+
 /// Активний FS-watcher tasks-директорій (замінюється при повторному виклику).
 struct WatchState(Mutex<Option<notify::RecommendedWatcher>>);
 
@@ -378,6 +666,10 @@ pub fn run() {
             scan_owners,
             get_identity,
             set_identity,
+            scan_escalations,
+            escalate,
+            resolve_escalation,
+            delegate,
             plan_review_info,
             spawn_approve,
             spawn_reject,
@@ -537,6 +829,133 @@ mod tests {
             owners.get("goal/collect").map(String::as_str),
             Some("olena")
         );
+    }
+
+    #[test]
+    fn escalation_roundtrip_and_routing_fields() {
+        let (tmp, node) = goal_node();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+
+        // без записки — fail-closed, файл не зʼявляється
+        assert!(escalate_as(&tasks_dir, "goal", "olena", "vkozlov", "  ").is_err());
+        assert!(node_escalations(Path::new(&node)).is_empty());
+
+        let file = escalate_as(
+            &tasks_dir,
+            "goal",
+            "olena",
+            "vkozlov",
+            "бюджет вичерпано двічі; прошу змінити scope до п'ятниці",
+        )
+        .unwrap();
+        assert_eq!(file, "escalation_001.md");
+
+        // повторна відкрита ескалація того самого вузла — відмова
+        assert!(escalate_as(&tasks_dir, "goal", "olena", "vkozlov", "ще раз").is_err());
+
+        let scanned = scan_escalations(tasks_dir.clone()).unwrap();
+        let series = scanned.get("goal").unwrap();
+        assert_eq!(series.len(), 1);
+        assert_eq!(series[0].from, "olena");
+        assert_eq!(series[0].to, "vkozlov");
+        assert!(series[0].reason.contains("бюджет вичерпано"));
+        assert!(!series[0].resolved);
+
+        // вердикт може дати лише адресат
+        assert!(resolve_escalation_as(&tasks_dir, "goal", "olena", 1, "ні").is_err());
+        assert!(resolve_escalation_as(&tasks_dir, "goal", "vkozlov", 1, " ").is_err());
+        resolve_escalation_as(&tasks_dir, "goal", "vkozlov", 1, "scope розширено").unwrap();
+
+        let scanned = scan_escalations(tasks_dir.clone()).unwrap();
+        let series = scanned.get("goal").unwrap();
+        assert!(series[0].resolved);
+        assert_eq!(series[0].verdict.as_deref(), Some("scope розширено"));
+
+        // розвʼязану — вдруге не розвʼязати; нова серія відкривається далі
+        assert!(resolve_escalation_as(&tasks_dir, "goal", "vkozlov", 1, "знову").is_err());
+        let next = escalate_as(&tasks_dir, "goal", "olena", "vkozlov", "нове питання").unwrap();
+        assert_eq!(next, "escalation_002.md");
+    }
+
+    #[test]
+    fn escalate_rejects_self_and_multiword_addressee() {
+        let (tmp, _node) = goal_node();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+        assert!(escalate_as(&tasks_dir, "goal", "olena", "olena", "записка").is_err());
+        assert!(escalate_as(&tasks_dir, "goal", "olena", "Віктор Козлов", "записка").is_err());
+    }
+
+    #[test]
+    fn delegate_human_writes_flag_and_ownership_atomically() {
+        let (tmp, node) = goal_node();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+
+        let flag = delegate(
+            tasks_dir.clone(),
+            "goal".to_string(),
+            mt_core::Mode::Human,
+            Some("olena".to_string()),
+            Some("deploy: approve\n".to_string()),
+            Some("senior backend".to_string()),
+        )
+        .unwrap();
+        assert_eq!(flag, "h.md");
+        assert!(Path::new(&node).join("h.md").is_file());
+        assert!(!Path::new(&node).join("a.md").exists());
+
+        let policy = fs::read_to_string(Path::new(&node).join("autonomy.yml")).unwrap();
+        assert!(policy.starts_with("owner: olena\nsince: "));
+        assert!(policy.ends_with("deploy: approve\n"));
+
+        let owners = scan_owners(tasks_dir).unwrap();
+        assert_eq!(owners.get("goal").map(String::as_str), Some("olena"));
+    }
+
+    #[test]
+    fn delegate_human_without_owner_or_with_bad_envelope_writes_nothing() {
+        let (tmp, node) = goal_node();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+
+        assert!(delegate(
+            tasks_dir.clone(),
+            "goal".to_string(),
+            mt_core::Mode::Human,
+            None,
+            None,
+            None
+        )
+        .is_err());
+        assert!(delegate(
+            tasks_dir,
+            "goal".to_string(),
+            mt_core::Mode::Human,
+            Some("olena".to_string()),
+            Some("deploy: sometimes\n".to_string()),
+            None
+        )
+        .is_err());
+        assert!(!Path::new(&node).join("h.md").exists());
+        assert!(!Path::new(&node).join("autonomy.yml").exists());
+    }
+
+    #[test]
+    fn delegate_agent_keeps_branch_unowned() {
+        let (tmp, node) = goal_node();
+        let tasks_dir = tmp.path().to_string_lossy().into_owned();
+
+        let flag = delegate(
+            tasks_dir.clone(),
+            "goal".to_string(),
+            mt_core::Mode::Agent,
+            None,
+            Some("worktree_edit: auto\n".to_string()),
+            None,
+        )
+        .unwrap();
+        assert_eq!(flag, "a.md");
+        assert!(Path::new(&node).join("a.md").is_file());
+        // машина — не власник: розмітки owner: немає, гілка лишається моєю
+        assert!(scan_owners(tasks_dir).unwrap().is_empty());
     }
 
     #[test]

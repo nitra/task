@@ -8,7 +8,7 @@
       <q-space />
       <q-btn @click="plannerOpen = true" unelevated dense color="primary" icon="sym_o_neurology" label="нова ціль" />
       <q-btn
-        @click="runSemantic(workspaces, forest)"
+        @click="runSemantic(workspaces, forest, scopes)"
         flat
         dense
         round
@@ -37,7 +37,8 @@
         v-for="decision in decisions"
         :key="decision.workspace.path + decision.node.path"
         @acted="rescan"
-        :decision="decision" />
+        :decision="decision"
+        :escalate-to="addresseeFor(decision)" />
       <CriticCard
         v-for="verdict in criticVerdicts"
         :key="verdict.workspace.path + verdict.path + verdict.rule + verdict.finding"
@@ -45,7 +46,13 @@
         :verdict="verdict" />
       <div v-if="decisions.length === 0 && criticVerdicts.length === 0" class="pane-empty">Черга рішень порожня.</div>
     </div>
-    <BriefPane v-else-if="mode === 'brief'" class="pane" :delta="delta" :personal="personal" />
+    <BriefPane
+      v-else-if="mode === 'brief'"
+      class="pane"
+      :delta="delta"
+      :personal="personal"
+      :delegations="delegations"
+      :escalated-out="escalatedOut" />
     <MapPane v-else @setup="onboardingOpen = true" class="pane" :workspaces="workspaces" :forest="forest" />
   </div>
 </template>
@@ -54,7 +61,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useCritic } from '../composables/use-critic.js'
 import { useForest } from '../composables/use-forest.js'
-import { collectDecisions, collectPersonal } from '../decisions.js'
+import { collectDecisions, collectDelegations, collectEscalatedOut, collectPersonal } from '../decisions.js'
+import { escalationAddressee } from '../scope.js'
 import { chooseMode } from '../screen-mode.js'
 import { isOnboarded } from '../onboarding.js'
 import BriefPane from './BriefPane.vue'
@@ -68,10 +76,10 @@ import PlannerDialog from './PlannerDialog.vue'
 // заголовок оголошує причину, ручний перемикач — вихід із адаптивності.
 // Детермінований критик оновлюється з кожним rescan; семантичний — кнопкою.
 
-const { workspaces, forest, delta, loading, scopes, identity, rescan, watchForest } = useForest()
+const { workspaces, forest, delta, loading, scopes, identity, owners, escalations, rescan, watchForest } = useForest()
 const { verdicts: criticVerdicts, running: criticRunning, refreshDeterministic, runSemantic, dismiss } = useCritic()
 
-watch(forest, value => refreshDeterministic(workspaces.value, value))
+watch(forest, value => refreshDeterministic(workspaces.value, value, scopes.value))
 
 const MODE_TITLES = {
   decisions: 'Черга рішень',
@@ -83,8 +91,26 @@ const manualMode = ref(null)
 const plannerOpen = ref(false)
 const onboardingOpen = ref(false)
 
-const decisions = computed(() => collectDecisions(workspaces.value, forest.value, scopes.value))
+const decisions = computed(() =>
+  collectDecisions(workspaces.value, forest.value, scopes.value, {
+    escalations: escalations.value,
+    me: identity.value
+  })
+)
 const personal = computed(() => collectPersonal(workspaces.value, forest.value, scopes.value))
+const delegations = computed(() => collectDelegations(workspaces.value, forest.value, scopes.value, owners.value))
+const escalatedOut = computed(() =>
+  collectEscalatedOut(workspaces.value, forest.value, escalations.value, identity.value)
+)
+
+/**
+ * Замовник вузла рішення — адресат можливої ескалації (null — нікому).
+ * @param {{ workspace: { path: string }, node: { path: string } }} decision рішення черги
+ * @returns {string|null} handle замовника
+ */
+function addresseeFor(decision) {
+  return escalationAddressee(owners.value[decision.workspace.path] ?? {}, identity.value, decision.node.path)
+}
 
 const auto = computed(() =>
   chooseMode({ decisionCount: decisions.value.length + criticVerdicts.value.length, deltaCount: delta.value.length })
