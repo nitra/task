@@ -3,9 +3,8 @@ type: Vue Component
 title: App.vue
 resource: owner/src/App.vue
 docgen:
-  crc: c68b06e7
+  crc: f4e1116b
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
 ---
 
 Цей компонент задає базовий каркас сторінки для застосунку owner: верхній брендований header і основну область вмісту. Він не містить бізнес-логіки, а лише формує постійний інтерфейс оболонки.

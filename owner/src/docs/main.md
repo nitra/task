@@ -3,9 +3,8 @@ type: JS Module
 title: main.js
 resource: owner/src/main.js
 docgen:
-  crc: d3c7c75b
+  crc: 24374392
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

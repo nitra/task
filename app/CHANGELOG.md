@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.3] - 2026-07-16
+
+### Fixed
+
+- Auto-update: додано Quasar Dialog-плагін — useUpdater() раніше мовчки не показував діалог оновлення ($q.dialog is not a function)
+
 ## [0.6.2] - 2026-07-15
 
 ### Changed
