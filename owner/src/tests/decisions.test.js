@@ -59,3 +59,41 @@ describe('collectPersonal', () => {
     expect(decisions).toEqual([])
   })
 })
+
+describe('скоуп власника (M5)', () => {
+  const forest = {
+    '/demo/mt': [
+      node('mine', 'plan_review', [node('mine/todo', 'pending'), node('mine/delegated', 'unresolvable')]),
+      node('stray', 'failed'),
+      node('mine2', 'pending')
+    ]
+  }
+  // mine* — мої, mine/delegated — делеговано, stray — «нічия земля»
+  const scopes = {
+    '/demo/mt': {
+      marked: true,
+      classify: path => {
+        if (path === 'mine/delegated') return 'boundary'
+        if (path === 'stray') return 'orphaned'
+        return path.startsWith('mine') ? 'mine' : 'foreign'
+      }
+    }
+  }
+
+  it('черга — лише мій скоуп, «нічия земля» з прапорцем, межі без рішень', () => {
+    const rows = collectDecisions([WS], forest, scopes)
+    expect(rows.map(r => [r.node.path, r.orphaned ?? false])).toEqual([
+      ['stray', true],
+      ['mine', false]
+    ])
+  })
+
+  it('особисті задачі — лише мої pending', () => {
+    const forest2 = { '/demo/mt': [node('mine/todo', 'pending'), node('stray', 'pending')] }
+    expect(collectPersonal([WS], forest2, scopes).map(r => r.node.path)).toEqual(['mine/todo'])
+  })
+
+  it('без scopes — легасі-поведінка: усе моє', () => {
+    expect(collectDecisions([WS], forest).length).toBeGreaterThan(2)
+  })
+})

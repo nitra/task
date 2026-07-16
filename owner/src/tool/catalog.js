@@ -109,6 +109,29 @@ export const TOOLS = [
   },
   {
     tier: 'read',
+    name: 'whoami',
+    summary: "Read the configured owner identity handle (null — the 'who are you' step not done yet).",
+    input: {},
+    tauri: 'get_identity'
+  },
+  {
+    tier: 'write',
+    name: 'set_identity',
+    summary: 'Persist the owner identity handle locally (PII stays out of git — mt directory policy).',
+    input: {
+      handle: { type: 'string', required: true, description: 'Owner handle, same format as h.md assignee.' }
+    },
+    tauri: 'set_identity'
+  },
+  {
+    tier: 'read',
+    name: 'scan_owners',
+    summary: 'Collect the owner: markup of a workspace (autonomy.yml files) — raw input for scope derivation.',
+    input: { tasksDir: TASKS_DIR },
+    tauri: 'scan_owners'
+  },
+  {
+    tier: 'read',
     name: 'read_autonomy',
     summary: "Read a node's own autonomy policy (empty — no file, full inheritance from ancestors).",
     input: { tasksDir: TASKS_DIR, taskPath: TASK_PATH },

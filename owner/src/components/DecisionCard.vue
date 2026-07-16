@@ -2,6 +2,12 @@
   <q-card flat bordered class="decision-card">
     <q-card-section class="decision-head">
       <q-badge :color="badgeColor" :label="decision.node.state" />
+      <q-badge
+        v-if="decision.orphaned"
+        color="warning"
+        text-color="dark"
+        label="нічия земля"
+        title="Розмічений ліс, а власник вузла не резолвиться — признач власника (owner: в autonomy.yml)" />
       <span class="decision-node">{{ decision.node.path }}</span>
       <span class="decision-workspace">{{ decision.workspace.label }}</span>
     </q-card-section>

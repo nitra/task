@@ -1,21 +1,40 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { diffForest, readSnapshot, snapshotForest, writeSnapshot } from '../delta.js'
+import { deriveScopes } from '../scope.js'
 import { dispatch } from '../tool/index.js'
 
 // Спільний стан лісу задач власника: воркспейси + дерева вузлів + дельта
 // проти знімка минулого візиту. Baseline фіксується на першому завантаженні
 // сесії — refresh порівнює з ним, а не з щойно записаним знімком, тож дельта
 // не «зʼїдає» сама себе посеред сесії.
+// M5: ліс доповнюється owner:-розміткою (scan_owners) та ідентичністю
+// (whoami) — з них деривуються скоупи, що фільтрують чергу/задачі/дельту.
 
 const workspaces = ref([])
 const forest = ref({})
 const loading = ref(false)
 const delta = ref([])
+const identity = ref(null)
+const scopes = ref({})
 
 let baseline = null
 let watching = false
 let debounceTimer = null
+
+/**
+ * Лишає у дельті лише мої новини: мій скоуп, межі контрактів (стан
+ * делегованого вузла — новина замовника) і «нічию землю».
+ * @param {Array<{ workspace: string, path: string }>} rows рядки дельти
+ * @param {Record<string, { classify: (path: string) => string }>} scopeByWs скоуп за шляхом воркспейсу
+ * @returns {Array<object>} відфільтровані рядки
+ */
+function scopeDelta(rows, scopeByWs) {
+  return rows.filter(row => {
+    const cls = scopeByWs[row.workspace]?.classify(row.path) ?? 'mine'
+    return cls !== 'foreign'
+  })
+}
 
 /**
  * Сканує всі воркспейси лісу через tool-поверхню і оновлює дельту.
@@ -28,16 +47,23 @@ async function rescan() {
     if (!found.ok) throw new Error(found.error.message)
     workspaces.value = found.output.map(w => ({ label: w.label, path: w.path }))
 
+    const me = await dispatch('whoami')
+    identity.value = me.ok ? (me.output ?? null) : null
+
     const trees = {}
+    const ownersByWs = {}
     for (const workspace of workspaces.value) {
       const scanned = await dispatch('scan', { tasksDir: workspace.path })
       trees[workspace.path] = scanned.ok ? scanned.output : []
+      const marked = await dispatch('scan_owners', { tasksDir: workspace.path })
+      ownersByWs[workspace.path] = marked.ok ? marked.output : {}
     }
     forest.value = trees
+    scopes.value = deriveScopes(ownersByWs, identity.value)
 
     const current = snapshotForest(trees)
     baseline ??= readSnapshot() ?? current
-    delta.value = diffForest(baseline, current)
+    delta.value = scopeDelta(diffForest(baseline, current), scopes.value)
     writeSnapshot(current)
   } catch (error) {
     console.error('forest rescan failed', error)

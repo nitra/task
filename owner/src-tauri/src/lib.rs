@@ -45,28 +45,157 @@ fn create_task(tasks_dir: String, name: String, opts: CreateOpts) -> Result<Crea
     mt_core::create_task(tasks_dir, name, opts)
 }
 
+/// Зарезервовані метаключі `autonomy.yml` поза словником класів дій
+/// (M5, спека 260714-cognitive-delegation): `owner` — handle власника
+/// піддерева (як `assignee` у h.md, PII поза git), `since` — дата
+/// делегування. Живуть у тому самому поліс-файлі, бо власник і конверт
+/// автономії народжуються одним актом делегування.
+const RESERVED_KEYS: [&str; 2] = ["owner", "since"];
+
 /// Валідує `autonomy.yml` (M3): непорожні рядки без `#` — мають бути
-/// `клас: auto|approve`. Дзеркалить парсер owner/src/autonomy.js — файл
-/// не входить у контракт mt-core (a.md перезаписується цілком при зміні
-/// виконавця), тож owner сам відповідає за цілісність свого шару.
+/// `клас: auto|approve` або зарезервований метаключ із непорожнім
+/// значенням. Дзеркалить парсер owner/src/autonomy.js — файл не входить
+/// у контракт mt-core (a.md перезаписується цілком при зміні виконавця),
+/// тож owner сам відповідає за цілісність свого шару.
 fn validate_autonomy(yaml: &str) -> Result<(), String> {
     for line in yaml.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let (key, gate) = line
+        let (key, value) = line
             .split_once(':')
             .ok_or_else(|| format!("autonomy.yml: невалідний рядок {line:?}"))?;
-        let gate = gate.trim();
-        if gate != "auto" && gate != "approve" {
+        let (key, value) = (key.trim(), value.trim());
+        if RESERVED_KEYS.contains(&key) {
+            if value.is_empty() || value.split_whitespace().count() != 1 {
+                return Err(format!(
+                    "autonomy.yml: {key} — має бути один токен без пробілів, отримано {value:?}"
+                ));
+            }
+            continue;
+        }
+        if value != "auto" && value != "approve" {
             return Err(format!(
-                "autonomy.yml: клас {} — невідомий гейт {gate:?}",
-                key.trim()
+                "autonomy.yml: клас {key} — невідомий гейт {value:?}"
             ));
         }
     }
     Ok(())
+}
+
+/// Handle власника з тексту `autonomy.yml` (None — рядка `owner:` немає).
+fn parse_owner(yaml: &str) -> Option<String> {
+    for line in yaml.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some((key, value)) = line.split_once(':') {
+            if key.trim() == "owner" && !value.trim().is_empty() {
+                return Some(value.trim().to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Рекурсивно збирає `owner:`-розмітку лісу: тека вузла (містить task.md)
+/// з autonomy.yml → запис `шлях вузла → handle`. Приховані теки
+/// (`.worktrees` тощо) пропускаються.
+fn collect_owners(root: &Path, dir: &Path, owners: &mut std::collections::HashMap<String, String>) {
+    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if !path.is_dir()
+            || path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_none_or(|n| n.starts_with('.'))
+        {
+            continue;
+        }
+        if path.join("task.md").is_file() {
+            if let Ok(yaml) = fs::read_to_string(path.join("autonomy.yml")) {
+                if let Some(owner) = parse_owner(&yaml) {
+                    if let Ok(rel) = path.strip_prefix(root) {
+                        owners.insert(rel.to_string_lossy().replace('\\', "/"), owner);
+                    }
+                }
+            }
+        }
+        collect_owners(root, &path, owners);
+    }
+}
+
+/// `owner:`-розмітка воркспейсу одним проходом ФС — сировина scope-деривації
+/// на фронті (порожня мапа = нерозмічений ліс, single-owner поведінка).
+#[tauri::command]
+fn scan_owners(tasks_dir: String) -> Result<std::collections::HashMap<String, String>, String> {
+    let root = PathBuf::from(&tasks_dir);
+    if !root.is_dir() {
+        return Err(format!("tasks dir not found: {tasks_dir}"));
+    }
+    let mut owners = std::collections::HashMap::new();
+    collect_owners(&root, &root, &mut owners);
+    Ok(owners)
+}
+
+/// Handle власника застосунку (None — «Хто ти» ще не пройдено).
+#[tauri::command]
+fn get_identity() -> Option<String> {
+    config::get_identity()
+}
+
+/// Зберігає handle власника у локальний конфіг (PII лишається поза git).
+#[tauri::command]
+fn set_identity(handle: String) -> Result<(), String> {
+    config::set_identity(handle)
+}
+
+/// Ефективний власник вузла з розмітки: найдовший префікс шляху,
+/// що має `owner:` (фрактальне успадкування за графом задач).
+fn effective_owner_of<'a>(
+    owners: &'a std::collections::HashMap<String, String>,
+    task_path: &str,
+) -> Option<&'a str> {
+    let segments: Vec<&str> = task_path.split('/').collect();
+    (1..=segments.len())
+        .rev()
+        .find_map(|i| owners.get(&segments[..i].join("/")).map(String::as_str))
+}
+
+/// Fail-closed гейт власності write-дій (чиста логіка, M5): у розміченому
+/// лісі діяти на вузлі може лише його effective owner; вузол без власника —
+/// «нічия земля», діяти може будь-хто (інакше осиротіла гілка блокується
+/// назавжди). Нерозмічений ліс — single-owner поведінка без перевірки.
+fn check_scope(
+    owners: &std::collections::HashMap<String, String>,
+    task_path: &str,
+    me: Option<&str>,
+) -> Result<(), String> {
+    if owners.is_empty() {
+        return Ok(());
+    }
+    let Some(owner) = effective_owner_of(owners, task_path) else {
+        return Ok(());
+    };
+    let me = me.ok_or(
+        "ліс розмічений власниками, а твоя ідентичність не налаштована — виконай set_identity",
+    )?;
+    if owner == me {
+        Ok(())
+    } else {
+        Err(format!(
+            "вузол {task_path} належить {owner} — поза твоїм скоупом (ескалація/делегування — M6)"
+        ))
+    }
+}
+
+/// Гейт власності для tauri-команд: розмітка читається з ФС, ідентичність —
+/// з конфігу застосунку.
+fn assert_owned(tasks_dir: &str, task_path: &str) -> Result<(), String> {
+    let owners = scan_owners(tasks_dir.to_string())?;
+    check_scope(&owners, task_path, config::get_identity().as_deref())
 }
 
 /// Власна політика вузла (порожній рядок — файлу немає, повне успадкування).
@@ -89,6 +218,7 @@ fn write_autonomy(tasks_dir: String, task_path: String, yaml: String) -> Result<
         return Err(format!("node not found: {task_path}"));
     }
     validate_autonomy(&yaml)?;
+    assert_owned(&tasks_dir, &task_path)?;
     fs::write(dir.join("autonomy.yml"), yaml).map_err(|e| e.to_string())
 }
 
@@ -128,6 +258,7 @@ fn draft_plan(
     if !dir.join("task.md").is_file() {
         return Err(format!("node not found: {task_path}"));
     }
+    assert_owned(&tasks_dir, &task_path)?;
     let children = mt_core::spawn::parse_children(&children_yaml)?;
     if children.is_empty() {
         return Err("## Children порожня — плановик не дав жодної дитини".to_string());
@@ -170,12 +301,14 @@ fn spawn_approve(
     tasks_dir: String,
     task_path: String,
 ) -> Result<mt_core::spawn::SpawnOutcome, String> {
+    assert_owned(&tasks_dir, &task_path)?;
     mt_core::spawn::spawn_approve(&tasks_dir, &task_path)
 }
 
 /// Вердикт власника: reject плану з причиною → plan-rejected_NNN.md.
 #[tauri::command]
 fn spawn_reject(tasks_dir: String, task_path: String, reason: String) -> Result<String, String> {
+    assert_owned(&tasks_dir, &task_path)?;
     mt_core::spawn::spawn_reject(&tasks_dir, &task_path, &reason)
 }
 
@@ -187,6 +320,7 @@ fn human_done(
     task_path: String,
     summary: String,
 ) -> Result<mt_core::signal::SignalOutcome, String> {
+    assert_owned(&tasks_dir, &task_path)?;
     if let Err(e) = mt_core::signal::write_fact(&tasks_dir, &task_path, &summary, None) {
         // Порожній/битий Summary — справжня помилка; наявний fact — ні
         // (retry після Check-фейлу не перетирає його).
@@ -241,6 +375,9 @@ pub fn run() {
             read_task,
             read_autonomy,
             write_autonomy,
+            scan_owners,
+            get_identity,
+            set_identity,
             plan_review_info,
             spawn_approve,
             spawn_reject,
@@ -374,5 +511,50 @@ mod tests {
             "deploy: approve\n".to_string()
         )
         .is_err());
+    }
+
+    #[test]
+    fn autonomy_accepts_reserved_owner_and_since() {
+        assert!(validate_autonomy("owner: olena\nsince: 2026-07-13\ndeploy: approve\n").is_ok());
+        // owner з пробілами / порожній — відмова (handle — один токен)
+        assert!(validate_autonomy("owner: Олена Коваль\n").is_err());
+        assert!(validate_autonomy("owner:\n").is_err());
+    }
+
+    #[test]
+    fn scan_owners_collects_marked_nodes_recursively() {
+        let (tmp, node) = goal_node();
+        let child = Path::new(&node).join("collect");
+        fs::create_dir_all(&child).unwrap();
+        fs::write(child.join("task.md"), "---\nschema_version: 1\n---\n").unwrap();
+        fs::write(child.join("autonomy.yml"), "owner: olena\n").unwrap();
+        // autonomy.yml без owner — не розмітка
+        fs::write(Path::new(&node).join("autonomy.yml"), "deploy: approve\n").unwrap();
+
+        let owners = scan_owners(tmp.path().to_string_lossy().into_owned()).unwrap();
+        assert_eq!(owners.len(), 1);
+        assert_eq!(
+            owners.get("goal/collect").map(String::as_str),
+            Some("olena")
+        );
+    }
+
+    #[test]
+    fn check_scope_unmarked_forest_allows_everyone() {
+        let owners = std::collections::HashMap::new();
+        assert!(check_scope(&owners, "goal", None).is_ok());
+    }
+
+    #[test]
+    fn check_scope_enforces_effective_owner_with_inheritance() {
+        let owners = std::collections::HashMap::from([("goal".to_string(), "olena".to_string())]);
+        // дитина успадковує власника предка
+        assert!(check_scope(&owners, "goal/collect", Some("olena")).is_ok());
+        let err = check_scope(&owners, "goal/collect", Some("vkozlov")).unwrap_err();
+        assert!(err.contains("olena"));
+        // розмічений ліс без ідентичності — fail-closed
+        assert!(check_scope(&owners, "goal", None).is_err());
+        // «нічия земля»: вузол поза розміченими піддеревами — діяти можна
+        assert!(check_scope(&owners, "orphan", Some("vkozlov")).is_ok());
     }
 }
