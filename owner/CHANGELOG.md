@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.11.0] - 2026-07-17
+
+### Added
+
+- M6 — межі й делегування (спека 260714): ескалації escalation_NNN.md з обов'язковою запискою і вердиктом замовника (escalate/resolve_escalation), атомарне делегування delegate (виконавчий прапор + owner: у autonomy.yml), двонапрямний Бриф («чого чекаєш ти»), критик per-scope, картка ескалації з анти-rubber-stamping.
+
+### Fixed
+
+- useForest() не повертав identity і scopes, які деструктурує OwnerScreen — перший екран падав TypeError на рендері (M5-регресія).
+
 ## [0.10.0] - 2026-07-16
 
 ### Added
