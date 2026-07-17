@@ -55,6 +55,26 @@ export function deriveScope(owners, me) {
 }
 
 /**
+ * Адресат ескалації для мого вузла — замовник: ефективний власник
+ * найближчого предка поза моєю ділянкою (M6). null — ескалювати нікому:
+ * вузол не мій, наді мною нікого (я власник кореня) або предок — «нічия
+ * земля» (спершу признач власника).
+ * @param {Record<string, string>} owners розмітка воркспейсу {nodePath: handle}
+ * @param {string|null} me мій handle
+ * @param {string} path шлях вузла (сегменти через «/»)
+ * @returns {string|null} handle замовника, або null
+ */
+export function escalationAddressee(owners, me, path) {
+  if (me === null || effectiveOwnerOf(owners, path) !== me) return null
+  const segments = path.split('/')
+  for (let i = segments.length - 1; i >= 1; i--) {
+    const owner = effectiveOwnerOf(owners, segments.slice(0, i).join('/'))
+    if (owner !== me) return owner
+  }
+  return null
+}
+
+/**
  * Скоуп кожного воркспейсу лісу з розмітки й моєї ідентичності.
  * @param {Record<string, Record<string, string>>} ownersByWorkspace розмітка за шляхом воркспейсу
  * @param {string|null} me мій handle

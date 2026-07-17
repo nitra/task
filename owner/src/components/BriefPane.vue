@@ -32,6 +32,49 @@
         </q-item>
       </q-list>
     </section>
+
+    <section v-if="escalatedOut.length > 0">
+      <div class="brief-section">Ескальовано, чекає вердикту</div>
+      <q-list bordered separator class="brief-list">
+        <q-item v-for="row in escalatedOut" :key="row.workspace.path + row.node.path">
+          <q-item-section avatar>
+            <q-icon name="sym_o_arrow_upward" color="info" size="20px" />
+          </q-item-section>
+          <q-item-section>
+            <q-item-label class="brief-node">{{ row.node.path }}</q-item-label>
+            <q-item-label caption
+              >
+записка у черзі {{ row.escalation.to }} з {{ row.escalation.created_at }}
+</q-item-label
+            >
+          </q-item-section>
+          <q-item-section side class="brief-workspace">{{ row.workspace.label }}</q-item-section>
+        </q-item>
+      </q-list>
+    </section>
+
+    <section v-if="delegations.length > 0">
+      <div class="brief-section">Чого чекаєш ти (делеговане)</div>
+      <q-list bordered separator class="brief-list">
+        <q-item v-for="row in delegations" :key="row.workspace.path + row.node.path">
+          <q-item-section avatar>
+            <q-icon
+              name="sym_o_handshake"
+              color="secondary"
+              size="20px"
+              title="Запечатана гілка — видно лише контракт" />
+          </q-item-section>
+          <q-item-section>
+            <q-item-label class="brief-node">{{ row.node.path }}</q-item-label>
+            <q-item-label caption>
+              власник: {{ row.owner }} · стан: {{ row.node.state
+              }}<template v-if="row.node.deadline"> · дедлайн: {{ row.node.deadline }}</template>
+            </q-item-label>
+          </q-item-section>
+          <q-item-section side class="brief-workspace">{{ row.workspace.label }}</q-item-section>
+        </q-item>
+      </q-list>
+    </section>
   </div>
 </template>
 
@@ -48,7 +91,10 @@ const KIND_VIEW = {
 
 defineProps({
   delta: { type: Array, required: true },
-  personal: { type: Array, required: true }
+  personal: { type: Array, required: true },
+  // Двонапрямний бриф (M6): «чого чекають від мене» доповнюється «чого чекаю я».
+  delegations: { type: Array, default: () => [] },
+  escalatedOut: { type: Array, default: () => [] }
 })
 
 /**

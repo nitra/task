@@ -3,7 +3,7 @@ type: JS Module
 title: use-forest.js
 resource: owner/src/composables/use-forest.js
 docgen:
-  crc: f4c6a603
+  crc: 56c354ba
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98

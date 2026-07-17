@@ -124,28 +124,32 @@ function dependencyCycles(index) {
 }
 
 /**
- * Детермінований прогін критика по всьому лісу.
+ * Детермінований прогін критика по моєму скоупу лісу (M6, спека 260714):
+ * мої й нічийні вузли — всі правила; межові (делеговані) — лише контрактна
+ * поверхня (дедлайн, мертва залежність) — кухня делегата не аналізується;
+ * чужі (foreign) — вердикти не генеруються взагалі. Індекс вузлів лишається
+ * повним: залежність у чужу гілку — не «мертва». Без scopes — увесь ліс.
  * @param {Array<{ label: string, path: string }>} workspaces воркспейси лісу
  * @param {Record<string, object[]>} forest дерева вузлів за шляхом воркспейсу
  * @param {number} now поточний час (ms epoch) — параметром заради тестованості
+ * @param {Record<string, { classify: (path: string) => string }>} [scopes] скоуп за шляхом воркспейсу
  * @returns {Array<{ workspace: object, path: string, rule: string, finding: string, stake: number }>} вердикти
  */
-export function runDeterministicCritic(workspaces, forest, now) {
+export function runDeterministicCritic(workspaces, forest, now, scopes) {
   const verdicts = []
   for (const workspace of workspaces) {
+    const classify = path => scopes?.[workspace.path]?.classify(path) ?? 'mine'
     const index = indexNodes(forest[workspace.path])
     for (const node of index.values()) {
-      const dead = deadDependency(node, index)
-      if (dead) verdicts.push({ workspace, path: node.path, rule: 'dead-dependency', finding: dead, stake: 0 })
-      const deadline = deadlinePassed(node, now)
-      if (deadline) verdicts.push({ workspace, path: node.path, rule: 'deadline-passed', finding: deadline, stake: 1 })
-      const stale = staleBranch(node, now)
-      if (stale) verdicts.push({ workspace, path: node.path, rule: 'stale-branch', finding: stale, stake: 2 })
+      verdicts.push(...nodeVerdicts(node, classify(node.path), index, now).map(v => ({ workspace, ...v })))
     }
     for (const cycle of dependencyCycles(index)) {
+      // Цикл звітується з боку мого вузла; цикл цілком у чужій кухні — не мій.
+      const anchor = cycle.find(path => classify(path) !== 'foreign')
+      if (!anchor) continue
       verdicts.push({
         workspace,
-        path: cycle[0],
+        path: anchor,
         rule: 'dependency-cycle',
         finding: `взаємне очікування: ${cycle.join(' → ')} → ${cycle[0]}`,
         stake: 0
@@ -153,6 +157,27 @@ export function runDeterministicCritic(workspaces, forest, now) {
     }
   }
   return verdicts.toSorted((a, b) => a.stake - b.stake)
+}
+
+/**
+ * Вердикти правил одного вузла з огляду на його клас у скоупі.
+ * @param {object} node вузол
+ * @param {string} cls клас вузла ('mine'|'boundary'|'foreign'|'orphaned')
+ * @param {Map<string, object>} index індекс вузлів
+ * @param {number} now поточний час (ms epoch)
+ * @returns {Array<{ path: string, rule: string, finding: string, stake: number }>} вердикти вузла
+ */
+function nodeVerdicts(node, cls, index, now) {
+  if (cls === 'foreign') return []
+  const found = []
+  const dead = deadDependency(node, index)
+  if (dead) found.push({ path: node.path, rule: 'dead-dependency', finding: dead, stake: 0 })
+  const deadline = deadlinePassed(node, now)
+  if (deadline) found.push({ path: node.path, rule: 'deadline-passed', finding: deadline, stake: 1 })
+  if (cls === 'boundary') return found
+  const stale = staleBranch(node, now)
+  if (stale) found.push({ path: node.path, rule: 'stale-branch', finding: stale, stake: 2 })
+  return found
 }
 
 /**

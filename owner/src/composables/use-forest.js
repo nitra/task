@@ -17,6 +17,8 @@ const loading = ref(false)
 const delta = ref([])
 const identity = ref(null)
 const scopes = ref({})
+const owners = ref({})
+const escalations = ref({})
 
 let baseline = null
 let watching = false
@@ -52,13 +54,18 @@ async function rescan() {
 
     const trees = {}
     const ownersByWs = {}
+    const escalationsByWs = {}
     for (const workspace of workspaces.value) {
       const scanned = await dispatch('scan', { tasksDir: workspace.path })
       trees[workspace.path] = scanned.ok ? scanned.output : []
       const marked = await dispatch('scan_owners', { tasksDir: workspace.path })
       ownersByWs[workspace.path] = marked.ok ? marked.output : {}
+      const raised = await dispatch('scan_escalations', { tasksDir: workspace.path })
+      escalationsByWs[workspace.path] = raised.ok ? raised.output : {}
     }
     forest.value = trees
+    owners.value = ownersByWs
+    escalations.value = escalationsByWs
     scopes.value = deriveScopes(ownersByWs, identity.value)
 
     const current = snapshotForest(trees)
@@ -93,8 +100,8 @@ async function watchForest() {
 
 /**
  * Спільне сховище лісу задач для owner-екранів.
- * @returns {{ workspaces: import('vue').Ref<{label: string, path: string}[]>, forest: import('vue').Ref<Record<string, object[]>>, delta: import('vue').Ref<object[]>, loading: import('vue').Ref<boolean>, rescan: () => Promise<void>, watchForest: () => Promise<void> }} стан і дії лісу
+ * @returns {{ workspaces: import('vue').Ref<{label: string, path: string}[]>, forest: import('vue').Ref<Record<string, object[]>>, delta: import('vue').Ref<object[]>, loading: import('vue').Ref<boolean>, identity: import('vue').Ref<string|null>, scopes: import('vue').Ref<Record<string, object>>, owners: import('vue').Ref<Record<string, Record<string, string>>>, escalations: import('vue').Ref<Record<string, Record<string, object[]>>>, rescan: () => Promise<void>, watchForest: () => Promise<void> }} стан і дії лісу
  */
 export function useForest() {
-  return { workspaces, forest, delta, loading, rescan, watchForest }
+  return { workspaces, forest, delta, loading, identity, scopes, owners, escalations, rescan, watchForest }
 }
