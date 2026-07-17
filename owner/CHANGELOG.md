@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.1] - 2026-07-17
+
+### Changed
+
+- Auto-update: окремі service-теги task-latest/owner-latest для plugins.updater.endpoints замість спільного /releases/latest/ (два продукти в одному репо колись плутали latest.json)
+
 ## [0.12.0] - 2026-07-17
 
 ### Added
