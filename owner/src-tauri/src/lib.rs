@@ -152,6 +152,20 @@ fn set_identity(handle: String) -> Result<(), String> {
     config::set_identity(handle)
 }
 
+/// Активні snooze нагадувань поточної ідентичності (id → until, ISO 8601).
+/// Персональний ритм — локально, не в git (M7, спека 260714 п. 12).
+#[tauri::command]
+fn get_snoozes() -> std::collections::HashMap<String, String> {
+    config::get_snoozes(&chrono::Utc::now().to_rfc3339())
+}
+
+/// Глушить нагадування до `until` для поточної ідентичності (fail-closed
+/// без неї). Snooze діє лише в мене — deadline у git не чіпається.
+#[tauri::command]
+fn snooze_reminder(id: String, until: String) -> Result<(), String> {
+    config::snooze_reminder(id, until, &chrono::Utc::now().to_rfc3339())
+}
+
 /// Ефективний власник вузла з розмітки: найдовший префікс шляху,
 /// що має `owner:` (фрактальне успадкування за графом задач).
 fn effective_owner_of<'a>(
@@ -666,6 +680,8 @@ pub fn run() {
             scan_owners,
             get_identity,
             set_identity,
+            get_snoozes,
+            snooze_reminder,
             scan_escalations,
             escalate,
             resolve_escalation,
@@ -686,6 +702,10 @@ pub fn run() {
     // relaunch() після встановлення оновлення — щоб застосунок сам
     // перезапустився в нову версію, а не чекав ручного рестарту.
     let builder = builder.plugin(tauri_plugin_process::init());
+
+    // ОС-нотифікації (M7): лише детерміновані події черги/дедлайнів +
+    // ранковий дайджест — ніколи «LLM вирішив перервати» (спека 260714).
+    let builder = builder.plugin(tauri_plugin_notification::init());
 
     builder
         .setup(|app| {

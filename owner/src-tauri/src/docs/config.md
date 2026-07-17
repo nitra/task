@@ -3,7 +3,7 @@ type: Rust Module
 title: config.rs
 resource: owner/src-tauri/src/config.rs
 docgen:
-  crc: 9ab105c1
+  crc: 6104483d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 85
   issues: anchor-miss:absent.json,anchor-miss:empty.json,anchor-miss:full.json,best-of-2:retry-won,judge:inaccurate:0.98

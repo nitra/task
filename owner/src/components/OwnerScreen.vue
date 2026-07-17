@@ -32,6 +32,11 @@
     <PlannerDialog v-model="plannerOpen" @drafted="rescan" />
     <OnboardingDialog v-model="onboardingOpen" @started="startAfterOnboarding" />
 
+    <button v-if="mode === 'decisions' && ribbon" @click="manualMode = 'brief'" type="button" class="reminder-ribbon">
+      <q-icon name="sym_o_alarm" size="14px" :color="ribbon.overdue > 0 ? 'negative' : 'warning'" />
+      {{ ribbon.headline }}
+    </button>
+
     <div v-if="mode === 'decisions'" class="pane">
       <DecisionCard
         v-for="decision in decisions"
@@ -48,11 +53,13 @@
     </div>
     <BriefPane
       v-else-if="mode === 'brief'"
+      @snooze="snooze"
       class="pane"
       :delta="delta"
       :personal="personal"
       :delegations="delegations"
-      :escalated-out="escalatedOut" />
+      :escalated-out="escalatedOut"
+      :reminders="reminders" />
     <MapPane v-else @setup="onboardingOpen = true" class="pane" :workspaces="workspaces" :forest="forest" />
   </div>
 </template>
@@ -62,9 +69,12 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useCritic } from '../composables/use-critic.js'
 import { useForest } from '../composables/use-forest.js'
 import { collectDecisions, collectDelegations, collectEscalatedOut, collectPersonal } from '../decisions.js'
+import { notifyRescan } from '../notifications.js'
+import { applySnoozes, deriveReminders, nextMidnight, reminderRibbon } from '../reminders.js'
 import { escalationAddressee } from '../scope.js'
 import { chooseMode } from '../screen-mode.js'
 import { isOnboarded } from '../onboarding.js'
+import { dispatch } from '../tool/index.js'
 import BriefPane from './BriefPane.vue'
 import CriticCard from './CriticCard.vue'
 import DecisionCard from './DecisionCard.vue'
@@ -76,10 +86,15 @@ import PlannerDialog from './PlannerDialog.vue'
 // заголовок оголошує причину, ручний перемикач — вихід із адаптивності.
 // Детермінований критик оновлюється з кожним rescan; семантичний — кнопкою.
 
-const { workspaces, forest, delta, loading, scopes, identity, owners, escalations, rescan, watchForest } = useForest()
+const { workspaces, forest, delta, loading, scopes, identity, owners, escalations, snoozes, rescan, watchForest } =
+  useForest()
 const { verdicts: criticVerdicts, running: criticRunning, refreshDeterministic, runSemantic, dismiss } = useCritic()
 
-watch(forest, value => refreshDeterministic(workspaces.value, value, scopes.value))
+watch(forest, value => {
+  refreshDeterministic(workspaces.value, value, scopes.value)
+  // ОС-нотифікації (M7) — раз на rescan, з детермінованих подій черги/дедлайнів.
+  notifyRescan({ decisions: decisions.value, reminders: reminders.value })
+})
 
 const MODE_TITLES = {
   decisions: 'Черга рішень',
@@ -110,6 +125,39 @@ const escalatedOut = computed(() =>
  */
 function addresseeFor(decision) {
   return escalationAddressee(owners.value[decision.workspace.path] ?? {}, identity.value, decision.node.path)
+}
+
+// Нагадування (M7): деривація перераховується з кожним rescan лісу;
+// snooze глушить лише в мене — deadline у git не змінюється.
+const reminders = computed(() =>
+  applySnoozes(
+    deriveReminders({
+      workspaces: workspaces.value,
+      forest: forest.value,
+      scopes: scopes.value,
+      escalations: escalations.value,
+      me: identity.value,
+      now: Date.now()
+    }),
+    snoozes.value,
+    Date.now()
+  )
+)
+const ribbon = computed(() => reminderRibbon(reminders.value))
+
+/**
+ * Глушить нагадування до наступної півночі й перечитує snooze-стан.
+ * @param {string} id стабільний id нагадування
+ * @returns {Promise<void>}
+ */
+async function snooze(id) {
+  const done = await dispatch('snooze_reminder', { id, until: nextMidnight(Date.now()) })
+  if (!done.ok) {
+    console.error('snooze failed', done.error.message)
+    return
+  }
+  const silenced = await dispatch('snoozes')
+  if (silenced.ok) snoozes.value = silenced.output ?? {}
 }
 
 const auto = computed(() =>
@@ -176,5 +224,26 @@ onMounted(async () => {
 .pane-empty {
   font-size: 13px;
   opacity: 0.6;
+}
+
+/* Тонка стрічка нагадувань (M7): інформує, не перериває — режим не змінює. */
+.reminder-ribbon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentcolor 6%, transparent);
+  color: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.reminder-ribbon:hover {
+  background: color-mix(in srgb, currentcolor 10%, transparent);
 }
 </style>
