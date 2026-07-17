@@ -25,6 +25,7 @@ describe('owner tool catalog', () => {
       'resolve_escalation',
       'set_identity',
       'set_project_paths',
+      'snooze_reminder',
       'write_autonomy'
     ])
     for (const tool of writeTools) expect(tool.cli).toBeUndefined()

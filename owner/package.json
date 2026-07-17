@@ -18,11 +18,12 @@
     "@quasar/extras": "^2.0.2",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-http": "^2.5.9",
+    "@tauri-apps/plugin-notification": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2.5.4",
-    "quasar": "^2.21.2",
-    "vue": "^3.5.39",
+    "@tauri-apps/plugin-process": "^2",
     "@tauri-apps/plugin-updater": "^2",
-    "@tauri-apps/plugin-process": "^2"
+    "quasar": "^2.21.2",
+    "vue": "^3.5.39"
   },
   "devDependencies": {
     "@quasar/vite-plugin": "^1.12.0",

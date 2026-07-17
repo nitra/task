@@ -19,6 +19,8 @@ const identity = ref(null)
 const scopes = ref({})
 const owners = ref({})
 const escalations = ref({})
+// M7: активні snooze нагадувань (персональний ритм — локально, не в git).
+const snoozes = ref({})
 
 let baseline = null
 let watching = false
@@ -51,6 +53,9 @@ async function rescan() {
 
     const me = await dispatch('whoami')
     identity.value = me.ok ? (me.output ?? null) : null
+
+    const silenced = await dispatch('snoozes')
+    snoozes.value = silenced.ok ? (silenced.output ?? {}) : {}
 
     const trees = {}
     const ownersByWs = {}
@@ -100,8 +105,8 @@ async function watchForest() {
 
 /**
  * Спільне сховище лісу задач для owner-екранів.
- * @returns {{ workspaces: import('vue').Ref<{label: string, path: string}[]>, forest: import('vue').Ref<Record<string, object[]>>, delta: import('vue').Ref<object[]>, loading: import('vue').Ref<boolean>, identity: import('vue').Ref<string|null>, scopes: import('vue').Ref<Record<string, object>>, owners: import('vue').Ref<Record<string, Record<string, string>>>, escalations: import('vue').Ref<Record<string, Record<string, object[]>>>, rescan: () => Promise<void>, watchForest: () => Promise<void> }} стан і дії лісу
+ * @returns {{ workspaces: import('vue').Ref<{label: string, path: string}[]>, forest: import('vue').Ref<Record<string, object[]>>, delta: import('vue').Ref<object[]>, loading: import('vue').Ref<boolean>, identity: import('vue').Ref<string|null>, scopes: import('vue').Ref<Record<string, object>>, owners: import('vue').Ref<Record<string, Record<string, string>>>, escalations: import('vue').Ref<Record<string, Record<string, object[]>>>, snoozes: import('vue').Ref<Record<string, string>>, rescan: () => Promise<void>, watchForest: () => Promise<void> }} стан і дії лісу
  */
 export function useForest() {
-  return { workspaces, forest, delta, loading, identity, scopes, owners, escalations, rescan, watchForest }
+  return { workspaces, forest, delta, loading, identity, scopes, owners, escalations, snoozes, rescan, watchForest }
 }

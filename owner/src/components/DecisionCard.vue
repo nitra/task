@@ -130,11 +130,9 @@
 
     <q-dialog v-model="askVerdict">
       <q-card class="decision-dialog">
-        <q-card-section class="dialog-title"
-          >
-Вердикт по ескалації — рішення для {{ decision.escalation?.from }}
-</q-card-section
-        >
+        <q-card-section class="dialog-title">
+          Вердикт по ескалації — рішення для {{ decision.escalation?.from }}
+        </q-card-section>
         <q-card-section>
           <q-input v-model="verdict" autofocus type="textarea" outlined dense placeholder="Рішення і його підстава" />
         </q-card-section>

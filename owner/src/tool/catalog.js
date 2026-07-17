@@ -125,6 +125,23 @@ export const TOOLS = [
   },
   {
     tier: 'read',
+    name: 'snoozes',
+    summary: 'Read the active reminder snoozes of the current identity (id -> until ISO; personal, not in git).',
+    input: {},
+    tauri: 'get_snoozes'
+  },
+  {
+    tier: 'write',
+    name: 'snooze_reminder',
+    summary: 'Silence a reminder until the given moment — for the current identity only (deadline in git stays).',
+    input: {
+      id: { type: 'string', required: true, description: 'Stable reminder id (rule|workspace|path|anchor).' },
+      until: { type: 'string', required: true, description: 'ISO 8601 moment when the reminder resurfaces.' }
+    },
+    tauri: 'snooze_reminder'
+  },
+  {
+    tier: 'read',
     name: 'scan_owners',
     summary: 'Collect the owner: markup of a workspace (autonomy.yml files) — raw input for scope derivation.',
     input: { tasksDir: TASKS_DIR },

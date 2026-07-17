@@ -3,7 +3,7 @@ type: Vue Component
 title: BriefPane.vue
 resource: owner/src/components/BriefPane.vue
 docgen:
-  crc: d81eefbc
+  crc: 8465e811
   model: openai-codex/gpt-5.4-mini
 ---
 

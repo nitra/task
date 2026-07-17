@@ -3,7 +3,7 @@ type: Vue Component
 title: DecisionCard.vue
 resource: owner/src/components/DecisionCard.vue
 docgen:
-  crc: e6bac9ed
+  crc: 67da8ea8
   model: openai-codex/gpt-5.4-mini
 ---
 
