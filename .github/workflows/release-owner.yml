@@ -114,3 +114,24 @@ jobs:
           projectPath: owner
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: --target universal-apple-darwin
+
+      # app і owner ділять один репозиторій, тому GitHub-вбудований
+      # /releases/latest/ неоднозначний між продуктами (див. tauri.mdc release —
+      # той канон писаний під один продукт на репо). owner-latest — стабільний
+      # службовий тег, який цей крок пересуває на свіжий latest.json щоразу;
+      # updater застосунку owner (tauri.conf.json → plugins.updater.endpoints)
+      # звертається саме сюди, а не в спільний /latest/.
+      - name: Publish owner-latest updater channel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL_TITLE: 'owner auto-update channel (службовий, не для людей)'
+          CHANNEL_NOTES: 'Стабільний тег для plugins.updater.endpoints у owner/src-tauri/tauri.conf.json. Автоматично пересувається кожним owner-v* релізом на свіжий latest.json. Дистрибутив бери з останнього справжнього owner-vX.Y.Z релізу.'
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          CHANNEL="owner-latest"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p latest.json -D /tmp/updater-channel --clobber
+          if gh release view "$CHANNEL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$CHANNEL" /tmp/updater-channel/latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$CHANNEL" /tmp/updater-channel/latest.json --repo "$GITHUB_REPOSITORY" --title "$CHANNEL_TITLE" --notes "$CHANNEL_NOTES" --prerelease --target main
+          fi
