@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.0] - 2026-07-17
+
+### Added
+
+- M7 — нагадування (спека 260714): три детерміновані правила деривації з deadline (deadline_due / personal_today / escalation_stale), кошики дедлайнів у Брифі, стрічка нагадувань у Рішеннях, snooze per-identity локально (tools snoozes/snooze_reminder), ОС-нотифікації з ранковим дайджестом
+
 ## [0.11.0] - 2026-07-17
 
 ### Added
