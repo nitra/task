@@ -12,6 +12,9 @@ use notify::Watcher;
 use tauri::{Emitter, Manager as _};
 
 mod config;
+mod llm;
+
+use llm::{llm_one_shot, llm_one_shot_acp};
 
 #[tauri::command]
 fn scan_tasks(tasks_dir: String) -> Result<Vec<TaskNode>, String> {
@@ -690,7 +693,9 @@ pub fn run() {
             spawn_approve,
             spawn_reject,
             human_done,
-            watch_tasks_dirs
+            watch_tasks_dirs,
+            llm_one_shot,
+            llm_one_shot_acp
         ]);
 
     #[cfg(desktop)]

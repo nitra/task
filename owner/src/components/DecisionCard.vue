@@ -370,6 +370,14 @@ async function act(name, input) {
 }
 
 /**
+ * Вузол рішення для autonomy-гейта ACP-рунгів use-llm-cascade.js.
+ * @returns {{ tasksDir: string, taskPath: string }} контекст вузла
+ */
+function decisionContext() {
+  return { tasksDir: props.decision.workspace.path, taskPath: props.decision.node.path }
+}
+
+/**
  * Дайджест рішення для штабу (кешується — бриф і заперечення не сканують
  * ліс двічі): контракт вузла + (для plan-review) підзадачі плану.
  * @returns {Promise<string>} дайджест
@@ -396,7 +404,7 @@ async function loadBriefing() {
   briefLoading.value = true
   briefError.value = ''
   try {
-    brief.value = await requestBriefing(await loadDigest())
+    brief.value = await requestBriefing(await loadDigest(), decisionContext())
   } catch (error) {
     briefError.value = String(error?.message ?? error)
   } finally {
@@ -414,7 +422,7 @@ async function openApproveConfirm() {
   if (objection.value || objectionError.value) return
   objectionLoading.value = true
   try {
-    objection.value = await requestObjection(await loadDigest())
+    objection.value = await requestObjection(await loadDigest(), decisionContext())
   } catch (error) {
     objectionError.value = String(error?.message ?? error)
   } finally {

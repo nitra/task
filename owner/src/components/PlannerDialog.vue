@@ -134,7 +134,7 @@ async function generate() {
   generating.value = true
   results.value = []
   try {
-    results.value = await draftAlternatives(intent.value.trim())
+    results.value = await draftAlternatives(intent.value.trim(), { tasksDir: workspace.value, taskPath: nodeId.value })
   } finally {
     generating.value = false
   }

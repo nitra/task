@@ -63,7 +63,7 @@ reports/stryker/incremental.json
 
 # Tauri — Rust build artifacts
 app/src-tauri/target/
-owner/src-tauri/target/
+owner/target/
 
 # doc-files дзеркало у src/bin: Tauri-бандлер трактує підпапки src/bin як
 # бінарники — дока генерується локально, але в git/CI не потрапляє
