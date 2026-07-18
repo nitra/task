@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.12.1] - 2026-07-17
+
+### Changed
+
+- Auto-update: окремі service-теги task-latest/owner-latest для plugins.updater.endpoints замість спільного /releases/latest/ (два продукти в одному репо колись плутали latest.json)
+
+## [0.12.0] - 2026-07-17
+
+### Added
+
+- M7 — нагадування (спека 260714): три детерміновані правила деривації з deadline (deadline_due / personal_today / escalation_stale), кошики дедлайнів у Брифі, стрічка нагадувань у Рішеннях, snooze per-identity локально (tools snoozes/snooze_reminder), ОС-нотифікації з ранковим дайджестом
+
+## [0.11.0] - 2026-07-17
+
+### Added
+
+- M6 — межі й делегування (спека 260714): ескалації escalation_NNN.md з обов'язковою запискою і вердиктом замовника (escalate/resolve_escalation), атомарне делегування delegate (виконавчий прапор + owner: у autonomy.yml), двонапрямний Бриф («чого чекаєш ти»), критик per-scope, картка ескалації з анти-rubber-stamping.
+
+### Fixed
+
+- useForest() не повертав identity і scopes, які деструктурує OwnerScreen — перший екран падав TypeError на рендері (M5-регресія).
+
+## [0.10.0] - 2026-07-16
+
+### Added
+
+- M5 — скоуп власника (спека docs/specs/260714-cognitive-delegation.md): ідентичність-handle (whoami/set_identity), owner: в autonomy.yml, scan_owners, scope-фільтр черги/особистих задач/дельти, «нічия земля», fail-closed write-tools поза скоупом, крок «Хто ти» в онбордингу
+
+## [0.9.0] - 2026-07-16
+
+### Added
+
+- Auto-update: owner тепер має tauri-plugin-updater + tauri-plugin-process, useUpdater() у App.vue, Dialog-плагін Quasar для промпту оновлення
+
+## [0.8.0] - 2026-07-15
+
+### Changed
+
+- Додано новий icon.svg для owner
+
+## [0.7.2] - 2026-07-15
+
+### Changed
+
+- `stryker-vue-macros-ignorer.mjs` — реекспорт спільної реалізації з `app/` замість повної копії (дедуплікація plugin-коду між пакетами).
+
+## [0.7.1] - 2026-07-14
+
+### Changed
+
+- Перегенеровано файлову документацію OnboardingDialog.vue (побічний ефект прогону doc-files, без змін поведінки).
+
 ## [0.7.0] - 2026-07-12
 
 ### Added

@@ -56,6 +56,27 @@
         </div>
       </q-card-section>
 
+      <q-card-section class="ob-identity">
+        <div class="ob-section">Хто ти</div>
+        <p class="ob-hint">
+          Handle визначає твій скоуп: черга і задачі фільтруються по піддеревах, де <code>owner:</code> — це ти. Той
+          самий формат, що <code>assignee</code> в <code>h.md</code>; email та імʼя лишаються поза git. Ліс без
+          <code>owner:</code>-розмітки — увесь твій.
+        </p>
+        <q-select
+          v-model="handle"
+          @new-value="(val, done) => done(val, 'add-unique')"
+          :options="knownHandles"
+          use-input
+          new-value-mode="add-unique"
+          input-debounce="0"
+          dense
+          outlined
+          clearable
+          placeholder="vkozlov"
+          class="ob-identity-input" />
+      </q-card-section>
+
       <q-card-section class="ob-model">
         <q-expansion-item dense label="Модель для плановика і критика (omlx)">
           <div class="ob-model-fields">
@@ -106,7 +127,26 @@ const { baseUrl, model, apiKey, saveOmlx } = usePlanner()
 const paths = ref([])
 const newPath = ref('')
 const saving = ref(false)
+const handle = ref(null)
+const knownHandles = ref([])
 let dirty = false
+let savedHandle = null
+
+/**
+ * Handles, що вже зустрічаються в owner:-розмітці лісу — підказки для
+ * вибору «хто ти» (замість введення наосліп).
+ * @returns {Promise<void>}
+ */
+async function loadKnownHandles() {
+  const found = await dispatch('workspaces')
+  if (!found.ok) return
+  const handles = new Set()
+  for (const workspace of found.output) {
+    const marked = await dispatch('scan_owners', { tasksDir: workspace.path })
+    if (marked.ok) for (const owner of Object.values(marked.output)) handles.add(owner)
+  }
+  knownHandles.value = [...handles].toSorted()
+}
 
 watch(
   () => props.modelValue,
@@ -115,6 +155,10 @@ watch(
     dirty = false
     const read = await dispatch('project_paths')
     if (read.ok) paths.value = read.output
+    const me = await dispatch('whoami')
+    savedHandle = me.ok ? (me.output ?? null) : null
+    handle.value = savedHandle
+    await loadKnownHandles()
   }
 )
 
@@ -161,6 +205,13 @@ async function start() {
   try {
     if (dirty) {
       const saved = await dispatch('set_project_paths', { paths: paths.value })
+      if (!saved.ok) {
+        $q.notify({ type: 'negative', message: saved.error.message })
+        return
+      }
+    }
+    if ((handle.value ?? '') !== (savedHandle ?? '')) {
+      const saved = await dispatch('set_identity', { handle: handle.value ?? '' })
       if (!saved.ok) {
         $q.notify({ type: 'negative', message: saved.error.message })
         return
@@ -272,6 +323,15 @@ async function start() {
 
 .ob-add-input {
   flex: 1;
+}
+
+.ob-identity {
+  padding-top: 8px;
+  padding-bottom: 0;
+}
+
+.ob-identity-input {
+  max-width: 260px;
 }
 
 .ob-model {

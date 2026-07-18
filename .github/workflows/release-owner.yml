@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 #
 # Реліз owner-застосунку (воркспейс owner/) — аналог release.yml для app.
-# Тег owner-vX.Y.Z → GitHub-реліз "owner owner-vX.Y.Z" + підписаний DMG.
-# Без updater-артефактів: owner не має tauri-plugin-updater (MVP M0).
+# Тег owner-vX.Y.Z → GitHub-реліз "owner owner-vX.Y.Z" + підписаний DMG +
+# updater-артефакти (owner має tauri-plugin-updater, useUpdater()).
 
 name: Release Owner
 
@@ -73,6 +73,16 @@ jobs:
           env-slug: 'main'
           secret-path: '/apple'
 
+      - name: Fetch updater signing key from Infisical
+        uses: Infisical/secrets-action@77ab1f4ccd183a543cb5b42435fbd181189f4995 # v1.0.16
+        with:
+          method: 'oidc'
+          domain: 'https://secret.7n.ai'
+          project-slug: 'vitaliytv-kfse'
+          identity-id: '53691c96-17d9-4389-b078-0f77073809ab'
+          env-slug: 'main'
+          secret-path: '/updater'
+
       - uses: ./.github/actions/setup-bun-deps
 
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
@@ -99,7 +109,29 @@ jobs:
           APPLE_ID: ${{ env.APPLE_ID }}
           APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           projectPath: owner
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: --target universal-apple-darwin
+
+      # app і owner ділять один репозиторій, тому GitHub-вбудований
+      # /releases/latest/ неоднозначний між продуктами (див. tauri.mdc release —
+      # той канон писаний під один продукт на репо). owner-latest — стабільний
+      # службовий тег, який цей крок пересуває на свіжий latest.json щоразу;
+      # updater застосунку owner (tauri.conf.json → plugins.updater.endpoints)
+      # звертається саме сюди, а не в спільний /latest/.
+      - name: Publish owner-latest updater channel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL_TITLE: 'owner auto-update channel (службовий, не для людей)'
+          CHANNEL_NOTES: 'Стабільний тег для plugins.updater.endpoints у owner/src-tauri/tauri.conf.json. Автоматично пересувається кожним owner-v* релізом на свіжий latest.json. Дистрибутив бери з останнього справжнього owner-vX.Y.Z релізу.'
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          CHANNEL="owner-latest"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p latest.json -D /tmp/updater-channel --clobber
+          if gh release view "$CHANNEL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$CHANNEL" /tmp/updater-channel/latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$CHANNEL" /tmp/updater-channel/latest.json --repo "$GITHUB_REPOSITORY" --title "$CHANNEL_TITLE" --notes "$CHANNEL_NOTES" --prerelease --target main
+          fi

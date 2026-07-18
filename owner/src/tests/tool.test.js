@@ -17,10 +17,15 @@ describe('owner tool catalog', () => {
     expect(writeTools.map(t => t.name).toSorted()).toEqual([
       'approve_plan',
       'create_goal',
+      'delegate',
       'draft_plan',
+      'escalate',
       'mark_done',
       'reject_plan',
+      'resolve_escalation',
+      'set_identity',
       'set_project_paths',
+      'snooze_reminder',
       'write_autonomy'
     ])
     for (const tool of writeTools) expect(tool.cli).toBeUndefined()

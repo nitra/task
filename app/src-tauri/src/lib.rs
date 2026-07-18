@@ -11,6 +11,8 @@ use tauri::{Emitter, Manager};
 // the standalone `journal` binary used by the node MCP orchestrator.
 
 mod config;
+mod git_util;
+mod pipeline;
 
 #[tauri::command]
 fn scan_tasks(tasks_dir: String) -> Result<Vec<TaskNode>, String> {
@@ -317,14 +319,7 @@ fn collect_paths(nodes: &[TaskNode], out: &mut Vec<String>) {
 /// сканованими вузлами → running/stalled з runner_id для GUI.
 #[tauri::command]
 fn remote_claims(tasks_dir: String) -> Result<Vec<NodeClaim>, String> {
-    let out = std::process::Command::new("git")
-        .args(["-C", &tasks_dir, "rev-parse", "--show-toplevel"])
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err("tasks dir is not inside a git repository".to_string());
-    }
-    let repo_root = PathBuf::from(String::from_utf8_lossy(&out.stdout).trim());
+    let repo_root = git_util::repo_root(&tasks_dir)?;
     // Канонічний tasks-root для node-hash — шлях відносно git root.
     let tasks_root = PathBuf::from(&tasks_dir)
         .canonicalize()
@@ -433,7 +428,9 @@ pub fn run() {
             human_signal,
             human_failed,
             run_node,
-            run_auto
+            run_auto,
+            pipeline::list_pipeline_runs,
+            pipeline::pipeline_run_details
         ]);
 
     #[cfg(desktop)]

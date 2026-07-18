@@ -28,14 +28,18 @@ function flatten(nodes) {
 
 /**
  * Текстовий дайджест воркспейсу для семантичного критика: стан + місія
- * кожного вузла (обрізано за лімітами контексту).
+ * кожного вузла (обрізано за лімітами контексту). Дієта скоупу (M6):
+ * чужі гілки (foreign) не читаються взагалі — критик не бачить кухню
+ * делегатів; межові вузли лишаються — їхній task.md і є контракт.
  * @param {{ label: string, path: string }} workspace воркспейс
  * @param {object[]} nodes дерево вузлів
+ * @param {{ classify: (path: string) => string }} [scope] скоуп воркспейсу
  * @returns {Promise<string>} дайджест
  */
-async function workspaceDigest(workspace, nodes) {
+async function workspaceDigest(workspace, nodes, scope) {
   const rows = []
-  for (const node of flatten(nodes).slice(0, DIGEST_NODES)) {
+  const visible = flatten(nodes).filter(node => (scope?.classify(node.path) ?? 'mine') !== 'foreign')
+  for (const node of visible.slice(0, DIGEST_NODES)) {
     const read = await dispatch('read_node', { tasksDir: workspace.path, taskPath: node.path })
     const mission = read.ok ? extractMission(read.output, DIGEST_TASK_CHARS) : ''
     const deps = (node.deps ?? []).length > 0 ? ` deps=[${node.deps.join(',')}]` : ''
@@ -56,25 +60,27 @@ export function useCritic() {
    * Семантичні вердикти сесії зберігаються, детерміновані — заміщуються.
    * @param {object[]} workspaces воркспейси лісу
    * @param {Record<string, object[]>} forest дерева вузлів
+   * @param {Record<string, { classify: (path: string) => string }>} [scopes] скоуп за шляхом воркспейсу
    */
-  function refreshDeterministic(workspaces, forest) {
+  function refreshDeterministic(workspaces, forest, scopes) {
     const semantic = verdicts.value.filter(v => v.rule === 'semantic')
-    verdicts.value = [...runDeterministicCritic(workspaces, forest, Date.now()), ...semantic]
+    verdicts.value = [...runDeterministicCritic(workspaces, forest, Date.now(), scopes), ...semantic]
   }
 
   /**
    * Семантичний прогін (LLM): один виклик на воркспейс, паралельно.
    * @param {object[]} workspaces воркспейси лісу
    * @param {Record<string, object[]>} forest дерева вузлів
+   * @param {Record<string, { classify: (path: string) => string }>} [scopes] скоуп за шляхом воркспейсу
    * @returns {Promise<void>}
    */
-  async function runSemantic(workspaces, forest) {
+  async function runSemantic(workspaces, forest, scopes) {
     running.value = true
     try {
       const found = await Promise.all(
         workspaces.map(async workspace => {
           try {
-            const digest = await workspaceDigest(workspace, forest[workspace.path])
+            const digest = await workspaceDigest(workspace, forest[workspace.path], scopes?.[workspace.path])
             const { system, user } = criticPrompt(digest)
             const reply = await oneShot({ system, user, tasksDir: workspace.path })
             return parseCriticReply(reply ?? '', workspace)

@@ -109,6 +109,100 @@ export const TOOLS = [
   },
   {
     tier: 'read',
+    name: 'whoami',
+    summary: "Read the configured owner identity handle (null — the 'who are you' step not done yet).",
+    input: {},
+    tauri: 'get_identity'
+  },
+  {
+    tier: 'write',
+    name: 'set_identity',
+    summary: 'Persist the owner identity handle locally (PII stays out of git — mt directory policy).',
+    input: {
+      handle: { type: 'string', required: true, description: 'Owner handle, same format as h.md assignee.' }
+    },
+    tauri: 'set_identity'
+  },
+  {
+    tier: 'read',
+    name: 'snoozes',
+    summary: 'Read the active reminder snoozes of the current identity (id -> until ISO; personal, not in git).',
+    input: {},
+    tauri: 'get_snoozes'
+  },
+  {
+    tier: 'write',
+    name: 'snooze_reminder',
+    summary: 'Silence a reminder until the given moment — for the current identity only (deadline in git stays).',
+    input: {
+      id: { type: 'string', required: true, description: 'Stable reminder id (rule|workspace|path|anchor).' },
+      until: { type: 'string', required: true, description: 'ISO 8601 moment when the reminder resurfaces.' }
+    },
+    tauri: 'snooze_reminder'
+  },
+  {
+    tier: 'read',
+    name: 'scan_owners',
+    summary: 'Collect the owner: markup of a workspace (autonomy.yml files) — raw input for scope derivation.',
+    input: { tasksDir: TASKS_DIR },
+    tauri: 'scan_owners'
+  },
+  {
+    tier: 'read',
+    name: 'scan_escalations',
+    summary: 'Collect escalation series of a workspace (escalation_NNN.md files) — raw input for queue routing.',
+    input: { tasksDir: TASKS_DIR },
+    tauri: 'scan_escalations'
+  },
+  {
+    tier: 'write',
+    name: 'escalate',
+    summary:
+      'Escalate a node to its customer with a mandatory note (fail-closed) — writes immutable escalation_NNN.md.',
+    input: {
+      tasksDir: TASKS_DIR,
+      taskPath: TASK_PATH,
+      to: { type: 'string', required: true, description: 'Addressee handle — effective owner of the parent node.' },
+      reason: {
+        type: 'string',
+        required: true,
+        description: 'The note: what happened / what was tried / what is asked / by when.'
+      }
+    },
+    tauri: 'escalate'
+  },
+  {
+    tier: 'write',
+    name: 'resolve_escalation',
+    summary: 'Resolve an open escalation with a verdict (addressee only) — writes escalation-resolved_NNN.md.',
+    input: {
+      tasksDir: TASKS_DIR,
+      taskPath: TASK_PATH,
+      nnn: { type: 'number', required: true, description: 'Escalation series number to resolve.' },
+      verdict: { type: 'string', required: true, description: 'The customer verdict for the branch owner.' }
+    },
+    tauri: 'resolve_escalation'
+  },
+  {
+    tier: 'write',
+    name: 'delegate',
+    summary: 'Delegate a node atomically: executor flag (h.md/a.md) plus autonomy.yml (owner: for a human) in one act.',
+    input: {
+      tasksDir: TASKS_DIR,
+      taskPath: TASK_PATH,
+      mode: { type: 'string', required: true, description: "Executor kind: 'human' or 'agent'." },
+      owner: {
+        type: 'string',
+        required: false,
+        description: 'Owner handle (required for human, forbidden meaning for agent).'
+      },
+      autonomyYaml: { type: 'string', required: false, description: 'Autonomy envelope lines `class: auto|approve`.' },
+      qualification: { type: 'string', required: false, description: 'Required executor qualification (human).' }
+    },
+    tauri: 'delegate'
+  },
+  {
+    tier: 'read',
     name: 'read_autonomy',
     summary: "Read a node's own autonomy policy (empty — no file, full inheritance from ancestors).",
     input: { tasksDir: TASKS_DIR, taskPath: TASK_PATH },

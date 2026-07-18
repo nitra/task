@@ -3,7 +3,7 @@ type: JS Module
 title: critic.js
 resource: owner/src/critic.js
 docgen:
-  crc: b574d443
+  crc: 056d7a32
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.97

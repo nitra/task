@@ -3,9 +3,8 @@ type: Vue Component
 title: BriefPane.vue
 resource: owner/src/components/BriefPane.vue
 docgen:
-  crc: 967e28f0
+  crc: 29bac709
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
 ---
 
 Компонент показує короткий бриф для власника: що змінилось із минулого візиту та які задачі чекають саме на нього. Він підкреслює не весь стан системи, а лише корисні для швидкого огляду зміни й особисті призначення.

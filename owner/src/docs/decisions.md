@@ -3,9 +3,8 @@ type: JS Module
 title: decisions.js
 resource: owner/src/decisions.js
 docgen:
-  crc: f8de9196
+  crc: 8d7e48d0
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.93
   judgeModel: openai-codex/gpt-5.4-mini

@@ -118,6 +118,27 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: --target universal-apple-darwin
 
+      # app і owner ділять один репозиторій, тому GitHub-вбудований
+      # /releases/latest/ неоднозначний між продуктами (див. tauri.mdc release —
+      # той канон писаний під один продукт на репо). task-latest — стабільний
+      # службовий тег, який цей крок пересуває на свіжий latest.json щоразу;
+      # updater застосунку task (tauri.conf.json → plugins.updater.endpoints)
+      # звертається саме сюди, а не в спільний /latest/.
+      - name: Publish task-latest updater channel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL_TITLE: 'task auto-update channel (службовий, не для людей)'
+          CHANNEL_NOTES: 'Стабільний тег для plugins.updater.endpoints у app/src-tauri/tauri.conf.json. Автоматично пересувається кожним v* релізом на свіжий latest.json. Дистрибутив бери з останнього справжнього vX.Y.Z релізу.'
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          CHANNEL="task-latest"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p latest.json -D /tmp/updater-channel --clobber
+          if gh release view "$CHANNEL" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$CHANNEL" /tmp/updater-channel/latest.json --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$CHANNEL" /tmp/updater-channel/latest.json --repo "$GITHUB_REPOSITORY" --title "$CHANNEL_TITLE" --notes "$CHANNEL_NOTES" --prerelease --target main
+          fi
+
   # APK: вимагає ініціалізованого Android-проєкту (app/src-tauri/gen/android),
   # якого в task ще немає. Після `bun --cwd=app run tauri android init` і коміту
   # gen/android додай сюди job build-android (ідентичний до mlmail/myshare).

@@ -2,12 +2,34 @@
   <q-card flat bordered class="decision-card">
     <q-card-section class="decision-head">
       <q-badge :color="badgeColor" :label="decision.node.state" />
+      <q-badge
+        v-if="decision.orphaned"
+        color="warning"
+        text-color="dark"
+        label="нічия земля"
+        title="Розмічений ліс, а власник вузла не резолвиться — признач власника (owner: в autonomy.yml)" />
+      <q-badge
+        v-if="decision.escalation"
+        color="negative"
+        :label="`від: ${decision.escalation.from}`"
+        title="Ескалація — власник гілки вичерпав свої опції і передає рішення тобі" />
       <span class="decision-node">{{ decision.node.path }}</span>
       <span class="decision-workspace">{{ decision.workspace.label }}</span>
     </q-card-section>
 
     <q-card-section class="decision-headline">
       {{ decision.headline }}
+    </q-card-section>
+
+    <q-card-section v-if="decision.escalation" class="decision-escalation">
+      <q-expansion-item
+        @after-show="noteSeen = true"
+        dense
+        icon="sym_o_mark_email_unread"
+        label="Записка вгору — розгорни перед вердиктом"
+        header-class="escalation-note-header">
+        <div class="escalation-note">{{ decision.escalation.reason }}</div>
+      </q-expansion-item>
     </q-card-section>
 
     <q-card-section v-if="brief" class="decision-brief">
@@ -77,7 +99,122 @@
         icon="sym_o_task_alt"
         label="прийняти як виконане"
         :loading="busy === 'done'" />
+      <q-btn
+        v-if="canAct('resolve')"
+        @click="askVerdict = true"
+        unelevated
+        dense
+        color="negative"
+        icon="sym_o_gavel"
+        label="вердикт"
+        :disable="!noteSeen"
+        :title="noteSeen ? '' : 'Спершу розгорни записку — вердикт без прочитання не проходить'"
+        :loading="busy === 'resolve'" />
+      <q-btn
+        v-if="!decision.escalation && escalateTo"
+        @click="askEscalate = true"
+        flat
+        dense
+        icon="sym_o_arrow_upward"
+        :label="`ескалювати до ${escalateTo}`"
+        :loading="busy === 'escalate'" />
+      <q-btn
+        v-if="!decision.escalation"
+        @click="askDelegate = true"
+        flat
+        dense
+        icon="sym_o_handshake"
+        label="делегувати"
+        :loading="busy === 'delegate'" />
     </q-card-actions>
+
+    <q-dialog v-model="askVerdict">
+      <q-card class="decision-dialog">
+        <q-card-section class="dialog-title">
+          Вердикт по ескалації — рішення для {{ decision.escalation?.from }}
+        </q-card-section>
+        <q-card-section>
+          <q-input v-model="verdict" autofocus type="textarea" outlined dense placeholder="Рішення і його підстава" />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn @click="askVerdict = false" flat dense label="скасувати" />
+          <q-btn @click="resolve" unelevated dense color="negative" label="дати вердикт" :disable="!verdict.trim()" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="askEscalate">
+      <q-card class="decision-dialog">
+        <q-card-section class="dialog-title">Записка вгору — до {{ escalateTo }}</q-card-section>
+        <q-card-section>
+          <q-input
+            v-model="escalateReason"
+            autofocus
+            type="textarea"
+            outlined
+            dense
+            placeholder="Що сталося / що я спробував / що прошу / до якого терміну" />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn @click="askEscalate = false" flat dense label="скасувати" />
+          <q-btn
+            @click="sendEscalation"
+            unelevated
+            dense
+            color="primary"
+            label="ескалювати"
+            :disable="!escalateReason.trim()" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="askDelegate">
+      <q-card class="decision-dialog">
+        <q-card-section class="dialog-title">Делегувати вузол — людині чи машині</q-card-section>
+        <q-card-section class="delegate-form">
+          <q-btn-toggle
+            v-model="delegateMode"
+            spread
+            unelevated
+            toggle-color="primary"
+            :options="[
+              { value: 'human', label: 'людині' },
+              { value: 'agent', label: 'машині' }
+            ]" />
+          <q-input
+            v-if="delegateMode === 'human'"
+            v-model="delegateOwner"
+            outlined
+            dense
+            label="handle власника (як assignee у h.md)"
+            hint="Підлеглий, колега чи власний керівник — механізм один" />
+          <q-input
+            v-if="delegateMode === 'human'"
+            v-model="delegateQualification"
+            outlined
+            dense
+            label="кваліфікація виконавця (опційно)" />
+          <q-input
+            v-model="delegateEnvelope"
+            type="textarea"
+            outlined
+            dense
+            label="конверт автономії (опційно)"
+            placeholder="deploy: approve
+worktree_edit: auto" />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn @click="askDelegate = false" flat dense label="скасувати" />
+          <q-btn
+            @click="sendDelegate"
+            unelevated
+            dense
+            color="primary"
+            label="делегувати"
+            :disable="delegateMode === 'human' && !delegateOwner.trim()" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <q-dialog v-model="askReason">
       <q-card class="decision-dialog">
@@ -155,7 +292,9 @@ const AUTONOMY_LABELS = {
 }
 
 const props = defineProps({
-  decision: { type: Object, required: true }
+  decision: { type: Object, required: true },
+  // Замовник вузла (M6): є — доступна ескалація «вгору» з обовʼязковою запискою.
+  escalateTo: { type: String, default: null }
 })
 const emit = defineEmits(['acted'])
 
@@ -166,8 +305,18 @@ const busy = ref('')
 const askReason = ref(false)
 const askSummary = ref(false)
 const askApproveConfirm = ref(false)
+const askVerdict = ref(false)
+const askEscalate = ref(false)
+const askDelegate = ref(false)
+const noteSeen = ref(false)
 const reason = ref('')
 const summary = ref('')
+const verdict = ref('')
+const escalateReason = ref('')
+const delegateMode = ref('human')
+const delegateOwner = ref('')
+const delegateQualification = ref('')
+const delegateEnvelope = ref('')
 const planChildren = ref([])
 const autonomyRows = ref([])
 const brief = ref(null)
@@ -191,6 +340,13 @@ function canAct(action) {
   return props.decision.actions.includes(action)
 }
 
+const BUSY_BY_TOOL = {
+  mark_done: 'done',
+  approve_plan: 'approve',
+  reject_plan: 'reject',
+  resolve_escalation: 'resolve'
+}
+
 /**
  * Викликає tool і повідомляє результат; успіх → подія acted (rescan у батька).
  * @param {string} name імʼя tool
@@ -198,7 +354,7 @@ function canAct(action) {
  * @returns {Promise<boolean>} true при успіху
  */
 async function act(name, input) {
-  busy.value = name === 'mark_done' ? 'done' : name.replace('_plan', '')
+  busy.value = BUSY_BY_TOOL[name] ?? name
   const envelope = await dispatch(name, {
     tasksDir: props.decision.workspace.path,
     taskPath: props.decision.node.path,
@@ -333,6 +489,38 @@ async function markDone() {
   askSummary.value = false
   await act('mark_done', { summary: summary.value.trim() })
 }
+
+/**
+ * Вердикт замовника по ескалації (доступний лише після розгортання записки).
+ * @returns {Promise<void>}
+ */
+async function resolve() {
+  askVerdict.value = false
+  await act('resolve_escalation', { nnn: props.decision.escalation.nnn, verdict: verdict.value.trim() })
+}
+
+/**
+ * Ескалація вузла до замовника з обовʼязковою запискою.
+ * @returns {Promise<void>}
+ */
+async function sendEscalation() {
+  askEscalate.value = false
+  await act('escalate', { to: props.escalateTo, reason: escalateReason.value.trim() })
+}
+
+/**
+ * Атомарне делегування вузла: виконавчий прапор + owner:/конверт у autonomy.yml.
+ * @returns {Promise<void>}
+ */
+async function sendDelegate() {
+  askDelegate.value = false
+  await act('delegate', {
+    mode: delegateMode.value,
+    owner: delegateMode.value === 'human' ? delegateOwner.value.trim() : undefined,
+    autonomyYaml: delegateEnvelope.value.trim() ? `${delegateEnvelope.value.trim()}\n` : undefined,
+    qualification: delegateQualification.value.trim() || undefined
+  })
+}
 </script>
 
 <style scoped>
@@ -433,6 +621,25 @@ async function markDone() {
 
 .decision-dialog {
   min-width: 420px;
+}
+
+.decision-escalation {
+  padding-top: 8px;
+  padding-bottom: 0;
+}
+
+.escalation-note {
+  font-size: 13px;
+  border-left: 3px solid #ff453a;
+  padding: 4px 0 4px 10px;
+  margin: 4px 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.delegate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .objection-loading {

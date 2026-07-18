@@ -55,6 +55,14 @@
         <q-btn @click="openDag(ws)" icon="sym_o_account_tree" flat round dense size="xs" title="Dependency graph" />
         <q-btn @click="openLedger(ws)" icon="sym_o_query_stats" flat round dense size="xs" title="Cost ledger" />
         <q-btn
+          @click="openPipelines(ws)"
+          icon="sym_o_rocket_launch"
+          flat
+          round
+          dense
+          size="xs"
+          title="Pipeline status" />
+        <q-btn
           @click="startAuto(ws.path)"
           :disable="autoRunning[ws.path]"
           :label="autoRunning[ws.path] ? 'Auto running…' : 'Run auto'"
@@ -85,6 +93,10 @@
       @select="onSelectDagNode"
       :nodes="workspaceNodes[dagTasksDir] ?? []"
       :workspace-label="dagWorkspaceLabel" />
+    <PipelineStatusDialog
+      v-model="pipelinesOpen"
+      :tasks-dir="pipelinesTasksDir"
+      :workspace-label="pipelinesWorkspaceLabel" />
 
     <q-dialog v-model="drawerOpen" transition-show="fade" transition-hide="fade">
       <q-card class="task-detail-card">
@@ -138,6 +150,7 @@ import NodeActions from './NodeActions.vue'
 import LiveRunFeed from './LiveRunFeed.vue'
 import CostLedgerDialog from './CostLedgerDialog.vue'
 import DagViewDialog from './DagViewDialog.vue'
+import PipelineStatusDialog from './PipelineStatusDialog.vue'
 import { stateConfig } from '../state-config.js'
 import { collectAttention } from '../attention.js'
 import { applyClaims } from '../claims.js'
@@ -162,6 +175,9 @@ const ledgerWorkspaceLabel = ref('')
 const dagOpen = ref(false)
 const dagTasksDir = ref('')
 const dagWorkspaceLabel = ref('')
+const pipelinesOpen = ref(false)
+const pipelinesTasksDir = ref('')
+const pipelinesWorkspaceLabel = ref('')
 const agentConcurrency = ref({})
 
 const drawerOpen = ref(false)
@@ -224,6 +240,16 @@ function openLedger(ws) {
   ledgerTasksDir.value = ws.path
   ledgerWorkspaceLabel.value = ws.label
   ledgerOpen.value = true
+}
+
+/**
+ * Opens the CI pipeline/workflow status dialog for a workspace.
+ * @param {{ path: string, label: string }} ws workspace to check
+ */
+function openPipelines(ws) {
+  pipelinesTasksDir.value = ws.path
+  pipelinesWorkspaceLabel.value = ws.label
+  pipelinesOpen.value = true
 }
 
 /**

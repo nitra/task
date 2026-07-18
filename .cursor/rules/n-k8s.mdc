@@ -11,15 +11,83 @@ alwaysApply: false
 
 **Скоп — поза `.github/`:** правило стосується YAML-маніфестів у каталогах **`k8s`** (визначаються відносно кореня репо, не за абсолютним шляхом). Файли під **`.github/workflows/`** та **`.github/actions/`** ця перевірка **не** зачіпає — їхній скоп визначає **`ga.mdc`** (там канон — **`.yml`**).
 
-**Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @nitra/cursor fix docker`**.
+**Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @7n/rules fix docker`**.
 
 ## Активація
 
-Правило активується автоматично для `**/k8s/**/*.yaml` (через `globs`). Додаткова конфігурація в `.n-cursor.json` не потрібна.
+Правило активується автоматично для `**/k8s/**/*.yaml` (через `globs`). Додаткова конфігурація в `.n-rules.json` не потрібна.
 
 ## Швидкий gate через conftest (Rego)
 
-Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/k8s/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor fix k8s`** для прогону по реальних YAML). JS authoritative; rego — швидкий gate для одиничного маніфеста.
+Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/k8s/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @7n/rules fix k8s`** для прогону по реальних YAML). JS authoritative; rego — швидкий gate для одиничного маніфеста.
+
+## Визначення схеми YAML (канон `yaml-language-server: $schema`)
+
+Для кожного файлу `*.yaml` у шляху з `k8s`, якщо існує **публічна** схема — **перший рядок** — коментар-директива для [YAML Language Server](https://github.com/redhat-developer/yaml-language-server) з URL за `https://`:
+
+```yaml
+# yaml-language-server: $schema=https://...
+```
+
+Далі — вміст маніфесту без зайвого порожнього рядка між коментарем і YAML. Орієнтир для визначення URL — **перший документ** (до наступного `---`); багатодокументні файли — див. нижче.
+
+**Modeline — опційний:** якщо для конкретного поєднання `apiVersion`/`kind` **немає** надійної публічної схеми (yannh/datree не покривають), залиш файл **без** рядка `# yaml-language-server: $schema=…`. **Заборонено** ставити `$schema=file:…` як заглушку.
+
+**Виняток — modeline заборонено:** `apiVersion: alb.yc.io/v1alpha1`, `kind: HttpBackendGroup` (Yandex ALB) — рядка **`# yaml-language-server: $schema=…`** у файлі **не** має бути. Перший рядок — одразу YAML (`apiVersion:` тощо).
+
+Перевірка й побудова URL — **`npm/rules/k8s/manifests/main.mjs`** (`expectedSchemaUrl`, `expectedSchemaUrlForTypedManifest`).
+
+### Правила визначення URL схеми
+
+1. **Ім'я** `kustomization.yaml` → `https://json.schemastore.org/kustomization.json`.
+
+2. **`apiVersion: v1`** → yannh, PIN набору схем **`v1.33.9-standalone-strict`**, ref репозиторію для raw URL — **`master`**:
+   `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-v1.json`
+   `<kind>`: літери в нижньому регістрі без роздільників між CamelCase (наприклад `Service` → `service`).
+
+   **`kind: Secret`** і **`type: kubernetes.io/basic-auth`** — той самий шаблон, **`secret-v1.json`**:
+
+   ```yaml
+   # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/secret-v1.json
+   ```
+
+3. **`apiVersion: group/version`** і **group** у переліку yannh-груп (`apps`, `autoscaling`, `batch`, `policy`, `networking.k8s.io`, `rbac.authorization.k8s.io`, `flowcontrol.apiserver.k8s.io`, `apiextensions.k8s.io` та ін. — повний перелік `YANNH_GROUPS` у `npm/rules/k8s/manifests/main.mjs`) → yannh:
+   `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-<group-частина>-<version>.json`
+   де **`<group-частина>`** — **перший сегмент** `group` до першої крапки: для груп без крапок збігається з усією group (`apps/v1` + `Deployment` → `deployment-apps-v1.json`); для `*.k8s.io` / `*.apiserver.k8s.io` — лише префікс до `.k8s.io` (`networking.k8s.io/v1` + `Ingress` → `ingress-networking-v1.json`; `networking.k8s.io/v1` + `NetworkPolicy` → `networkpolicy-networking-v1.json`; `rbac.authorization.k8s.io/v1` + `ClusterRole` → `clusterrole-rbac-v1.json`; `flowcontrol.apiserver.k8s.io/v1` + `FlowSchema` → `flowschema-flowcontrol-v1.json`). У yannh **немає** файлів з фрагментом `-k8s-io-` у назві.
+
+4. **Інакше** (CRD, Gateway API тощо) → [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog). Типово для `$schema` у редакторі — **GitHub Pages**:
+   `https://datreeio.github.io/CRDs-catalog/<group>/<kind>_<version>.json`
+   (`<kind>` — лише літери та цифри в нижньому регістрі, без роздільників між CamelCase.)
+
+   **Виняток — `InfisicalSecret`:** `apiVersion: secrets.infisical.com/v1alpha1`, `kind: InfisicalSecret` — канонічний modeline через **raw** на гілці **`main`** (явний запис у таблиці `EXPLICIT_K8S_SCHEMAS`):
+
+   ```yaml
+   # yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/secrets.infisical.com/infisicalsecret_v1alpha1.json
+   ```
+
+   **Приклад (Gateway API):** `apiVersion: gateway.networking.k8s.io/v1`, `kind: HTTPRoute` — канон **`v1`** (не `v1beta1`, див. **`gateway.mdc`**):
+
+   ```yaml
+   # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1.json
+   ```
+
+   **Приклад (GKE):** `apiVersion: networking.gke.io/v1`, `kind: HealthCheckPolicy`:
+
+   ```yaml
+   # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json
+   ```
+
+5. **Немає надійного публічного URL** — не вигадуй URL і **не** використовуй `$schema=file:…`. Залиш файл **без** рядка `# yaml-language-server: $schema=…` зовсім.
+
+## Багатодокументні YAML
+
+Одна схема на файл; перевірка $schema-modeline звіряє **перший** документ (до наступного `---`). Інші `kind` у тому ж файлі — розділи файли або узгодь у рев'ю.
+
+## Розширення файлів: лише `.yaml`
+
+Усі маніфести під **`k8s`** (визначаються відносно кореня репо), включно з **`kustomization.yaml`**, — лише **`.yaml`**. Розширення **`.yml`** під `k8s` заборонене: `check k8s` падає з порадою перейменувати файл на `.yaml` (перевірка — `npm/rules/k8s/manifests/main.mjs`, повідомлення `розширення .yml — перейменуй на .yaml`).
+
+Цей канон стосується лише дерев **`k8s`** — під **`.github/workflows/`** і **`.github/actions/`** діє протилежний канон (`.yml`), див. **`ga.mdc`**.
 
 ## Перевірки `base/kustomization.yaml`
 
@@ -90,17 +158,23 @@ Rego-пакет: `k8s.hasura_configmap`
 **Що перевіряється (обов'язкові ключі у `data`):**
 
 | Ключ | Очікуване значення |
-| ---- | ------------------ |
+|------|--------------------|
 | `HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS` | `"true"` |
 | `HASURA_GRAPHQL_ENABLE_RELAY` | `"false"` |
 | `HASURA_GRAPHQL_ENABLE_TELEMETRY` | `"false"` |
-| `HASURA_GRAPHQL_ENABLED_LOG_TYPES` | `"startup,http-log"` (точно) |
+| `HASURA_GRAPHQL_ENABLED_LOG_TYPES` | `"startup,http-log"` (точно; base/dev; overlay має патчем замінити на `"startup"` — `http-log` лише для base/dev) |
 | `HASURA_GRAPHQL_ENABLED_APIS` | `"metadata,graphql,pgdump"` (base/dev; overlay має патчем замінити на `"metadata,graphql"`) |
 | `HASURA_GRAPHQL_DISABLE_EVENTING` | ключ обов'язковий, значення довільне (рекомендовано `"true"`) |
 
 Семантика: `"true"`/`"false"` приймаються як boolean або рядок (case-insensitive); точний рядок — exact match.
 
 **Примітка:** відбір ConfigMap за сусідством із Hasura-Deployment — cross-file, у JS. Rego — пер-документна валідація полів `data`.
+
+## ConfigMap: ім'я збігається з Deployment
+
+Ця перевірка не обмежена Hasura — стосується **будь-якого** `configmap.yaml` під `k8s/base/`. Якщо в тому самому каталозі є **`configmap.yaml`** і **Deployment**, і цей Deployment посилається рівно на **один** ConfigMap (через `envFrom[*].configMapRef.name` або `volumes[*].configMap.name`) — `metadata.name` ConfigMap має збігатися з `metadata.name` Deployment.
+
+Перевірка — cross-file, у **`npm/rules/k8s/manifests/main.mjs`** (`validateConfigMapNameMatchesDeployment` / `validateSingleConfigMapNameMatch`). Якщо Deployment посилається на кілька ConfigMap або жодного — перевірка пропускається (немає однозначного відповідника).
 
 ## Перевірки HTTPRoute, парного з Hasura-Deployment
 
@@ -145,6 +219,179 @@ PDB (`kind: PodDisruptionBudget` або `apiVersion: policy/v1`):
 
 **Примітка:** cross-file перевірки (відповідність `expectedDeployName`, `expectedAppLabel`, `isDevLike`-сегмент) лишаються у JS (`hpaManifestViolations`, `pdbManifestViolations`).
 
+## Канон `components/`, env-залежні межі, прод-оверрайди
+
+Структурні перевірки полів HPA/PDB вище — про **самі поля** (`apiVersion`, `kind`, `spec.metrics`, `spec.selector` тощо). Заборону локальних `hpa.yaml`/`pdb.yaml` у `base/` — див. **`base_kustomization.mdc`**. Цей розділ — про **env-залежні числові межі** і структуру sibling-каталогу **`components/`**.
+
+### Канонічна структура `<pkg>/k8s/components/`
+
+Для **кожного** `kind: Deployment` у `…/k8s/…/base/` обов'язковий sibling-каталог **`…/k8s/…/components/`** (Kustomize Component, фіксована назва каталогу — `components`) з HPA і PDB для цього Deployment:
+
+- **`kustomization.yaml`** — `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`, `resources: [hpa.yaml, pdb.yaml]` (як мінімум ці два).
+- **`hpa.yaml`** — `autoscaling/v2`, `HorizontalPodAutoscaler`, `spec.scaleTargetRef.name` **= `metadata.name`** Deployment, dev-like значення `minReplicas: 1`, `maxReplicas: 1`.
+- **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, `spec.selector.matchLabels.app` **= мітка `app`** Deployment, dev-like `minAvailable: 0`.
+
+**`kind: Component`** (не `kind: Kustomization`) — це **джерело** канонічних HPA/PDB для всіх overlays, а не overlay сам по собі; всередині самого Component prod-патчі не потрібні (env-неутральний).
+
+Перевірка — **`npm/rules/k8s/manifests/main.mjs`** (`validateComponentsForBaseDeployment`).
+
+### Env-залежні межі (за сегментом шляху після `/k8s/`)
+
+**Dev-like середовища** — сегмент `base`, `dev`, або з суфіксом `-qa` (наприклад `tr-qa`):
+
+- HPA: `minReplicas` — рівно **1**, `maxReplicas` — рівно **1**.
+- PDB: `minAvailable` — рівно **0**.
+
+**Прод-середовища** — усе інше:
+
+- HPA: `minReplicas` — мінімум **2**, `maxReplicas` — мінімум **2** (і `minReplicas <= maxReplicas`).
+- PDB: `minAvailable` — мінімум **1**.
+
+Перевірка — **`npm/rules/k8s/manifests/main.mjs`** (`hpaManifestViolations`, `pdbManifestViolations`; сегмент середовища визначає `isDevLikeK8sEnvSegment`).
+
+### Прод-оверрайди у `kustomization.yaml`
+
+Якщо прод-оверлей (сегмент не dev-like) успадковує HPA/PDB через `components: [- ../components]` (або інший kustomize-tree з HPA/PDB), у `patches[]` **обов'язкові** JSON6902-перевизначення прод-значень:
+
+- **`HorizontalPodAutoscaler`**: `/spec/minReplicas` і `/spec/maxReplicas` (мінімум 2).
+- **`PodDisruptionBudget`**: `/spec/minAvailable` (мінімум 1).
+
+```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: prod
+resources:
+  - ../base
+components:
+  - ../components
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: backend-api
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+  - target:
+      kind: PodDisruptionBudget
+      name: backend-api
+    patch: |-
+      - op: replace
+        path: /spec/minAvailable
+        value: 1
+```
+
+Не застосовується до dev-like оточень. Перевірка — **`npm/rules/k8s/manifests/main.mjs`** (`prodOverlayHpaPdbOverrideNeeds`, `validateProdKustomizationOverrides`).
+
+### Приклад: `components/hpa.yaml` і `components/pdb.yaml`
+
+```yaml title="k8s/components/kustomization.yaml"
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - hpa.yaml
+  - pdb.yaml
+```
+
+```yaml title="k8s/components/hpa.yaml"
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/horizontalpodautoscaler-autoscaling-v2.json
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-api
+  minReplicas: 1 # прод overlay підіймає до >= 2
+  maxReplicas: 1 # прод overlay підіймає до >= 2
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 4
+          periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+      selectPolicy: Min
+```
+
+```yaml title="k8s/components/pdb.yaml"
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/poddisruptionbudget-policy-v1.json
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-api
+spec:
+  minAvailable: 0 # прод overlay підіймає до >= 1
+  selector:
+    matchLabels:
+      app: backend-api
+```
+
+### Overlays без `components/`
+
+У **не-base** оверлеях, що не підключають sibling `components/`, поруч із `Deployment` лишається звична схема: окремі **`hpa.yaml`** і **`pdb.yaml`**, якщо такі потрібні для цього середовища (структурні поля — вище; env-залежні межі — як вище).
+
+## lint-k8s: kubeconform і kubescape
+
+Окремо від modeline `$schema` у редакторі (**`main.mdc`**) варто ганяти CLI-лінтери (**kubeconform** і **kubescape**) по тих самих деревах **`…/k8s`**.
+
+**Залежності:** виконувані файли kubeconform, kubescape і kubectl у **PATH** (kustomize використовуємо як вшиту підкоманду **`kubectl kustomize`** — окремий бінарник `kustomize` не потрібен); не додавай їх у **devDependencies**.
+
+**Версія Kubernetes для kubeconform** — **`-kubernetes-version 1.33.9`** (semver без префікса `v`; набір схем **`v1.33.9-standalone-strict`**). Для CRD додатково підключається реєстр [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog) другим **`-schema-location`**. Прапорець **`-ignore-missing-schemas`** увімкнено завжди. Реалізація — **`npm/rules/k8s/kubeconform/main.mjs`** (`runKubeconform` у **`npm/rules/k8s/manifests/main.mjs`**).
+
+**kubescape** — вхід через зібраний kustomize-маніфест: для кожного dir-у з `kustomization.yaml` (`kind: Kustomization`; **`kind: Component`** пропускається) лінт виконує **`kubectl kustomize <dir>`** і передає stdout у **`kubescape scan <tmp-file>`** з порогом **`--severity-threshold high`**. Маніфест проходить через тимчасовий файл, бо **`kubescape scan` у v4.x не читає stdin**. Якщо в дереві **`…/k8s`** немає жодного `kustomization.yaml` — fallback на dir-скан **`kubescape scan <каталог-k8s>`**. У kubescape немає прапорця **`-kubernetes-version`**. Реалізація — **`npm/rules/k8s/manifests/main.mjs`** (`runKubescape`, `scanKustomizeK8sDirs`, `scanRawK8sDir`).
+
+Лінт запускається через **`npx @7n/rules lint`** (per-file детектор `k8s/kubeconform`) і **`npx @7n/rules fix k8s`** (cross-file оркестрація kubescape, `k8s/manifests`). Окремий `package.json`-скрипт `lint-k8s` не потрібен.
+
+## Винятки kubescape: `.kubescape-exceptions.json`
+
+Якщо в **корені проєкту** є файл **`.kubescape-exceptions.json`** — лінт автоматично передає його в `kubescape scan` через **`--exceptions`** ([postureExceptionPolicy](https://github.com/kubescape/kubescape/blob/master/docs/exceptions.md); `buildKubescapeExceptionsArgs` у `npm/rules/k8s/manifests/main.mjs`).
+
+Канонічний кейс — **C-0012** (`Applications credentials in configuration files`, High): control тригериться на **ім'я** env, що містить підрядок `secret`/`password`/`key`/`token`, а **не** на значення. Точкове виключення для ConfigMap із цим env — приклад структури:
+
+```json
+[
+  {
+    "name": "hasura-jwt-public-config",
+    "policyType": "postureExceptionPolicy",
+    "actions": ["alertOnly"],
+    "resources": [
+      {
+        "designatorType": "Attributes",
+        "attributes": { "kind": "ConfigMap", "name": "hasura-config" }
+      }
+    ],
+    "posturePolicies": [{ "controlID": "C-0012" }]
+  }
+]
+```
+
+**Увага:** готовий snippet-файл цього прикладу (`js/templates/kubescape_exceptions/.kubescape-exceptions.json.snippet.json` до `da05f89d`) під час "combine concern" **не був перенесений** у жоден поточний concern-каталог і в репозиторії відсутній — знайти оригінал не вдалося; за потреби відтвори JSON вручну за прикладом вище.
+
+Виключай контрольно, а не глобально (не додавай винятки без `attributes.name`/`labels`).
+
 ## Структурні перевірки `kustomization.yaml`
 
 Rego-пакет: `k8s.kustomization`
@@ -166,6 +413,79 @@ Rego-пакет: `k8s.kustomization`
 
 **Примітка:** резолюція kustomize-дерева, перевірка існування refs на диску, парність `svc.yaml`/`svc-hl.yaml` — JS (`rules/k8s/fix.mjs`).
 
+## Kustomize: структура каталогів (`base` / overlays)
+
+Трансформуй дерева **`**/k8s`**, щоб **винести спільне** через [Kustomize](https://kustomize.io/): один канонічний **`base`** і тонкі **overlays** для інших середовищ.
+
+### Джерело правди — середовище dev
+
+- За основу бери **все, що відповідає середовищу dev** (як воно має виглядати в кластері для dev).
+- У **такому вигляді** цей набір стає каталогом **`base`**: спільні маніфести без окремої директорії **`dev/`**.
+- Окремої директорії **`k8s/dev/`** **не повинно існувати**: за середовище **dev** відповідає **`base`**. `check k8s` падає на будь-якому шляху `…/k8s/dev/…` (`isForbiddenK8sDevPath` у `npm/rules/k8s/manifests/main.mjs`).
+
+### Overlays (не-dev)
+
+- У каталозі кожного іншого середовища (наприклад **`ua/`**, **`prod/`**) — мінімум файлів: типово лише **`kustomization.yaml`** і ресурси, **необхідні лише для цього overlay**.
+- Відмінності від dev вносяться **оверрайдами** (patches, `images`, `replicas`, `configMapGenerator` тощо), а не копіюванням повного дерева з `base`.
+
+### Рядки, що змінюються між середовищами
+
+У manifest-файлах у **`base`** для полів, які **будуть відрізнятися** в інших середовищах, на **тому самому рядку** додай коментар:
+
+```yaml
+image: my-app:dev-tag # буде замінено через kustomize
+```
+
+### Зміна image — через `images:`, не через `patches[]`
+
+Підміну image у Pod-шаблоні Deployment в overlay роби директивою `images:`, а не JSON6902-патчем `op: replace` на `/spec/template/spec/containers/<N>/image`.
+
+- У **`name`** — те, що **дослівно** стоїть у `image:` у base **без тегу**.
+- **`newName`** — кінцеве ім'я образу; **`newTag`** — тег для прода.
+- **`digest`** (`@sha256:…`) у `name` / `newName` не чіпай.
+
+```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
+images:
+  - name: europe-west4-docker.pkg.dev/abie-ua/c/apply-on-invoice-discount
+    newName: europe-west4-docker.pkg.dev/abie-ua/c/apply-on-invoice-discount
+    newTag: v2025-04-29
+```
+
+**`check k8s` автоматично** для кожного `kustomization.yaml` (конвертація в `npm/rules/k8s/manifests/main.mjs`):
+
+1. конвертує кожну JSON6902-операцію `op: replace` на `/spec/template/spec/containers/<N>/image` у запис `images:`;
+2. чистить існуючий блок `images:` — зрізає `:tag` з `name` і видаляє `newTag`, який збігається з відрізаним тегом.
+
+### Міграція зі старої структури
+
+Після перенесення у **`base`** та overlays і перевірки (**`check k8s`**, **`lint-k8s`**) **видали** застарілі файли та директорії, що замінені новою схемою.
+
+### `patches[].target`: лише `kind` і `name`
+
+У `patches[].target` залишай **тільки** **`kind`** і **`name`** — поля **`group`** і **`version`** прибирай, якщо в інвентарі ресурсів немає колізії за цим `kind`+`name` між різними API-групами/версіями.
+
+```yaml
+# ❌ зайві group / version
+patches:
+  - target:
+      group: gateway.networking.k8s.io
+      version: v1beta1
+      kind: Gateway
+      name: gw
+
+# ✅
+patches:
+  - target:
+      kind: Gateway
+      name: gw
+```
+
+**Виняток:** залишай `group` / `version`, лише якщо в дереві overlay реально співіснують ресурси з однаковими `kind`+`name`, але різними API-групами/версіями.
+
+### Локальні шляхи в `kustomization.yaml`
+
+Кожен запис без `://` (remote) з `resources` / `bases` / `components` / `crds`, `patchesStrategicMerge`, `patches[].path`, `patchesJson6902[].path`, `configurations[]`, `replacements[].path` має вказувати на **існуючий** у репозиторії файл (`.yaml` / `.yml`) або **каталог**; биті посилання — помилка **`check k8s`**.
+
 ## Пер-документні перевірки маніфестів Kubernetes
 
 Rego-пакет: `k8s.manifest`
@@ -183,6 +503,43 @@ Rego-пакет: `k8s.manifest`
 - `kind: Deployment` — канонічний запис у `spec.template.spec.topologySpreadConstraints`: `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app: <app-label>` (перевіряється лише для Deployment з міткою `app` у `spec.selector.matchLabels`)
 
 **Примітка:** cross-file логіка (Kustomize-резолюція, парність svc/svc-hl, HPA/PDB за каталогом, schema modeline) лишається у JS `rules/k8s/fix.mjs`.
+
+## Deployment: `resources.requests` поза `base/`
+
+Базовий шар (`…/k8s/…/base/…`) має жорстко фіксовані `resources.requests.cpu`/`memory` — див. **`base_manifest.mdc`**. Поза `base` (overlays, окремі каталоги) ця перевірка (рядок 12 вище) вимагає лише непорожні `resources.requests.cpu` і `resources.requests.memory` — конкретне значення не фіксується.
+
+Якщо ще не підібрано власні ліміти під сервіс, орієнтир для **`requests`**:
+
+```yaml
+resources:
+  requests:
+    cpu: '0.5'
+    memory: '512Mi'
+```
+
+У прод-оверлеях підіймай **`cpu` / `memory`** до реального споживання через **`patches`**:
+
+```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
+patches:
+  - target:
+      kind: Deployment
+      name: backend-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: '500m'
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 1Gi
+```
+
+**`imagePullPolicy`** — цю перевірку скрипт **не** виконує.
+
+## Batch-ресурси: `apiVersion: batch/v1beta1` → `batch/v1`
+
+Ресурси **batch** (наприклад **CronJob**, **Job**): застаріле **`apiVersion: batch/v1beta1`** у файлах під **`k8s`** під час `check k8s` автоматично переписується на **`apiVersion: batch/v1`** (рядково, зі збереженням відступів/лапок). Детектор — `detectBatchV1beta1InK8sYamlFiles`, автофікс — T0-патерн `k8s-manifests-batch-v1beta1-apiversion` (обидва в **`npm/rules/k8s/manifests/main.mjs`** / **`fix-manifests.mjs`**), той самий механізм, що й `gateway-httproute-v1beta1` вище по домену gateway (див. **`gateway.mdc`**).
+
+`apiVersion: autoscaling/v1` (заборонено для HPA, потрібен `autoscaling/v2`) — рядок 10 вище і **`hpa_pdb.mdc`**.
 
 ## Перевірки NetworkPolicy
 
@@ -206,6 +563,39 @@ Rego-пакет: `k8s.network_policy`
 **Передача snippets:** через `--data` при виклику conftest (JS передає `templateData` для `runConftestBatch`).
 
 **Примітка:** cross-file визначення `metadata.name` воркнавантаження і мітки `app` — JS (`validateNetworkPolicyForWorkload`).
+
+## Обов'язковість і авто-створення
+
+Для **кожного** workload (**Deployment**, **StatefulSet**, **DaemonSet**, **Job**, **CronJob**) під `k8s` обов'язковий **NetworkPolicy** у **`base/networkpolicy.yaml`** поруч з workload-маніфестом (multi-doc через `---`, якщо workload-ів кілька). Відсутні документи **`check k8s`** створює автоматично (канон і snippet-структура — вище) і додає `networkpolicy.yaml` у `base/kustomization.yaml` `resources:`.
+
+Перевірка/генерація — **`npm/rules/k8s/manifests/main.mjs`** (`validateNetworkPoliciesForK8sWorkloads`, `regenerateLegacyNetworkPolicyDocsInFile`).
+
+## HTTPRoute → NetworkPolicy ingress (GCLB + Envoy)
+
+Якщо в каталозі workload є **`HTTPRoute`** (Gateway API, див. **`gateway.mdc`**) з **`backendRef`** на **`<workload>-hl`** Service, **`check k8s`** автоматично додає в NetworkPolicy цього workload **ingress-правило** з фіксованим набором CIDR-ів і **TCP-портами з `backendRefs[].port`** (дедуп, відсортовано за зростанням).
+
+Без цього правила трафік від **GKE Gateway** (Envoy proxy-only subnet) і **Google health checks** блокується базовим NetworkPolicy.
+
+CIDR-набір зафіксовано (`npm/rules/k8s/manifests/main.mjs`, `NETWORK_POLICY_GCLB_INGRESS_FROM`):
+
+- `35.191.0.0/16` — GCP HC global
+- `130.211.0.0/22` — GCP HC global (legacy)
+- `10.0.0.0/8` — широкий range, покриває proxy-only subnets усіх регіонів GKE
+
+```yaml title="k8s/base/networkpolicy.yaml — workload з HTTPRoute (з GCLB ingress)"
+spec:
+  ingress:
+    - from:
+        - podSelector: {}
+    - from: # auto-added by check k8s for HTTPRoute-paired workloads
+        - ipBlock: { cidr: 35.191.0.0/16 }
+        - ipBlock: { cidr: 130.211.0.0/22 }
+        - ipBlock: { cidr: 10.0.0.0/8 }
+      ports:
+        - { protocol: TCP, port: 8080 }
+```
+
+Алгоритм: функція `collectHttpRouteIngressForWorkload` у **`npm/rules/k8s/manifests/main.mjs`** (mapping `backendRef.name` → `Service.metadata.name` → `service.spec.selector.matchLabels.app`).
 
 ## Перевірки `svc-hl.yaml` (Headless Service)
 
@@ -233,3 +623,11 @@ Rego-пакет: `k8s.svc_yaml`
 
 ✓ `spec.type: ClusterIP`
 ✗ `spec.type: LoadBalancer` або відсутній `spec`
+
+## GitHub Actions: `lint-k8s.yml`
+
+Канонічний workflow **`.github/workflows/lint-k8s.yml`** підтримується через **`npm/rules/k8s/lint_k8s_yml/`** (шаблон-джерело — `template/lint-k8s.yml.snippet.yml`, drift-перевірка — `lint_k8s_yml.rego`): гілки **`dev`** і **`main`**, лише **`.yaml`**-триггер на `**/k8s/**/*.yaml`. Після **`checkout`** — локальний composite **`setup-bun-deps`**, окремі кроки встановлення kubeconform / kubescape, крок `Lint K8s`. Актуальний канон workflow — файл шаблону, не копіюй приклад із цього тексту.
+
+Drift-перевірка (`k8s.lint_k8s_yml` rego-пакет) звіряє реальний workflow з канону з `template/lint-k8s.yml.snippet.yml` за `uses` кожного step-у і за substring кожного `run`-кроку — без inline-літералів у самому rego (див. `lint_k8s_yml.rego`). Універсальні workflow-перевірки (name, concurrency, branches, persist-credentials) — окремо, у `ga.workflow_common`.
+
+kubeconform / kubescape (версії, залежності, `.kubescape-exceptions.json`) — див. **`kubeconform.mdc`**.

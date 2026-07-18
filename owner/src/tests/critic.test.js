@@ -107,3 +107,60 @@ describe('criticPrompt', () => {
     expect(user).toBe('дайджест')
   })
 })
+
+describe('критик per-scope (M6)', () => {
+  const past = '2026-07-01T00:00:00Z'
+  const forest = {
+    '/demo/mt': [
+      {
+        path: 'goal',
+        state: 'waiting',
+        deadline: past,
+        children: [
+          {
+            path: 'goal/api',
+            state: 'waiting',
+            deadline: past,
+            created_at: '2026-06-01T00:00:00Z',
+            children: [
+              {
+                path: 'goal/api/inner',
+                state: 'blocked',
+                deadline: past,
+                created_at: '2026-06-01T00:00:00Z',
+                children: []
+              }
+            ]
+          },
+          { path: 'goal/mine', state: 'unassigned', created_at: '2026-06-01T00:00:00Z', children: [] }
+        ]
+      }
+    ]
+  }
+  const scopes = {
+    '/demo/mt': {
+      marked: true,
+      classify: path => {
+        if (path === 'goal/api') return 'boundary'
+        if (path.startsWith('goal/api/')) return 'foreign'
+        return 'mine'
+      }
+    }
+  }
+
+  it('boundary — лише контрактна поверхня, foreign — жодного вердикту', () => {
+    const verdicts = runDeterministicCritic([WS], forest, NOW, scopes)
+    const byPath = path => verdicts.filter(v => v.path === path).map(v => v.rule)
+    // мій вузол — усі правила
+    expect(byPath('goal/mine')).toContain('stale-branch')
+    // межовий: дедлайн видно (контракт), stale-branch (кухня) — ні
+    expect(byPath('goal/api')).toEqual(['deadline-passed'])
+    // чужа кухня — тиша
+    expect(byPath('goal/api/inner')).toEqual([])
+  })
+
+  it('без scopes — легасі: всі правила по всьому лісу', () => {
+    const verdicts = runDeterministicCritic([WS], forest, NOW)
+    expect(verdicts.some(v => v.path === 'goal/api/inner')).toBe(true)
+  })
+})

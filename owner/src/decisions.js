@@ -43,30 +43,112 @@ function walk(nodes, pick) {
 }
 
 /**
- * Рішення, що чекають власника, з усього лісу — відсортовані за ціною помилки.
+ * Відкрита (нерозвʼязана) ескалація вузла — остання у серії без вердикту.
+ * @param {Array<{ resolved: boolean }>} [series] серія ескалацій вузла
+ * @returns {object|null} відкрита ескалація, або null
+ */
+function openEscalation(series) {
+  const last = series?.at(-1)
+  return last && !last.resolved ? last : null
+}
+
+/**
+ * Рішення, що чекають власника, з мого скоупу лісу — відсортовані за ціною
+ * помилки. Без scopes (нерозмічений ліс / legacy-виклик) — увесь ліс, як
+ * раніше. «Нічия земля» (orphaned) потрапляє в чергу всім із прапорцем —
+ * загублена ескалація гірша за зайвий рядок (M5, спека 260714).
+ * Маршрутизація ескалацій (M6): вузол із відкритою ескалацією зʼявляється
+ * у черзі адресата (незалежно від скоупу — записка адресна) і зникає з
+ * черги автора (у нього — рядок «ескальовано, чекає» у брифі).
  * @param {Array<{ label: string, path: string }>} workspaces воркспейси лісу
  * @param {Record<string, object[]>} forest дерева вузлів за шляхом воркспейсу
- * @returns {Array<{ node: object, workspace: object, stake: number, headline: string, actions: string[] }>} черга рішень
+ * @param {Record<string, { classify: (path: string) => string }>} [scopes] скоуп за шляхом воркспейсу
+ * @param {{ escalations?: Record<string, Record<string, object[]>>, me?: string|null }} [routing] ескалації за воркспейсом і моя ідентичність
+ * @returns {Array<{ node: object, workspace: object, stake: number, headline: string, actions: string[], orphaned?: boolean, escalation?: object }>} черга рішень
  */
-export function collectDecisions(workspaces, forest) {
+export function collectDecisions(workspaces, forest, scopes, routing) {
+  const me = routing?.me ?? null
   const rows = workspaces.flatMap(workspace =>
     walk(forest[workspace.path], node => {
+      const open = openEscalation(routing?.escalations?.[workspace.path]?.[node.path])
+      if (open && me !== null) {
+        if (open.to === me) {
+          return {
+            node,
+            workspace,
+            stake: 0,
+            headline: `ескалація від ${open.from} — записка чекає на твій вердикт`,
+            actions: ['resolve'],
+            escalation: open
+          }
+        }
+        // Мій вузол чекає вердикту вгорі — з моєї черги він зникає.
+        if (open.from === me) return null
+      }
       const verdict = VERDICTS[node.state]
-      return verdict ? { node, workspace, ...verdict } : null
+      if (!verdict) return null
+      const cls = scopes?.[workspace.path]?.classify(node.path) ?? 'mine'
+      if (cls === 'mine') return { node, workspace, ...verdict }
+      if (cls === 'orphaned') return { node, workspace, ...verdict, orphaned: true }
+      return null
     })
   )
   return rows.toSorted((a, b) => a.stake - b.stake)
 }
 
 /**
- * Особисті задачі власника — pending h.md-вузли: це робота, не рішення,
- * тож у чергу вони не потрапляють (показуються у брифі).
+ * Мої делегування — межові вузли (boundary) мого скоупу: «чого чекаєш ти».
+ * Контрактний фасад замовника: сам вузол, його стан і власник — без кухні.
  * @param {Array<{ label: string, path: string }>} workspaces воркспейси лісу
  * @param {Record<string, object[]>} forest дерева вузлів за шляхом воркспейсу
+ * @param {Record<string, { classify: (path: string) => string }>} scopes скоуп за шляхом воркспейсу
+ * @param {Record<string, Record<string, string>>} ownersByWs розмітка {ws: {nodePath: handle}}
+ * @returns {Array<{ node: object, workspace: object, owner: string }>} делеговані гілки
+ */
+export function collectDelegations(workspaces, forest, scopes, ownersByWs) {
+  return workspaces.flatMap(workspace =>
+    walk(forest[workspace.path], node =>
+      scopes?.[workspace.path]?.classify(node.path) === 'boundary'
+        ? { node, workspace, owner: ownersByWs?.[workspace.path]?.[node.path] ?? '?' }
+        : null
+    )
+  )
+}
+
+/**
+ * Мої відкриті ескалації «вгору» — вузли, що чекають вердикту замовника
+ * (рядок «ескальовано, чекає» у брифі автора).
+ * @param {Array<{ label: string, path: string }>} workspaces воркспейси лісу
+ * @param {Record<string, object[]>} forest дерева вузлів за шляхом воркспейсу
+ * @param {Record<string, Record<string, object[]>>} escalations ескалації за воркспейсом
+ * @param {string|null} me мій handle
+ * @returns {Array<{ node: object, workspace: object, escalation: object }>} чекають вердикту
+ */
+export function collectEscalatedOut(workspaces, forest, escalations, me) {
+  if (me === null || me === undefined) return []
+  return workspaces.flatMap(workspace =>
+    walk(forest[workspace.path], node => {
+      const open = openEscalation(escalations?.[workspace.path]?.[node.path])
+      return open && open.from === me ? { node, workspace, escalation: open } : null
+    })
+  )
+}
+
+/**
+ * Особисті задачі власника — pending h.md-вузли мого скоупу: це робота,
+ * не рішення, тож у чергу вони не потрапляють (показуються у брифі).
+ * Чужі й нічийні pending — не мої задачі.
+ * @param {Array<{ label: string, path: string }>} workspaces воркспейси лісу
+ * @param {Record<string, object[]>} forest дерева вузлів за шляхом воркспейсу
+ * @param {Record<string, { classify: (path: string) => string }>} [scopes] скоуп за шляхом воркспейсу
  * @returns {Array<{ node: object, workspace: object }>} задачі на сьогодні
  */
-export function collectPersonal(workspaces, forest) {
+export function collectPersonal(workspaces, forest, scopes) {
   return workspaces.flatMap(workspace =>
-    walk(forest[workspace.path], node => (node.state === 'pending' ? { node, workspace } : null))
+    walk(forest[workspace.path], node =>
+      node.state === 'pending' && (scopes?.[workspace.path]?.classify(node.path) ?? 'mine') === 'mine'
+        ? { node, workspace }
+        : null
+    )
   )
 }

@@ -3,9 +3,8 @@ type: JS Module
 title: autonomy.js
 resource: owner/src/autonomy.js
 docgen:
-  crc: af749c01
+  crc: f6ef7458
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min-retry
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
