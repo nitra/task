@@ -3,9 +3,8 @@ type: Rust Module
 title: llm.rs
 resource: owner/src-tauri/src/llm.rs
 docgen:
-  crc: c4f8a08b
+  crc: 87c6fa75
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
