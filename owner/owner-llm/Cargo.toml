@@ -1,0 +1,11 @@
+[package]
+name = "owner-llm"
+version = "0.1.0"
+description = "Agent/LLM-логіка owner — тонкі функції поверх llm-cascade, без залежності на tauri (n-tauri: core_test_isolation)"
+edition = "2021"
+
+[dependencies]
+llm-cascade = { git = "https://github.com/nitra/7n-rules.git" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

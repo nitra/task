@@ -1,0 +1,14 @@
+{
+  "identifier": "updater",
+  "windows": [
+    "main"
+  ],
+  "platforms": [
+    "macOS",
+    "windows",
+    "linux"
+  ],
+  "permissions": [
+    "updater:default"
+  ]
+}

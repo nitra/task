@@ -3,9 +3,8 @@ type: JS Module
 title: use-planner.js
 resource: owner/src/composables/use-planner.js
 docgen:
-  crc: d956231d
+  crc: a2b846f4
   model: openai-codex/gpt-5.4-mini
-  tier: cloud-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini

@@ -1,15 +1,14 @@
 import { ref } from 'vue'
-import { createOpenAiChat } from '@7n/tauri-components'
-import { useOmlx } from '@7n/tauri-components/vue'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { criticPrompt, parseCriticReply, runDeterministicCritic } from '../critic.js'
 import { extractMission } from '../mission.js'
 import { dispatch } from '../tool/index.js'
+import { useLlmCascade } from './use-llm-cascade.js'
 
 // Критик як споживач: детермінований прогін — безкоштовний, автоматичний при
 // кожному rescan; семантичний (LLM) — на вимогу власника, по одному виклику
-// на воркспейс. Вердикти живуть у памʼяті сесії; відхилені власником не
-// повертаються до наступного повного прогону.
+// на воркспейс через спільну драбину use-llm-cascade.js. Вердикти живуть у
+// памʼяті сесії; відхилені власником не повертаються до наступного повного
+// прогону.
 
 // Межі дайджесту: скільки вузлів і скільки символів контракту на вузол.
 const DIGEST_NODES = 30
@@ -50,10 +49,7 @@ async function workspaceDigest(workspace, nodes) {
  * @returns {{ verdicts: import('vue').Ref<object[]>, running: import('vue').Ref<boolean>, refreshDeterministic: (workspaces: object[], forest: Record<string, object[]>) => void, runSemantic: (workspaces: object[], forest: Record<string, object[]>) => Promise<void>, dismiss: (verdict: object) => void }} поверхня критика
  */
 export function useCritic() {
-  const { baseUrl, model, apiKey } = useOmlx({
-    storagePrefix: 'owner',
-    defaultModel: 'gemma-4-e4b-it-OptiQ-4bit'
-  })
+  const { oneShot } = useLlmCascade()
 
   /**
    * Детермінований прогін: дешевий, викликається після кожного rescan.
@@ -75,25 +71,13 @@ export function useCritic() {
   async function runSemantic(workspaces, forest) {
     running.value = true
     try {
-      const chat = createOpenAiChat({
-        baseUrl: baseUrl.value,
-        model: model.value,
-        apiKey: apiKey.value || undefined,
-        fetchFn: tauriFetch
-      })
       const found = await Promise.all(
         workspaces.map(async workspace => {
           try {
             const digest = await workspaceDigest(workspace, forest[workspace.path])
             const { system, user } = criticPrompt(digest)
-            const reply = await chat({
-              messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: user }
-              ],
-              tools: []
-            })
-            return parseCriticReply(reply.content ?? '', workspace)
+            const reply = await oneShot({ system, user, tasksDir: workspace.path })
+            return parseCriticReply(reply ?? '', workspace)
           } catch {
             return [] // воркспейс не прочитався чи модель мовчить — не валимо прогін
           }

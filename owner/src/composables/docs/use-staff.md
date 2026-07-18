@@ -3,9 +3,8 @@ type: JS Module
 title: use-staff.js
 resource: owner/src/composables/use-staff.js
 docgen:
-  crc: 769c547b
+  crc: 217d3a53
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
