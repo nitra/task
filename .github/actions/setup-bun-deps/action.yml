@@ -12,13 +12,12 @@ runs:
 
     - uses: oven-sh/setup-bun@v2
 
-    # node_modules навмисно НЕ кешується: відновлене з restore-keys дерево від
-    # іншого bun.lock після bun install --frozen-lockfile лишається без вкладених
-    # копій пакетів (eslint/node_modules/ajv тощо) — недетерміновані падіння eslint
     - name: Cache Bun dependencies
       uses: actions/cache@v5
       with:
-        path: ~/.bun/install/cache
+        path: |
+          ~/.bun/install/cache
+          node_modules
         key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
         restore-keys: |
           ${{ runner.os }}-bun-

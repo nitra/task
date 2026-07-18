@@ -1,0 +1,35 @@
+{
+  "$schema": "https://unpkg.com/@7n/rules/schemas/n-rules.json",
+  "rules": [
+    "adr",
+    "bun",
+    "changelog",
+    "doc-files",
+    "ga",
+    "image-avif",
+    "image-compress",
+    "js",
+    "k8s",
+    "local-ai",
+    "rust",
+    "security",
+    "style",
+    "tauri",
+    "test",
+    "text",
+    "tool-surface",
+    "vue"
+  ],
+  "skills": [
+    "adr-normalize",
+    "brainstorming",
+    "doc-files",
+    "lint",
+    "llm-patch",
+    "publish-telegram",
+    "taze"
+  ],
+  "plugins": [
+    "@7n/rules-ci-github"
+  ]
+}
