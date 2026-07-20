@@ -61,9 +61,11 @@ reports/stryker/incremental.json
 # Playwright MCP screenshots/snapshots
 .playwright-mcp/
 
-# Tauri — Rust build artifacts
+# Tauri — Rust build artifacts. owner/ (not owner/src-tauri/) is the real
+# output — owner/Cargo.toml is the workspace root (members = src-tauri,
+# owner-llm), and `cargo metadata` resolves target_directory there.
 app/src-tauri/target/
-owner/src-tauri/target/
+owner/target/
 
 # doc-files дзеркало у src/bin: Tauri-бандлер трактує підпапки src/bin як
 # бінарники — дока генерується локально, але в git/CI не потрапляє
