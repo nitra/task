@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.6] - 2026-07-20
+
+### Changed
+
+- fix(.n-rules.json): declare @7n/rules-lang-js/-lang-rust plugins
+- Оновлено @7n/tauri-components до 0.13.9 — AgentDialog: лейбл моделі під кожною відповіддю, tier-селектор ховається для агентів без тірів, перемикання агента mid-conversation зберігає чат-лог і передає контекст новому агенту, усунення гонки acp_spawn_agent/acp_prompt (реальна причина збою сесії замість "dropped the reply channel"), коректна самоідентифікація моделі після перемикання
+
 ## [0.6.5] - 2026-07-17
 
 ### Changed
