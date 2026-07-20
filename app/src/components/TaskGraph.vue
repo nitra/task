@@ -157,9 +157,9 @@ import { applyClaims } from '../claims.js'
 import { findNodeByPath } from '../tree.js'
 import { countRunning } from '../slots.js'
 import { dispatch } from '../tool/index.js'
-import { useAgent } from '../composables/use-agent.js'
+import { useAcpAgent } from '../composables/use-acp-agent.js'
 
-const agent = useAgent()
+const agent = useAcpAgent()
 const createOpen = ref(false)
 const agentOpen = ref(false)
 const auditOpen = ref(false)

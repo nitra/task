@@ -1,7 +1,31 @@
+import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { useOmlx } from '@7n/tauri-components/vue'
 import { resolveAction } from '../autonomy.js'
 import { effectivePolicyFor } from './use-autonomy.js'
+
+// Vendored slice of the useOmlx() that @7n/tauri-components removed in 0.11.0
+// (that whole omlx/runAgent path is gone in favor of ACP — see the module doc
+// below): this composable never called useOmlx().loadEnv(), so it only ever
+// needed localStorage-backed baseUrl/model persistence, not the Rust
+// omlx_config/myllm-proxy resolution loadEnv() did. apiKey stays an
+// unpopulated ref, matching prior behavior (it was never set here either).
+const STORAGE_PREFIX = 'owner'
+const DEFAULT_MODEL = 'gemma-4-e4b-it-OptiQ-4bit'
+const BASE_URL_KEY = `${STORAGE_PREFIX}:omlxBaseUrl`
+const MODEL_KEY = `${STORAGE_PREFIX}:omlxModel`
+
+/**
+ * @param {string} key localStorage key
+ * @returns {string|null} stored value, or null when unavailable (tests/SSR)
+ */
+function readStored(key) {
+  try {
+    return globalThis.localStorage?.getItem(key) ?? null
+  }
+  catch {
+    return null
+  }
+}
 
 // Єдиний шлях виклику LLM для плановика/критика/штабу (заміна трьох
 // незалежних createOpenAiChat): драбина ACP (Cursor → Codex CLI, особиста
@@ -37,10 +61,20 @@ async function acpAllowed({ tasksDir, taskPath } = {}) {
  * @returns {{ baseUrl: import('vue').Ref<string>, model: import('vue').Ref<string>, apiKey: import('vue').Ref<string>, saveOmlx: () => void, oneShot: (req: { tier?: 'min'|'avg'|'max', system?: string, user: string, tasksDir?: string, taskPath?: string }) => Promise<string> }} поверхня каскаду
  */
 export function useLlmCascade() {
-  const { baseUrl, model, apiKey, save } = useOmlx({
-    storagePrefix: 'owner',
-    defaultModel: 'gemma-4-e4b-it-OptiQ-4bit'
-  })
+  const baseUrl = ref(readStored(BASE_URL_KEY) || 'http://127.0.0.1:8000/v1')
+  const model = ref(readStored(MODEL_KEY) || DEFAULT_MODEL)
+  const apiKey = ref('')
+
+  /** Persist baseUrl/model to localStorage; no-op when unavailable (tests/SSR). */
+  function save() {
+    try {
+      globalThis.localStorage?.setItem(BASE_URL_KEY, baseUrl.value)
+      globalThis.localStorage?.setItem(MODEL_KEY, model.value)
+    }
+    catch {
+      // no localStorage — in-memory ref state is still updated
+    }
+  }
 
   /**
    * Один виклик LLM: спершу ACP-рунги (якщо дозволено autonomy), інакше чи

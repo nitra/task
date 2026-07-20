@@ -39,7 +39,8 @@ describe('TaskGraph header buttons', () => {
     await flushPromises()
     await wrapper.find('button[title="Agent"]').trigger('click')
     await flushPromises()
-    expect(document.body.textContent).toContain('Agent (local LLM)')
+    // "Prompt" only appears once the dialog (useAcpAgent-backed AgentDialog) is open.
+    expect(document.body.textContent).toContain('Prompt')
     wrapper.unmount()
   })
 })

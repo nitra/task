@@ -2,28 +2,23 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { randomUUID as _uuid } from 'node:crypto'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import {
-  createAgentKit,
-  createDispatch,
-  createOpenAiChat,
-  listTools,
-  runAgent,
-  toolManifest
-} from '@7n/tauri-components'
+import { createDispatch, listTools, toolManifest } from '@7n/tauri-components'
 import { TOOLS } from '../src/tool/catalog.js'
-import { createNodeJournalStore } from '../src/tool/journal-store-node.js'
-import { createSystemPrompt } from '../src/tool/prompt.js'
 
 // Headless entry for script orchestrators (n-tool-surface): no human-facing
 // verbs/flags — just `task <tool> '<json>'`, `task schema`, `task list`. Same
 // tool catalog as the UI; the only difference is the transport (per-verb spawn
 // of the mt-scanner binary). Output is the uniform envelope as JSON on stdout.
+//
+// `agent`/`mcp` (conversational one-shot + MCP-server mode) were removed
+// along with @7n/tauri-components' createAgentKit/createOpenAiChat/runAgent
+// (0.11.0 — the package's sole agent engine is now ACP-based useAcpAgent(),
+// which drives its session through Tauri invoke() and so can only run inside
+// the app's webview, not headless). Use the in-app "Agent"/"Journal" dialogs
+// instead; there is no drop-in headless replacement — see @7n/tauri-components
+// npm/SPEC.md if you need to build one (e.g. a standalone ACP client binary).
 
 const BIN_DIR = dirname(fileURLToPath(import.meta.url))
 
@@ -96,110 +91,12 @@ async function main() {
     return 0
   }
 
-  if (cmd === 'agent') {
-    if (!payload) {
-      process.stderr.write('usage: task agent "<prompt>"\n')
-      return 2
-    }
-    const baseUrl = process.env.OMLX_BASE_URL ?? 'http://127.0.0.1:8000/v1'
-    const model = process.env.OMLX_MODEL ?? 'mlx-community/gemma-3n-E4B-it'
-    const apiKey = process.env.OMLX_API_KEY
-    try {
-      const result = await runAgent({
-        prompt: payload,
-        dispatch,
-        chat: createOpenAiChat({ baseUrl, model, apiKey }),
-        system: createSystemPrompt(),
-        tools: toolManifest(TOOLS)
-      })
-      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
-      return 0
-    } catch (error) {
-      process.stderr.write(`agent failed (omlx ${baseUrl}, model ${model}): ${String(error?.message ?? error)}\n`)
-      process.stderr.write('Set OMLX_BASE_URL / OMLX_MODEL, and ensure the omlx server is running.\n')
-      return 2
-    }
-  }
-
-  if (cmd === 'mcp') {
-    // MCP-stdio server — exposes request(intent) and respond(requestId, message)
-    // so any MCP-capable orchestrator (Claude Code, Cursor) can drive the app agent.
-    const actorId =
-      process.env.MCP_ACTOR_ID ??
-      (() => {
-        const flag = process.argv.indexOf('--actor')
-        return flag === -1 ? 'mcp-' + _uuid().slice(0, 8) : process.argv[flag + 1]
-      })()
-    const actor = { kind: 'agent', id: actorId }
-
-    const baseUrl = process.env.OMLX_BASE_URL ?? 'http://127.0.0.1:8000/v1'
-    const model = process.env.OMLX_MODEL ?? 'gemma-4-e4b-it-OptiQ-4bit'
-    const apiKey = process.env.OMLX_API_KEY
-    const chat = createOpenAiChat({ baseUrl, model, apiKey })
-
-    // Journal FS through the Rust `journal` binary (FS-in-Rust). NODE_REQUESTS_DIR
-    // overrides the dir (tests); else the binary uses the app-local-data default.
-    const journal = createNodeJournalStore({ requestsDir: process.env.NODE_REQUESTS_DIR })
-
-    // Bind the shared agent kit to this app's catalog + domain prompt, the CLI
-    // transport and the node journal. Grounded with the workspace list.
-    const kit = createAgentKit({
-      catalog: TOOLS,
-      systemPrompt: ctx => createSystemPrompt(ctx.workspaces),
-      transport: cliTransport,
-      journal,
-      grounding: { tool: 'workspaces', key: 'workspaces' }
-    })
-
-    const server = new Server({ name: 'task', version: '1.0.0' }, { capabilities: { tools: {} } })
-
-    server.setRequestHandler(ListToolsRequestSchema, () => ({
-      tools: [
-        {
-          name: 'request',
-          description:
-            'Send a natural-language intent to the task-app agent. Returns a structured result with status, summary, actions taken, and an optional clarifying question.',
-          inputSchema: {
-            type: 'object',
-            properties: { intent: { type: 'string', description: 'What you want the agent to do.' } },
-            required: ['intent']
-          }
-        },
-        {
-          name: 'respond',
-          description:
-            'Reply to a pending clarification (needs_clarification status). Pass the requestId from the previous request call.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              requestId: { type: 'string' },
-              message: { type: 'string', description: 'Your answer to the clarifying question.' }
-            },
-            required: ['requestId', 'message']
-          }
-        }
-      ]
-    }))
-
-    server.setRequestHandler(CallToolRequestSchema, async req => {
-      const { name, arguments: args } = req.params
-      let result
-      if (name === 'request') {
-        result = await kit.request({ intent: args.intent, actor, chat })
-      } else if (name === 'respond') {
-        result = await kit.respond({ requestId: args.requestId, message: args.message, actor, chat })
-      } else {
-        return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unknown tool: ' + name }) }], isError: true }
-      }
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
-    })
-
-    await server.connect(new StdioServerTransport())
-    // Return null (not a code) so main()'s dispatcher does NOT call
-    // process.exit — that would kill the server right after connecting. The
-    // stdio transport keeps stdin open (active handle), so the process stays
-    // alive serving requests and exits naturally on stdin EOF / disconnect.
-    return null
+  if (cmd === 'agent' || cmd === 'mcp') {
+    process.stderr.write(
+      `\`task ${cmd}\` was removed — @7n/tauri-components dropped createAgentKit/createOpenAiChat/runAgent in 0.11.0 in favor of ACP-based useAcpAgent(), which drives its session through Tauri invoke() and only runs inside the app's own webview.\n` +
+        'Use the in-app "Agent"/"Journal" dialogs instead.\n'
+    )
+    return 2
   }
 
   let input = {}

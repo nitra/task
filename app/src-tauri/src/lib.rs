@@ -6,9 +6,14 @@ use mt_core::{CreateOpts, CreateOutcome, TaskNode, WorkspaceInfo};
 use notify::Watcher;
 use tauri::{Emitter, Manager};
 
-// The request journal (journal_*) and omlx_config now come from the shared
-// tauri-plugin-agent (invoked as plugin:agent|*). src/journal.rs stays only for
-// the standalone `journal` binary used by the node MCP orchestrator.
+// The request journal (journal_*) and ACP-client commands (acp_*) come from
+// the shared tauri-plugin-agent (invoked as plugin:agent|*). src/journal.rs
+// also backs the standalone `journal` [[bin]] below, originally spawned by
+// `task mcp` (bin/task.mjs) — that CLI mode was removed when
+// @7n/tauri-components dropped its headless-compatible agent engine in favor
+// of ACP (which only runs inside a Tauri webview), so the `journal` binary is
+// currently unused; left in place rather than risk the bundler/codesign
+// pitfalls noted below on an unverified removal.
 
 mod config;
 mod git_util;
