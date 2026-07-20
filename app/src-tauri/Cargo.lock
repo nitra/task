@@ -4727,7 +4727,7 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-agent"
 version = "0.1.0"
-source = "git+https://github.com/nitra/tauri-components?rev=ef4b3419e5507f4212f07bf61b3b081886459656#ef4b3419e5507f4212f07bf61b3b081886459656"
+source = "git+https://github.com/nitra/tauri-components?rev=87f87e74ab56358746e75af8904abec96f4648d1#87f87e74ab56358746e75af8904abec96f4648d1"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-rmcp",

@@ -35,7 +35,7 @@ tauri-plugin-dialog = "2"
 # mlmail/myshare/mikrotik apps use. Pinned to a specific rev (not floating) so
 # a future push to the package repo can't silently change this app's Rust
 # surface underneath it.
-tauri-plugin-agent = { git = "https://github.com/nitra/tauri-components", rev = "ef4b3419e5507f4212f07bf61b3b081886459656" }
+tauri-plugin-agent = { git = "https://github.com/nitra/tauri-components", rev = "87f87e74ab56358746e75af8904abec96f4648d1" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
