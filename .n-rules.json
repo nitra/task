@@ -30,6 +30,8 @@
     "taze"
   ],
   "plugins": [
-    "@7n/rules-ci-github"
+    "@7n/rules-ci-github",
+    "@7n/rules-lang-js",
+    "@7n/rules-lang-rust"
   ]
 }
