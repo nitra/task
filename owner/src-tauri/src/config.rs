@@ -158,22 +158,50 @@ mod tests {
         std::env::set_var("OWNER_CONFIG_PATH", &config);
 
         // без ідентичності — fail-closed на запис і порожньо на читання
-        assert!(snooze_reminder("r1".into(), "2026-07-18T00:00:00Z".into(), "2026-07-17T10:00:00Z").is_err());
+        assert!(snooze_reminder(
+            "r1".into(),
+            "2026-07-18T00:00:00Z".into(),
+            "2026-07-17T10:00:00Z"
+        )
+        .is_err());
         assert!(get_snoozes("2026-07-17T10:00:00Z").is_empty());
 
         set_identity("olena".into()).unwrap();
-        assert!(snooze_reminder(" ".into(), "2026-07-18T00:00:00Z".into(), "2026-07-17T10:00:00Z").is_err());
+        assert!(snooze_reminder(
+            " ".into(),
+            "2026-07-18T00:00:00Z".into(),
+            "2026-07-17T10:00:00Z"
+        )
+        .is_err());
         assert!(snooze_reminder("r1".into(), "не-дата".into(), "2026-07-17T10:00:00Z").is_err());
-        snooze_reminder("r1".into(), "2026-07-18T00:00:00Z".into(), "2026-07-17T10:00:00Z").unwrap();
-        snooze_reminder("r0".into(), "2026-07-17T09:00:00Z".into(), "2026-07-17T08:00:00Z").unwrap();
+        snooze_reminder(
+            "r1".into(),
+            "2026-07-18T00:00:00Z".into(),
+            "2026-07-17T10:00:00Z",
+        )
+        .unwrap();
+        snooze_reminder(
+            "r0".into(),
+            "2026-07-17T09:00:00Z".into(),
+            "2026-07-17T08:00:00Z",
+        )
+        .unwrap();
 
         // активний видно, прострочений (r0 на 10:00) відсіяно читанням…
         let live = get_snoozes("2026-07-17T10:00:00Z");
-        assert_eq!(live.get("r1").map(String::as_str), Some("2026-07-18T00:00:00Z"));
+        assert_eq!(
+            live.get("r1").map(String::as_str),
+            Some("2026-07-18T00:00:00Z")
+        );
         assert!(!live.contains_key("r0"));
 
         // …і прибрано наступним записом (housekeeping)
-        snooze_reminder("r2".into(), "2026-07-19T00:00:00Z".into(), "2026-07-17T10:00:00Z").unwrap();
+        snooze_reminder(
+            "r2".into(),
+            "2026-07-19T00:00:00Z".into(),
+            "2026-07-17T10:00:00Z",
+        )
+        .unwrap();
         let raw: Value = serde_json::from_str(&fs::read_to_string(&config).unwrap()).unwrap();
         let mine = raw["snoozes"]["olena"].as_object().unwrap();
         assert!(mine.contains_key("r1") && mine.contains_key("r2") && !mine.contains_key("r0"));

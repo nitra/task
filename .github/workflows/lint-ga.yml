@@ -39,3 +39,5 @@ jobs:
 
       - name: Lint GA
         run: bunx n-cursor lint ga --no-fix
+      - name: Lint GA
+        run: bunx n-rules lint ga --no-fix

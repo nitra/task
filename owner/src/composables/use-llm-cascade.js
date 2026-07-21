@@ -21,8 +21,7 @@ const MODEL_KEY = `${STORAGE_PREFIX}:omlxModel`
 function readStored(key) {
   try {
     return globalThis.localStorage?.getItem(key) ?? null
-  }
-  catch {
+  } catch {
     return null
   }
 }
@@ -70,8 +69,7 @@ export function useLlmCascade() {
     try {
       globalThis.localStorage?.setItem(BASE_URL_KEY, baseUrl.value)
       globalThis.localStorage?.setItem(MODEL_KEY, model.value)
-    }
-    catch {
+    } catch {
       // no localStorage — in-memory ref state is still updated
     }
   }

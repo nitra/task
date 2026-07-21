@@ -89,13 +89,9 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
+      # workspaces: default "." — кореневий Cargo workspace (rust/workspace_root),
+      # rust-cache бере шлях буквально як `<path>/target`, target/ у корені репо.
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2 # zizmor: ignore[cache-poisoning]
-        with:
-          # owner/Cargo.toml — workspace root (members = src-tauri, owner-llm)
-          # since llm-cascade landed; rust-cache takes `workspaces:` literally
-          # as `<path>/target` (no cargo-metadata resolution), so this must
-          # point at the actual workspace root, not the src-tauri member.
-          workspaces: owner
 
       - name: Sync owner version from tag
         run: |

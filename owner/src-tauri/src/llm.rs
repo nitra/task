@@ -14,10 +14,22 @@ pub async fn llm_one_shot(
     omlx_model: String,
     omlx_api_key: Option<String>,
 ) -> Result<String, String> {
-    owner_llm::one_shot(&tier, system.as_deref(), &user, omlx_base_url, omlx_model, omlx_api_key).await
+    owner_llm::one_shot(
+        &tier,
+        system.as_deref(),
+        &user,
+        omlx_base_url,
+        omlx_model,
+        omlx_api_key,
+    )
+    .await
 }
 
 #[tauri::command]
-pub async fn llm_one_shot_acp(agent: String, prompt: String, cwd: String) -> Result<String, String> {
+pub async fn llm_one_shot_acp(
+    agent: String,
+    prompt: String,
+    cwd: String,
+) -> Result<String, String> {
     owner_llm::one_shot_acp(&agent, &prompt, std::path::Path::new(&cwd)).await
 }

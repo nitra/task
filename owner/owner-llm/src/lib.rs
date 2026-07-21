@@ -40,7 +40,11 @@ fn with_trailing_slash(mut url: String) -> String {
 /// (`@7n/llm-lib`, той самий, що читає `llm_cascade::tiers`). Якщо змінна вже
 /// задана ззовні — вона має пріоритет, тут її не чіпаємо.
 fn seed_local_tier_env_default(omlx_model: &str) {
-    for var in ["N_LOCAL_MIN_MODEL", "N_LOCAL_AVG_MODEL", "N_LOCAL_MAX_MODEL"] {
+    for var in [
+        "N_LOCAL_MIN_MODEL",
+        "N_LOCAL_AVG_MODEL",
+        "N_LOCAL_MAX_MODEL",
+    ] {
         if std::env::var(var).is_ok_and(|v| !v.is_empty()) {
             continue;
         }
@@ -96,9 +100,15 @@ pub async fn one_shot_acp(agent: &str, prompt: &str, cwd: &Path) -> Result<Strin
     let kind = match agent {
         "cursor" => AcpAgentKind::Cursor,
         "codex" => AcpAgentKind::Codex,
-        other => return Err(format!("невідомий ACP-агент {other:?}: очікується cursor|codex")),
+        other => {
+            return Err(format!(
+                "невідомий ACP-агент {other:?}: очікується cursor|codex"
+            ))
+        }
     };
-    cascade_one_shot_acp(kind, prompt, cwd).await.map_err(|e| e.to_string())
+    cascade_one_shot_acp(kind, prompt, cwd)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -115,21 +125,36 @@ mod tests {
 
     #[test]
     fn with_trailing_slash_appends_only_when_missing() {
-        assert_eq!(with_trailing_slash("http://127.0.0.1:8000/v1".to_string()), "http://127.0.0.1:8000/v1/");
-        assert_eq!(with_trailing_slash("http://127.0.0.1:8000/v1/".to_string()), "http://127.0.0.1:8000/v1/");
+        assert_eq!(
+            with_trailing_slash("http://127.0.0.1:8000/v1".to_string()),
+            "http://127.0.0.1:8000/v1/"
+        );
+        assert_eq!(
+            with_trailing_slash("http://127.0.0.1:8000/v1/".to_string()),
+            "http://127.0.0.1:8000/v1/"
+        );
     }
 
     #[tokio::test]
     async fn one_shot_rejects_unknown_tier_without_touching_env() {
-        let err = one_shot("huge", None, "привіт", "http://x/v1".into(), "m".into(), None)
-            .await
-            .unwrap_err();
+        let err = one_shot(
+            "huge",
+            None,
+            "привіт",
+            "http://x/v1".into(),
+            "m".into(),
+            None,
+        )
+        .await
+        .unwrap_err();
         assert!(err.contains("невідомий тир"));
     }
 
     #[tokio::test]
     async fn one_shot_acp_rejects_unknown_agent() {
-        let err = one_shot_acp("claude", "привіт", Path::new(".")).await.unwrap_err();
+        let err = one_shot_acp("claude", "привіт", Path::new("."))
+            .await
+            .unwrap_err();
         assert!(err.contains("невідомий ACP-агент"));
     }
 }

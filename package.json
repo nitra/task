@@ -41,8 +41,5 @@
   "engines": {
     "bun": ">=1.3",
     "node": ">=24"
-  },
-  "dependencies": {
-    "@7n/tauri-components": "^0.13.0"
   }
 }

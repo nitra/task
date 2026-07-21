@@ -3,7 +3,7 @@ type: JS Module
 title: use-llm-cascade.js
 resource: owner/src/composables/use-llm-cascade.js
 docgen:
-  crc: 41536b0a
+  crc: 127fea3b
   model: openai-codex/gpt-5.4-mini
   score: 100
   issues: judge:inaccurate:0.98
