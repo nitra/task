@@ -117,6 +117,70 @@ Rego-пакет: `k8s.base_manifest`
 
 **Примітка:** cross-file перевірки (`metadataNamespaceRequiredViolation` у ширшому контексті дерева) лишаються у JS.
 
+## WARN-оверрайди шумних loggerів у logback.xml Dremio
+
+Rego-пакет: `k8s.dremio_logging`
+
+**Цільові файли:** `**/dremio_v2/config/logback.xml` — vendored-конфіг логування Dremio Helm-чарту. Це XML (не YAML): conftest парсить його нативно (парсер інферується за розширенням). Кожна env-копія (`dev/dremio_v2/…`, `ua/dremio_v2/…` тощо) перевіряється окремо — без крос-файлової дедуплікації. Cross-file gating (як у `hasura_configmap`) не потрібен: шлях сам ідентифікує Dremio-чарт.
+
+**Що перевіряється:** для кожного FQCN зі списку нижче має існувати `<logger name="<FQCN>" level="warn"/>` (рівень case-insensitive; «строгіше» — `error`/`off` — теж ок). Кожен запис-дублікат для FQCN має задовольняти вимогу окремо (конфліктні дублікати — порушення: logback бере останній, конфіг має бути однозначним).
+
+| FQCN |
+|------|
+| `com.dremio.sabot.exec.fragment.FragmentExecutor` |
+| `com.dremio.sabot.exec.fragment.FragmentStatusReporter` |
+| `com.dremio.sabot.exec.QueryTicket` |
+| `com.dremio.service.reflection.descriptor.MaterializationCache` |
+| `com.dremio.exec.planner.plancache.PlanCacheSynchronizer` |
+| `com.dremio.exec.planner.plancache.CacheRefresher` |
+| `com.dremio.sabot.exec.FragmentExecutors` (множина, пакет `exec` БЕЗ `fragment` — не плутати з `fragment.FragmentExecutor` вище) |
+
+**Чому:** ці loggerи (усі на одному `planning-cache-refresher` треді; підтверджено живою перевіркою в проді) пишуть INFO на кожен запит/фоновий цикл і домінують обсяг логів у Cloud Logging без діагностичної цінності понад WARN. Список фіксований — не розширюй «про запас»; нові loggerи — окремою ітерацією.
+
+**Приклад валідного фрагмента:**
+
+```xml
+<logger name="com.dremio.sabot.exec.fragment.FragmentExecutor" level="warn"/>
+<logger name="com.dremio.sabot.exec.fragment.FragmentStatusReporter" level="warn"/>
+<logger name="com.dremio.sabot.exec.QueryTicket" level="warn"/>
+<logger name="com.dremio.service.reflection.descriptor.MaterializationCache" level="warn"/>
+<logger name="com.dremio.exec.planner.plancache.PlanCacheSynchronizer" level="warn"/>
+<logger name="com.dremio.exec.planner.plancache.CacheRefresher" level="warn"/>
+<logger name="com.dremio.sabot.exec.FragmentExecutors" level="warn"/>
+```
+
+**Autofix:** відсутній (detection-only, як `hasura_httproute`) — XML-трансформ складніший за YAML `setIn`; T0-fix, за потреби, окремою ітерацією.
+
+## ZooKeeper: root level вбудованого logback.xml
+
+JS-детектор (не rego): `main.mjs`, `lint(ctx)`, per-file, glob `**/dremio_v2/templates/zookeeper.yaml`.
+
+**Чому окремо від rego вище:** `zookeeper.yaml` — vendored Helm-темплейт (Go-template синтаксис `{{ ... }}`), НЕ валідний YAML/XML, conftest розпарсити не може.
+
+**Що перевіряється:** якщо файл визначає `ConfigMap` з `data["logback.xml"]` (bundled-конфіг образу `zookeeper:3.8.4-jre-17`, монтується поверх `/conf/logback.xml`), його `<root level="...">` має бути `warn`/`error`/`off` (case-insensitive) — не `info`/`debug`/`trace` (дефолт бандлованого файлу) і не відсутній.
+
+**Чому:** readiness/liveness `ruok`-проби виконуються кожні ~10s на кожен zk-под; `NIOServerCnxn` логує це на INFO незалежно від навантаження. Керувати рівнем ззовні НЕ вдається для цього образу:
+
+- `ZOO_LOG4J_PROP` — змінна Bitnami-образів, тут взагалі не читається жодним скриптом.
+- `-Dzookeeper.console.threshold=WARN` через `JVMFLAGS` — перебивається `<property name="zookeeper.console.threshold" value="INFO"/>` у бандлованому файлі.
+
+Єдиний робочий шлях (підтверджено живою перевіркою в проді) — змонтувати власний `logback.xml` (`ConfigMap` + `volumeMount subPath: logback.xml` поверх `/conf/logback.xml`) з іншим `root level`.
+
+**Приклад валідного фрагмента:**
+
+```yaml
+data:
+  logback.xml: |
+    <configuration>
+      ...
+      <root level="WARN">
+        <appender-ref ref="CONSOLE" />
+      </root>
+    </configuration>
+```
+
+**Autofix:** відсутній (detection-only) — текстовий Helm-темплейт, ризиковано трансформувати блайндово; T0-fix, за потреби, окремою ітерацією.
+
 ## Перевірки Gateway API маршрутів і HealthCheckPolicy
 
 Rego-пакет: `k8s.gateway`
@@ -391,6 +455,14 @@ spec:
 **Увага:** готовий snippet-файл цього прикладу (`js/templates/kubescape_exceptions/.kubescape-exceptions.json.snippet.json` до `da05f89d`) під час "combine concern" **не був перенесений** у жоден поточний concern-каталог і в репозиторії відсутній — знайти оригінал не вдалося; за потреби відтвори JSON вручну за прикладом вище.
 
 Виключай контрольно, а не глобально (не додавай винятки без `attributes.name`/`labels`).
+
+## Auto-generated виняток C-0056/C-0018 для Job/CronJob
+
+Controls **C-0056**/**C-0018** (liveness/readiness probe) структурно незастосовні до **`kind: Job`**/**`kind: CronJob`** — под виконується один раз і завершується, on-going readiness/liveness нема чим міряти. Без винятку kubescape (поріг `--severity-threshold high`) падає fatal на першому ж такому ресурсі й зупиняє скан усього дерева `k8s` (issue: efes-cloud/backend, 261 ресурс, жоден job не стартує Hasura server-side).
+
+Лінт **сам** генерує по одному exception-запису на **кожен реальний** Job/CronJob-ресурс (з `attributes.kind`+`attributes.name`, за наявності — `attributes.namespace`) для scan-таргету, що його якраз сканує kubescape (`autoJobCronJobProbeExceptions` у `npm/rules/k8s/manifests/main.mjs`, виклик з `runKubescapeManifest`/`scanRawK8sDir`). Це **не** kind-only виняток — кожен запис прив'язаний до конкретного ресурсу, тому відповідає конвенції "виключай контрольно, а не глобально" вище, і не вимагає ручної підтримки: нові CronJob покриваються автоматично при наступному скані.
+
+Auto-generated записи **мержаться** з `.kubescape-exceptions.json` користувача (якщо файл є) в один tmp-файл, переданий через `--exceptions`; committed-файл користувача лишається джерелом істини для власних, ручних винятків (напр. C-0012 вище) — цей механізм його не замінює і не редагує. Deployment/StatefulSet/DaemonSet-ресурси винятку **не** отримують — C-0056/C-0018 там і надалі fail-closed.
 
 ## Структурні перевірки `kustomization.yaml`
 
