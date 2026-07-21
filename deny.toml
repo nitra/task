@@ -1,0 +1,11 @@
+# cargo-deny — базовий конфіг (rust/check): усі секції на дефолтах.
+# advisories/licenses/bans/sources розширюються явними ключами за потреби;
+# вигаданих секцій cargo-deny не приймає.
+
+[advisories]
+
+[licenses]
+
+[bans]
+
+[sources]

@@ -3,7 +3,7 @@ type: Rust Module
 title: lib.rs
 resource: app/src-tauri/src/lib.rs
 docgen:
-  crc: f9446584
+  crc: 55f3026f
   score: 100
 ---
 

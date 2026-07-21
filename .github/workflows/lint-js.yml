@@ -41,3 +41,5 @@ jobs:
           bunx eslint .
           bunx jscpd .
           bunx knip --no-config-hints
+      - name: Eslint
+        run: bunx n-rules lint js --no-fix

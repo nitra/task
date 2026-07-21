@@ -21,8 +21,7 @@ import { TOOLS } from '../tool/catalog.js'
 let cwd
 try {
   cwd = await homeDir()
-}
-catch {
+} catch {
   cwd = '.'
 }
 

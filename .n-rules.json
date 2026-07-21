@@ -13,6 +13,7 @@
     "local-ai",
     "rust",
     "security",
+    "storybook",
     "style",
     "tauri",
     "test",
@@ -27,6 +28,7 @@
     "lint",
     "llm-patch",
     "publish-telegram",
+    "storybook",
     "taze"
   ],
   "plugins": [

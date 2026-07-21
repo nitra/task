@@ -12,8 +12,10 @@
 
 #[tokio::main]
 async fn main() {
-    let base_url = std::env::var("OMLX_BASE_URL").unwrap_or_else(|_| "http://127.0.0.1:8000/v1".to_string());
-    let model = std::env::var("OMLX_MODEL").unwrap_or_else(|_| "gemma-4-e4b-it-OptiQ-4bit".to_string());
+    let base_url =
+        std::env::var("OMLX_BASE_URL").unwrap_or_else(|_| "http://127.0.0.1:8000/v1".to_string());
+    let model =
+        std::env::var("OMLX_MODEL").unwrap_or_else(|_| "gemma-4-e4b-it-OptiQ-4bit".to_string());
     let api_key = std::env::var("OMLX_API_KEY").ok();
 
     let system = "Ти — штаб власника. Дай короткий бриф рішення одним реченням.";

@@ -8,10 +8,10 @@
         "@7n/tauri-components": "^0.13.0",
       },
       "devDependencies": {
-        "@7n/rules": "^1.33.0",
-        "@7n/rules-ci-github": "^1.7.1",
-        "@7n/rules-lang-js": "^0.7.1",
-        "@7n/rules-lang-rust": "^0.6.1",
+        "@7n/rules": "^1.38.0",
+        "@7n/rules-ci-github": "^1.9.0",
+        "@7n/rules-lang-js": "^0.12.0",
+        "@7n/rules-lang-rust": "^0.7.0",
         "@nitra/cspell-dict": "^2.2.2",
         "@nitra/eslint-config": "^3.10.3",
         "@nitra/stylelint-config": "^1.4.1",
@@ -22,7 +22,7 @@
     },
     "app": {
       "name": "app",
-      "version": "0.6.5",
+      "version": "0.6.6",
       "dependencies": {
         "@7n/tauri-components": "^0.13.9",
         "@quasar/extras": "^2.0.2",
@@ -54,7 +54,7 @@
     },
     "owner": {
       "name": "owner",
-      "version": "0.12.1",
+      "version": "0.13.0",
       "dependencies": {
         "@7n/tauri-components": "^0.12.0",
         "@quasar/extras": "^2.0.2",
@@ -93,13 +93,13 @@
 
     "@7n/mt-linux-x64": ["@7n/mt-linux-x64@0.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-c4b1c435vfGZcRKkLnWcoKs8O6KTATFFx6gPGnid4ee+JDqzyhtxb5kzxYkcTQySO8iBHPAtUMEOBCHDrF1UjQ=="],
 
-    "@7n/rules": ["@7n/rules@1.33.0", "", { "dependencies": { "@7n/llm-lib": "^2.8.2", "@7n/mt": "^0.5.1", "@zed-industries/agent-client-protocol": "^0.4.5", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "ignore": "^7.0.5", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@agentclientprotocol/claude-agent-acp": "^0.59.0", "@earendil-works/pi-ai": "0.80.10", "@earendil-works/pi-coding-agent": "0.80.10" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-rSX1nJs4fkdIeU/IXWgbo/sV+La+/wcVF8F2NhT19vC9J6xRbejoWF7IfZP2KRBLrpSlQS8Fogmk5mU3984ZVQ=="],
+    "@7n/rules": ["@7n/rules@1.38.0", "", { "dependencies": { "@7n/llm-lib": "^2.8.2", "@7n/mt": "^0.5.1", "@zed-industries/agent-client-protocol": "^0.4.5", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "ignore": "^7.0.5", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@agentclientprotocol/claude-agent-acp": "^0.59.0", "@earendil-works/pi-ai": "0.80.10", "@earendil-works/pi-coding-agent": "0.80.10" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-PbWgRfUQfhYxHwfqewWqbWZc3kb3YS3rYe5kbl0A83hR5yQ5Mi4DNqcbgH14Gz2/UfhwtrnpZ55SBne0vm+uwg=="],
 
-    "@7n/rules-ci-github": ["@7n/rules-ci-github@1.7.1", "", { "dependencies": { "yaml": "^2.9.0" }, "peerDependencies": { "@7n/rules": ">=1.2.0" } }, "sha512-ea07bUaC7X4hrD/g3t7F+jWLSVyBZdSvs0nDSt04AMRtfcGvCbTY66luG6ZzHBtIDIunBSECnMw/hvaP2IstCg=="],
+    "@7n/rules-ci-github": ["@7n/rules-ci-github@1.9.0", "", { "dependencies": { "yaml": "^2.9.0" }, "peerDependencies": { "@7n/rules": ">=1.2.0" } }, "sha512-X/f2qKb1XT/QDryJXgK2L/vzpJY8lsBLUTazK8p3L9M5pyGYYY3edkRnz9WgavrYi0TXVE6pzhZcOZUagvocYA=="],
 
-    "@7n/rules-lang-js": ["@7n/rules-lang-js@0.7.1", "", { "dependencies": { "eslint": "^10.4.1", "globby": "^16.0.0", "ignore": "^7.0.5", "jscpd": "^5.0.11", "knip": "^6.22.0", "oxc-parser": "^0.137.0", "oxlint": "^1.68.0", "stylelint": "^17.6.0" }, "peerDependencies": { "@7n/rules": ">=1.27.0" } }, "sha512-ozWbbMHhkWxnEzdoWh+OD90kT6GWCmV0myRnxGHF1Ypsf8lLYowC3h3u/Tq76NAB5MN01G7YKV0MEF3Yw2wxNg=="],
+    "@7n/rules-lang-js": ["@7n/rules-lang-js@0.12.0", "", { "dependencies": { "eslint": "^10.4.1", "globby": "^16.0.0", "ignore": "^7.0.5", "jscpd": "^5.0.11", "knip": "^6.22.0", "oxc-parser": "^0.137.0", "oxlint": "^1.68.0", "stylelint": "^17.6.0" }, "peerDependencies": { "@7n/rules": ">=1.27.0", "vue": "^3.0.0" }, "optionalPeers": ["vue"] }, "sha512-OMVQnyAITNwmruNtPK2DXVYeG6VWGoIDj7LwEFryn352qYKbEY5RUA4UL7BzYzabtL+uKM8l18tsnXErvm0LOQ=="],
 
-    "@7n/rules-lang-rust": ["@7n/rules-lang-rust@0.6.1", "", { "dependencies": { "smol-toml": "^1.7.0" }, "peerDependencies": { "@7n/rules": ">=1.15.0" } }, "sha512-V/UCQYWO9DCCmr1aD0SJ0JiEXfNARsgZTs9Px+i1LycaHLDC+qH8pi3kcBD4R/EiNLIZdVxEg6W4pN9aXn4xmg=="],
+    "@7n/rules-lang-rust": ["@7n/rules-lang-rust@0.7.0", "", { "dependencies": { "smol-toml": "^1.7.0" }, "peerDependencies": { "@7n/rules": ">=1.15.0" } }, "sha512-h1xYHn2qV1q/R3iNArschsl5jYk3kb3nSDzy5ql2mqVXVbjm38RKc5uBZnlvTKk5LynAfwbQpAEB8mImJWeTcQ=="],
 
     "@7n/tauri-components": ["@7n/tauri-components@0.13.0", "", { "dependencies": { "marked": "^18.0.5" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "@tauri-apps/plugin-process": "^2.0.0", "@tauri-apps/plugin-updater": "^2.0.0", "@vue/test-utils": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "quasar"] }, "sha512-hbqaD1eb9F+Ak0exdALOjHJ1wo4NKCbu1hLK8fbtzxvMwqAAMiwHzzFDffTr9g5HEHdsg6BAv2BrSX19UFubKw=="],
 

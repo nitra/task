@@ -510,8 +510,7 @@ fn escalate_as(
     validate_handle(to, "to")?;
     if from == to {
         return Err(
-            "ескалація самому собі не має сенсу — адресат мусить бути замовником вузла"
-                .to_string(),
+            "ескалація самому собі не має сенсу — адресат мусить бути замовником вузла".to_string(),
         );
     }
     if node_escalations(&dir).iter().any(|e| !e.resolved) {
@@ -591,8 +590,7 @@ fn resolve_escalation(
     nnn: u64,
     verdict: String,
 ) -> Result<String, String> {
-    let me =
-        config::get_identity().ok_or("ідентичність не налаштована — виконай set_identity")?;
+    let me = config::get_identity().ok_or("ідентичність не налаштована — виконай set_identity")?;
     resolve_escalation_as(&tasks_dir, &task_path, &me, nnn, &verdict)
 }
 
