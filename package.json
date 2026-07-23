@@ -12,19 +12,11 @@
     "owner": "bun --cwd=owner run tauri dev --config src-tauri/tauri.conf.dev.json",
     "android": "bun --cwd=app run tauri android dev",
     "tauri": "bun --cwd=app run tauri",
-    "lint": "bun run lint-js && bun run lint-text && bun run lint-style && bun run lint-ga && bun run lint-rust && bun run lint-image && bun run lint-security && oxfmt .",
-    "lint-rust": "cargo fmt --all --manifest-path app/src-tauri/Cargo.toml && cargo clippy --manifest-path app/src-tauri/Cargo.toml --fix --allow-staged --allow-dirty --all-targets --all-features && cargo clippy --manifest-path app/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings && cargo fmt --all --manifest-path owner/src-tauri/Cargo.toml && cargo clippy --manifest-path owner/src-tauri/Cargo.toml --fix --allow-staged --allow-dirty --all-targets --all-features && cargo clippy --manifest-path owner/src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
-    "lint-ga": "n-cursor lint ga",
-    "lint-image": "npx @nitra/minify-image --src=. --write",
-    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints",
-    "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail",
-    "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
-    "lint-text": "n-cursor lint text",
-    "coverage": "n-cursor coverage",
-    "test": "vitest run"
+    "coverage": "npx @7n/rules lint test --no-fix",
+    "test": "bun run --bun vitest run"
   },
   "devDependencies": {
-    "@7n/rules": "^1.38.0",
+    "@7n/rules": "^1.45.0",
     "@7n/rules-ci-github": "^1.9.0",
     "@7n/rules-lang-js": "^0.12.0",
     "@7n/rules-lang-rust": "^0.7.0",
