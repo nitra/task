@@ -3,13 +3,13 @@ type: Rust Module
 title: lib.rs
 resource: app/src-tauri/src/lib.rs
 docgen:
-  crc: 55f3026f
+  crc: 1ae09483
   score: 100
 ---
 
 ## Огляд
 
-Файл надає інструменти для роботи з завданнями. Функції включають `scan_tasks`, `find_tasks_dir`, `find_all_tasks_dirs`, `read_task` та `run`.
+Файл реєструє Tauri-команди застосунку для task-графів, CI, PR Inbox, агента та локального стану.
 
 ## Поведінка
 
