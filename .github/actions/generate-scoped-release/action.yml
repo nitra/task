@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
+
+name: Generate scoped release
+description: >-
+  Створює або перевикористовує GitHub Release під поточним тегом (context.ref),
+  з release-notes, порахованими явно від попереднього тега тієї самої
+  продуктової сім'ї (спільний префікс до "@" — app@/owner@), а не
+  автовизначенням GitHub. Автовизначення "залипає" на найстарішій базі, коли
+  релізні коміти йдуть від github-actions[bot]: воно не бачить бот-коміти як
+  "попередній реліз" і щоразу рахує дельту від останнього людського тега.
+
+inputs:
+  release-name-prefix:
+    description: Префікс людської назви релізу (напр. "task" для app, "owner" для owner)
+    required: true
+
+outputs:
+  release-id:
+    description: ID створеного/перевикористаного GitHub Release
+    value: ${{ steps.create-release.outputs.result }}
+
+runs:
+  using: composite
+  steps:
+    - name: Create or reuse release (scoped release-notes)
+      id: create-release
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      with:
+        result-encoding: string
+        script: |
+          const tag = context.ref.replace('refs/tags/', '');
+          const params = { owner: context.repo.owner, repo: context.repo.repo };
+          // Продуктова сім'я — спільний префікс до "@" (app@0.6.11 → "app@"),
+          // щоб не переплутати з тегами іншого продукту в тому самому репо.
+          const prefix = tag.includes('@') ? tag.slice(0, tag.indexOf('@') + 1) : tag;
+
+          let release;
+          try {
+            release = (await github.rest.repos.getReleaseByTag({ ...params, tag })).data;
+          } catch {
+            const compareVersions = (a, b) => {
+              const pa = a.split('.').map(Number);
+              const pb = b.split('.').map(Number);
+              for (let i = 0; i < 3; i++) {
+                const diff = (pa[i] || 0) - (pb[i] || 0);
+                if (diff !== 0) return diff;
+              }
+              return 0;
+            };
+
+            const allTags = await github.paginate(github.rest.repos.listTags, { ...params, per_page: 100 });
+            const previousTag = allTags
+              .map((t) => t.name)
+              .filter((name) => name.startsWith(prefix) && name !== tag)
+              .sort((a, b) => compareVersions(b.slice(prefix.length), a.slice(prefix.length)))[0];
+
+            const notes = (await github.rest.repos.generateReleaseNotes({
+              ...params,
+              tag_name: tag,
+              ...(previousTag ? { previous_tag_name: previousTag } : {}),
+            })).data;
+
+            release = (await github.rest.repos.createRelease({
+              ...params,
+              tag_name: tag,
+              name: `${{ inputs.release-name-prefix }} ${tag}`,
+              draft: false,
+              prerelease: false,
+              body: notes.body,
+            })).data;
+          }
+          return String(release.id);
