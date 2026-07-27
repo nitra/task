@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.0] - 2026-07-27
+
+### Changed
+
+- Додано vite-plugin-vue-layouts-next та vue-macros до залежностей
+
 ## [0.17.0] - 2026-07-27
 
 ### Changed
