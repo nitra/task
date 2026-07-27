@@ -3,9 +3,8 @@ type: JS Module
 title: vite.config.js
 resource: app/vite.config.js
 docgen:
-  crc: 428dc103
+  crc: 3e06ab05
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
-  tier: local-min
   score: 100
   issues: judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
