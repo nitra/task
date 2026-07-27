@@ -39,14 +39,19 @@ describe('deriveReminders', () => {
     const rows = deriveReminders({
       ...forestOf([
         { path: 'mine', state: 'pending', deadline: '2026-07-17T17:00:00', children: [] },
-        { path: 'stale', state: 'pending', deadline: '2026-07-15T09:00:00', children: [] }
+        { path: 'stale', state: 'pending', deadline: '2026-07-15T09:00:00', children: [] },
+        { path: 'tomorrow', state: 'pending', deadline: '2026-07-18T10:00:00', children: [] }
       ]),
       now: NOW
     })
     expect(rows.map(r => [r.path, r.rule, r.overdue])).toEqual([
       ['stale', 'personal_today', true],
-      ['mine', 'personal_today', false]
+      ['mine', 'personal_today', false],
+      ['tomorrow', 'deadline_due', false]
     ])
+    expect(rows.find(row => row.path === 'tomorrow')?.headline).toBe(
+      'дедлайн 2026-07-18T10:00:00 наближається — гілка без результату'
+    )
   })
 
   it('чужі й межові вузли нагадувань не породжують — лише мій скоуп', () => {
