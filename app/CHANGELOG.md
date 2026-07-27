@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.9] - 2026-07-27
+
+### Changed
+
+- Кореневий Cargo workspace (rust/workspace_root): члени app/src-tauri + owner/src-tauri + owner/owner-llm, один Cargo.lock і target/ у корені; lint-rust покриває всі члени
+
 ## [0.6.8] - 2026-07-27
 
 ### Changed

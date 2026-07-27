@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.1] - 2026-07-27
+
+### Changed
+
+- Кореневий Cargo workspace: owner/Cargo.toml прибрано на користь кореневого; FakeOmlxProvider у тестах owner-llm (core_test_isolation)
+
 ## [0.16.0] - 2026-07-27
 
 ### Added
