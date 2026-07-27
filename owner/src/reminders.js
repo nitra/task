@@ -51,8 +51,8 @@ function walk(nodes, pick) {
 
 /**
  * Нагадування одного вузла за правилами deadline_due / personal_today.
- * Правила зі спеки перетинаються на pending (deadline сьогодні ⊂ горизонт
- * 24 год), тож вузол дає щонайбільше одне нагадування: pending —
+ * Правила зі спеки перетинаються на pending із дедлайном сьогодні або в
+ * минулому, тож вузол дає щонайбільше одне нагадування: такий pending —
  * personal_today, решта нерозвʼязаних — deadline_due.
  * @param {object} node вузол зі scan
  * @param {{ label: string, path: string }} workspace воркспейс вузла
@@ -64,8 +64,10 @@ function deadlineReminder(node, workspace, now) {
   const deadline = Date.parse(node.deadline)
   if (Number.isNaN(deadline) || deadline > now + DUE_HORIZON_MS) return null
   const overdue = deadline < now
-  const rule = node.state === 'pending' ? 'personal_today' : 'deadline_due'
+  const isPendingToday = node.state === 'pending' && deadline < dayStart(now) + DAY_MS
+  const rule = isPendingToday ? 'personal_today' : 'deadline_due'
   const what = rule === 'personal_today' ? 'твоя задача' : 'гілка без результату'
+  const timing = rule === 'personal_today' ? 'сьогодні' : 'наближається'
   return {
     id: `${rule}|${workspace.path}|${node.path}|${node.deadline}`,
     rule,
@@ -76,7 +78,7 @@ function deadlineReminder(node, workspace, now) {
     stake: overdue ? 0 : 1,
     headline: overdue
       ? `дедлайн ${node.deadline} минув — ${what} прострочена`
-      : `дедлайн ${node.deadline} сьогодні — ${what}`
+      : `дедлайн ${node.deadline} ${timing} — ${what}`
   }
 }
 
