@@ -5,8 +5,8 @@
     "": {
       "name": "task",
       "devDependencies": {
-        "@7n/rules": "^1.49.23",
-        "@7n/rules-ci-github": "^1.9.0",
+        "@7n/rules": "^1.51.0",
+        "@7n/rules-ci-github": "^1.9.8",
         "@7n/rules-lang-js": "^0.12.0",
         "@7n/rules-lang-rust": "^0.7.0",
         "@nitra/cspell-dict": "^2.2.2",
@@ -19,7 +19,7 @@
     },
     "app": {
       "name": "app",
-      "version": "0.6.10",
+      "version": "0.7.0",
       "dependencies": {
         "@7n/tauri-components": "^0.13.9",
         "@quasar/extras": "^2.0.2",
@@ -51,7 +51,7 @@
     },
     "owner": {
       "name": "owner",
-      "version": "0.16.2",
+      "version": "0.17.0",
       "dependencies": {
         "@7n/tauri-components": "^0.12.0",
         "@quasar/extras": "^2.0.2",
@@ -92,7 +92,7 @@
 
     "@7n/rules": ["@7n/rules@1.51.0", "", { "dependencies": { "@7n/llm-lib": "2.10.0", "@7n/mt": "^0.5.1", "@zed-industries/agent-client-protocol": "^0.4.5", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "ignore": "^7.0.5", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@agentclientprotocol/claude-agent-acp": "^0.59.0", "@earendil-works/pi-ai": "0.80.10", "@earendil-works/pi-coding-agent": "0.80.10" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-92Soyq9gI6RYlqLsrFin8AM979I3LtHT5cId1H4r6b7wAZQDmlzkd8q9GWXXvgfGGUP7yG3Polt3r7RUMxxqSA=="],
 
-    "@7n/rules-ci-github": ["@7n/rules-ci-github@1.9.0", "", { "dependencies": { "yaml": "^2.9.0" }, "peerDependencies": { "@7n/rules": ">=1.2.0" } }, "sha512-X/f2qKb1XT/QDryJXgK2L/vzpJY8lsBLUTazK8p3L9M5pyGYYY3edkRnz9WgavrYi0TXVE6pzhZcOZUagvocYA=="],
+    "@7n/rules-ci-github": ["@7n/rules-ci-github@1.9.8", "", { "dependencies": { "yaml": "^2.9.0" }, "peerDependencies": { "@7n/rules": ">=1.2.0" } }, "sha512-q7GY/i2FhdhHj+sVFSKnYAFN5fYRHA9k50n1Y3iJBj/f7RAA+NLCgcmmgp7R1jNN01Bro440JisnFPfdt05MnA=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@0.12.0", "", { "dependencies": { "eslint": "^10.4.1", "globby": "^16.0.0", "ignore": "^7.0.5", "jscpd": "^5.0.11", "knip": "^6.22.0", "oxc-parser": "^0.137.0", "oxlint": "^1.68.0", "stylelint": "^17.6.0" }, "peerDependencies": { "@7n/rules": ">=1.27.0", "vue": "^3.0.0" }, "optionalPeers": ["vue"] }, "sha512-OMVQnyAITNwmruNtPK2DXVYeG6VWGoIDj7LwEFryn352qYKbEY5RUA4UL7BzYzabtL+uKM8l18tsnXErvm0LOQ=="],
 
