@@ -5,7 +5,7 @@ description = "Agent/LLM-логіка owner — тонкі функції пов
 edition = "2021"
 
 [dependencies]
-llm-cascade = { git = "https://github.com/nitra/7n-rules.git" }
+llm-cascade = { git = "https://github.com/nitra/7n-rules.git", rev = "c47c5248ecb45cd076dbc2558e3c2d04f010ddfe" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
