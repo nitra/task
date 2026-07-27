@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.1] - 2026-07-27
+
+### Fixed
+
+- Полагоджено release-owner.yml: видалено вкладений owner/Cargo.toml (сторонній `[workspace]`, повернутий комітом #17), який перемикав owner/src-tauri з кореневого воркспейсу на незафіксований — пін rev у git-залежностях mt-core/llm-cascade, щоб CI більше не резолвив їх на живий HEAD nitra/mt і nitra/7n-rules
+
 ## [0.18.0] - 2026-07-27
 
 ### Changed
