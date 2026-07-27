@@ -2439,12 +2439,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
-name = "llm-cascade"
-version = "0.1.0"
-source = "git+https://github.com/nitra/7n-rules.git#c47c5248ecb45cd076dbc2558e3c2d04f010ddfe"
+name = "llm-lib"
+version = "0.2.3"
+source = "git+https://github.com/nitra/7n-rules.git?rev=cdc1441ea8fd4822b41f884a1675e2c105d984c3#cdc1441ea8fd4822b41f884a1675e2c105d984c3"
 dependencies = [
  "agent-client-protocol",
  "genai",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -2525,6 +2526,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
 
 [[package]]
+name = "mime_guess"
+version = "2.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
+dependencies = [
+ "mime",
+ "unicase",
+]
+
+[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2570,8 +2581,8 @@ dependencies = [
 
 [[package]]
 name = "mt-core"
-version = "0.1.0"
-source = "git+https://github.com/nitra/mt.git#03050b869db4828b351defe639b6d09a1c963b4c"
+version = "0.1.5"
+source = "git+https://github.com/nitra/mt-rust.git?rev=7f82b456c51f32ed640a54f9db5e50b6674dd687#7f82b456c51f32ed640a54f9db5e50b6674dd687"
 dependencies = [
  "chrono",
  "serde",
@@ -3213,7 +3224,7 @@ dependencies = [
 name = "owner-llm"
 version = "0.1.0"
 dependencies = [
- "llm-cascade",
+ "llm-lib",
  "tokio",
 ]
 
@@ -3785,6 +3796,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "percent-encoding",
  "pin-project-lite",
  "quinn",
@@ -5748,6 +5760,12 @@ checksum = "96bd2f2237fe450fcd0a1d2f5f4e91711124f7857ba2e964247776ebeeb7b0c4"
 dependencies = [
  "unic-common",
 ]
+
+[[package]]
+name = "unicase"
+version = "2.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbc4bc3a9f746d862c45cb89d705aa10f187bb96c76001afab07a0d35ce60142"
 
 [[package]]
 name = "unicode-ident"
