@@ -21,4 +21,5 @@ npx @7n/rules lint --no-fix --cwd ../.. vue
 ## Inputs
 
 Target-файли:
+
 - (whole-repo concern)
