@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.0] - 2026-07-27
+
+### Added
+
+- Каскадний доступ до LLM (крейт llm-cascade): плановик/критик/штаб тепер ходять через один Tauri-command замість трьох незалежних createOpenAiChat, з опційною драбиною ACP-підписки (Cursor/Codex CLI), гейтованою autonomy.yml (external_comms)
+
 ## [0.15.0] - 2026-07-27
 
 ### Added
