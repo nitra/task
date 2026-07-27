@@ -5,7 +5,7 @@
     "": {
       "name": "task",
       "devDependencies": {
-        "@7n/rules": "^1.45.0",
+        "@7n/rules": "^1.49.23",
         "@7n/rules-ci-github": "^1.9.0",
         "@7n/rules-lang-js": "^0.12.0",
         "@7n/rules-lang-rust": "^0.7.0",
@@ -19,7 +19,7 @@
     },
     "app": {
       "name": "app",
-      "version": "0.6.6",
+      "version": "0.6.10",
       "dependencies": {
         "@7n/tauri-components": "^0.13.9",
         "@quasar/extras": "^2.0.2",
@@ -51,7 +51,7 @@
     },
     "owner": {
       "name": "owner",
-      "version": "0.13.0",
+      "version": "0.16.2",
       "dependencies": {
         "@7n/tauri-components": "^0.12.0",
         "@quasar/extras": "^2.0.2",
@@ -78,11 +78,11 @@
     },
   },
   "packages": {
-    "@7n/llm-lib": ["@7n/llm-lib@2.8.2", "", { "optionalDependencies": { "@7n/llm-lib-darwin-arm64": "2.8.2", "@7n/llm-lib-linux-x64": "2.8.2" }, "peerDependencies": { "@earendil-works/pi-ai": "~0.80.10", "@earendil-works/pi-coding-agent": "~0.80.10" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"], "bin": { "n-llm-chains-report": "bin/chains-report.mjs" } }, "sha512-+b23qrvagPNxa4gHjwMWkbsO+smI2puufk35fTpD8tXULnF7mAgiVkxgwXBX4Rh0a9He1SDbgnythO+h3cjm8A=="],
+    "@7n/llm-lib": ["@7n/llm-lib@2.10.0", "", { "optionalDependencies": { "@7n/llm-lib-darwin-arm64": "2.9.7", "@7n/llm-lib-linux-x64": "2.9.7" }, "peerDependencies": { "@earendil-works/pi-ai": "~0.80.10", "@earendil-works/pi-coding-agent": "~0.80.10" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"], "bin": { "n-llm-chains-report": "bin/chains-report.mjs" } }, "sha512-szjqKqWLQYsOH1EzCBvqlLkmW/dTluVR33g3BLS/DRpxcW+R2bIG0K6GR5hFWSi/8Hguzd/gZzd/oIB0geA1vw=="],
 
-    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.8.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-ThZyd+JGfF0673sV4ZqPhJwbf+NvsE+X9oKAIKeDJOWhN1rWNHJZAY/JhFtXTGV0lz63AnN6AeaGaR1ssM+GXg=="],
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.9.7", "", { "os": "darwin", "cpu": "arm64" }, "sha512-J2xneopCQ5mRcMbcOpfGXH+MhC4oy1ax76lB1sQKo5gKzQNTEl36DQPiToi9mYLbt+p8FQwhKTL5KDx/1Yt6Lw=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.8.2", "", { "os": "linux", "cpu": "x64" }, "sha512-FAdGa0ej33/63KAAWjSI7yYvJTYKbSbWQRXbs2O3K7kFkZuepWUAnYLWyeKE2enJ5WfQthIrRXAB9g4dcPb59w=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.9.7", "", { "os": "linux", "cpu": "x64" }, "sha512-qKwUSXXOfZ8SfshDLdQtmPDB5oX5y//AB5BRNgbkNABvTZ5pA5I9yINJoaKmm2qOvErxkeQMZRmYSTbh845Vvg=="],
 
     "@7n/mt": ["@7n/mt@0.5.1", "", { "optionalDependencies": { "@7n/mt-darwin-arm64": "0.5.1", "@7n/mt-linux-x64": "0.5.1" }, "bin": { "mt": "bin/mt.js" } }, "sha512-fIP75AODAX6ri+Geznpph0BJR0kkOWeCarSNJCibLCPH3vnfbEvHC9/MgTk3zg9cYIGEFAHd1gkCEnOekexIdg=="],
 
@@ -90,7 +90,7 @@
 
     "@7n/mt-linux-x64": ["@7n/mt-linux-x64@0.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-c4b1c435vfGZcRKkLnWcoKs8O6KTATFFx6gPGnid4ee+JDqzyhtxb5kzxYkcTQySO8iBHPAtUMEOBCHDrF1UjQ=="],
 
-    "@7n/rules": ["@7n/rules@1.45.0", "", { "dependencies": { "@7n/llm-lib": "^2.8.2", "@7n/mt": "^0.5.1", "@zed-industries/agent-client-protocol": "^0.4.5", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "ignore": "^7.0.5", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@agentclientprotocol/claude-agent-acp": "^0.59.0", "@earendil-works/pi-ai": "0.80.10", "@earendil-works/pi-coding-agent": "0.80.10" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-6B+WAQvu4BwYkVa49n2sa7IxQhntQBrgfSGPsWwwY7+E/ciqOennMfwkBq893uInelF2A5RYNynPGWrGrM0RLQ=="],
+    "@7n/rules": ["@7n/rules@1.51.0", "", { "dependencies": { "@7n/llm-lib": "2.10.0", "@7n/mt": "^0.5.1", "@zed-industries/agent-client-protocol": "^0.4.5", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "ignore": "^7.0.5", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@agentclientprotocol/claude-agent-acp": "^0.59.0", "@earendil-works/pi-ai": "0.80.10", "@earendil-works/pi-coding-agent": "0.80.10" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-92Soyq9gI6RYlqLsrFin8AM979I3LtHT5cId1H4r6b7wAZQDmlzkd8q9GWXXvgfGGUP7yG3Polt3r7RUMxxqSA=="],
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@1.9.0", "", { "dependencies": { "yaml": "^2.9.0" }, "peerDependencies": { "@7n/rules": ">=1.2.0" } }, "sha512-X/f2qKb1XT/QDryJXgK2L/vzpJY8lsBLUTazK8p3L9M5pyGYYY3edkRnz9WgavrYi0TXVE6pzhZcOZUagvocYA=="],
 

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 #
 # Реліз owner-застосунку (воркспейс owner/) — аналог release.yml для app.
-# Тег owner-vX.Y.Z → GitHub-реліз "owner owner-vX.Y.Z" + підписаний DMG +
+# Тег owner@X.Y.Z → GitHub-реліз "owner owner@X.Y.Z" + підписаний DMG +
 # updater-артефакти (owner має tauri-plugin-updater, useUpdater()).
 
 name: Release Owner
@@ -9,6 +9,7 @@ name: Release Owner
 on:
   push:
     tags:
+      - 'owner@*'
       - 'owner-v*'
 
   workflow_dispatch: {}
@@ -23,7 +24,7 @@ jobs:
     permissions:
       contents: write
     outputs:
-      release_id: ${{ steps.create-release.outputs.result }}
+      release_id: ${{ steps.create-release.outputs.release-id }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -31,26 +32,9 @@ jobs:
 
       - name: Create or reuse release
         id: create-release
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: ./.github/actions/generate-scoped-release
         with:
-          result-encoding: string
-          script: |
-            const tag = context.ref.replace('refs/tags/', '');
-            const params = { owner: context.repo.owner, repo: context.repo.repo };
-            let release;
-            try {
-              release = (await github.rest.repos.getReleaseByTag({ ...params, tag })).data;
-            } catch {
-              release = (await github.rest.repos.createRelease({
-                ...params,
-                tag_name: tag,
-                name: `owner ${tag}`,
-                draft: false,
-                prerelease: false,
-                generate_release_notes: true,
-              })).data;
-            }
-            return String(release.id);
+          release-name-prefix: owner
 
   build-desktop:
     needs: create-release
@@ -95,7 +79,8 @@ jobs:
 
       - name: Sync owner version from tag
         run: |
-          VER="${GITHUB_REF_NAME#owner-v}"
+          VER="${GITHUB_REF_NAME#owner@}"
+          VER="${VER#owner-v}"
           node -e "const fs=require('fs');const f='owner/src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(f));c.version=process.argv[1];fs.writeFileSync(f,JSON.stringify(c,null,2)+'\n')" "$VER"
           echo "tauri.conf.json version → $VER"
 
@@ -125,7 +110,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANNEL_TITLE: 'owner auto-update channel (службовий, не для людей)'
-          CHANNEL_NOTES: 'Стабільний тег для plugins.updater.endpoints у owner/src-tauri/tauri.conf.json. Автоматично пересувається кожним owner-v* релізом на свіжий latest.json. Дистрибутив бери з останнього справжнього owner-vX.Y.Z релізу.'
+          CHANNEL_NOTES: 'Стабільний тег для plugins.updater.endpoints у owner/src-tauri/tauri.conf.json. Автоматично пересувається кожним owner@* релізом на свіжий latest.json. Дистрибутив бери з останнього справжнього owner@X.Y.Z релізу.'
         run: |
           TAG="${GITHUB_REF_NAME}"
           CHANNEL="owner-latest"

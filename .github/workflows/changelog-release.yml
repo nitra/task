@@ -2,9 +2,11 @@
 #
 # Автоматичний реліз із change-файлів: merge у main з {app,owner}/.changes/*.md →
 # `n-cursor release` (бамп version + CHANGELOG.md + коміт "release: app@X, owner@Y" +
-# теги app@X/owner@Y) → теги vX / owner-vX → dispatch release.yml /
-# release-owner.yml (DMG-артефакти). Пуш тегів робиться GITHUB_TOKEN-ом і не
-# тригерить workflows, тому build-workflow викликається явно через workflow_dispatch.
+# теги app@X/owner@Y) → dispatch release.yml / release-owner.yml (--ref app@X /
+# owner@Y) на DMG-артефакти. Пуш тегів робиться GITHUB_TOKEN-ом і не тригерить
+# workflows, тому build-workflow викликається явно через workflow_dispatch.
+# Один тег на продукт-реліз (app@X.Y.Z / owner@X.Y.Z) — він же changelog-якір,
+# він же build-тригер; окремі vX/owner-vX теги (стара схема) більше не створюються.
 
 name: Changelog Release
 
@@ -83,13 +85,11 @@ jobs:
           TAGS=()
           if [ -n "$APP_VER" ]; then
             git tag "app@$APP_VER" 2>/dev/null || true
-            git tag "v$APP_VER"
-            TAGS+=("refs/tags/app@$APP_VER" "refs/tags/v$APP_VER")
+            TAGS+=("refs/tags/app@$APP_VER")
           fi
           if [ -n "$OWNER_VER" ]; then
             git tag "owner@$OWNER_VER" 2>/dev/null || true
-            git tag "owner-v$OWNER_VER"
-            TAGS+=("refs/tags/owner@$OWNER_VER" "refs/tags/owner-v$OWNER_VER")
+            TAGS+=("refs/tags/owner@$OWNER_VER")
           fi
           git push origin HEAD:main "${TAGS[@]}"
 
@@ -98,11 +98,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VER: ${{ steps.rel.outputs.app }}
-        run: gh workflow run release.yml --ref "v$VER"
+        run: gh workflow run release.yml --ref "app@$VER"
 
       - name: Dispatch DMG release build (owner)
         if: steps.rel.outputs.owner
         env:
           GH_TOKEN: ${{ github.token }}
           VER: ${{ steps.rel.outputs.owner }}
-        run: gh workflow run release-owner.yml --ref "owner-v$VER"
+        run: gh workflow run release-owner.yml --ref "owner@$VER"
