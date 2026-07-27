@@ -3,6 +3,7 @@
     <div class="row items-center q-mb-md">
       <span class="section-title">Tasks</span>
       <q-space />
+      <q-btn @click="pullRequestsOpen = true" icon="sym_o_merge" flat round dense size="sm" title="Pull request inbox" />
       <q-btn @click="auditOpen = true" icon="sym_o_history" flat round dense size="sm" title="Request journal" />
       <q-btn @click="agentOpen = true" icon="sym_o_smart_toy" flat round dense size="sm" title="Agent" />
       <q-btn @click="createOpen = true" icon="sym_o_add" flat round dense size="sm" title="New task" />
@@ -87,6 +88,7 @@
     <CreateTaskDialog v-model="createOpen" @created="onCreated" />
     <AgentDialog v-model="agentOpen" @ran="scanAll" :agent="agent" />
     <AuditDialog v-model="auditOpen" @changed="scanAll" :agent="agent" />
+    <PullRequestsDialog v-model="pullRequestsOpen" :agent="agent" />
     <CostLedgerDialog v-model="ledgerOpen" :tasks-dir="ledgerTasksDir" :workspace-label="ledgerWorkspaceLabel" />
     <DagViewDialog
       v-model="dagOpen"
@@ -151,6 +153,7 @@ import LiveRunFeed from './LiveRunFeed.vue'
 import CostLedgerDialog from './CostLedgerDialog.vue'
 import DagViewDialog from './DagViewDialog.vue'
 import PipelineStatusDialog from './PipelineStatusDialog.vue'
+import PullRequestsDialog from './PullRequestsDialog.vue'
 import { stateConfig } from '../state-config.js'
 import { collectAttention } from '../attention.js'
 import { applyClaims } from '../claims.js'
@@ -163,6 +166,7 @@ const agent = useAcpAgent()
 const createOpen = ref(false)
 const agentOpen = ref(false)
 const auditOpen = ref(false)
+const pullRequestsOpen = ref(false)
 const workspaces = ref([])
 const workspaceNodes = ref({})
 const loading = ref(false)
