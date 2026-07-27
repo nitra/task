@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.14.0] - 2026-07-27
+
+### Added
+
+- Каскадний доступ до LLM (крейт llm-cascade): плановик/критик/штаб тепер ходять через один Tauri-command замість трьох незалежних createOpenAiChat, з опційною драбиною ACP-підписки (Cursor/Codex CLI), гейтованою autonomy.yml (external_comms)
+- M7 — нагадування (спека 260714): три детерміновані правила деривації з deadline (deadline_due / personal_today / escalation_stale), кошики дедлайнів у Брифі, стрічка нагадувань у Рішеннях, snooze per-identity локально (tools snoozes/snooze_reminder), ОС-нотифікації з ранковим дайджестом
+
+### Changed
+
+- Кореневий Cargo workspace: owner/Cargo.toml прибрано на користь кореневого; FakeOmlxProvider у тестах owner-llm (core_test_isolation)
+
 ## [0.13.0] - 2026-07-20
 
 ### Added
