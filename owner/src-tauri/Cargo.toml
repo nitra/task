@@ -20,7 +20,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-mt-core = { git = "https://github.com/nitra/mt.git" }
+mt-core = { git = "https://github.com/nitra/mt.git", rev = "03050b869db4828b351defe639b6d09a1c963b4c" }
 owner-llm = { path = "../owner-llm" }
 notify = "8"
 chrono = "0.4"

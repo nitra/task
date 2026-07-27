@@ -2441,7 +2441,7 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 [[package]]
 name = "llm-cascade"
 version = "0.1.0"
-source = "git+https://github.com/nitra/7n-rules.git#c47c5248ecb45cd076dbc2558e3c2d04f010ddfe"
+source = "git+https://github.com/nitra/7n-rules.git?rev=c47c5248ecb45cd076dbc2558e3c2d04f010ddfe#c47c5248ecb45cd076dbc2558e3c2d04f010ddfe"
 dependencies = [
  "agent-client-protocol",
  "genai",
@@ -2571,7 +2571,7 @@ dependencies = [
 [[package]]
 name = "mt-core"
 version = "0.1.0"
-source = "git+https://github.com/nitra/mt.git#03050b869db4828b351defe639b6d09a1c963b4c"
+source = "git+https://github.com/nitra/mt.git?rev=03050b869db4828b351defe639b6d09a1c963b4c#03050b869db4828b351defe639b6d09a1c963b4c"
 dependencies = [
  "chrono",
  "serde",
