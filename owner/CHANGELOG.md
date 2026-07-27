@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.0] - 2026-07-27
+
+### Added
+
+- M5 — скоуп власника (спека docs/specs/260714-cognitive-delegation.md): ідентичність-handle (whoami/set_identity), owner: в autonomy.yml, scan_owners, scope-фільтр черги/особистих задач/дельти, «нічия земля», fail-closed write-tools поза скоупом, крок «Хто ти» в онбордингу
+
 ## [0.14.0] - 2026-07-27
 
 ### Added
