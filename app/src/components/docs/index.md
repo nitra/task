@@ -14,5 +14,6 @@ resource: app/src/components/
 | [NodeActions.vue](NodeActions.md)                           | Vue Component |
 | [PipelineRunDetailsDialog.vue](PipelineRunDetailsDialog.md) | Vue Component |
 | [PipelineStatusDialog.vue](PipelineStatusDialog.md)         | Vue Component |
+| [PullRequestsDialog.vue](PullRequestsDialog.md)             | Vue Component |
 | [TaskGraph.vue](TaskGraph.md)                               | Vue Component |
 | [TaskNodeItem.vue](TaskNodeItem.md)                         | Vue Component |

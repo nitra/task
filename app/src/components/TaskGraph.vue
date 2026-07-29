@@ -3,7 +3,14 @@
     <div class="row items-center q-mb-md">
       <span class="section-title">Tasks</span>
       <q-space />
-      <q-btn @click="pullRequestsOpen = true" icon="sym_o_merge" flat round dense size="sm" title="Pull request inbox" />
+      <q-btn
+        @click="pullRequestsOpen = true"
+        icon="sym_o_merge"
+        flat
+        round
+        dense
+        size="sm"
+        title="Pull request inbox" />
       <q-btn @click="auditOpen = true" icon="sym_o_history" flat round dense size="sm" title="Request journal" />
       <q-btn @click="agentOpen = true" icon="sym_o_smart_toy" flat round dense size="sm" title="Agent" />
       <q-btn @click="createOpen = true" icon="sym_o_add" flat round dense size="sm" title="New task" />

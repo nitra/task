@@ -3,6 +3,8 @@ kind: NetworkPolicy
 metadata:
   name: teleport
   namespace: teleport
+  annotations:
+    nitra.dev/workload-kind: StatefulSet
 spec:
   podSelector:
     matchLabels:
@@ -13,6 +15,10 @@ spec:
   ingress:
     - from:
         - podSelector: {}
+    # intra-replica (StatefulSet pod ↔ pod у тому ж namespace)
+    - from:
+        - podSelector:
+            matchLabels: {}
   egress:
     - to:
         - namespaceSelector:
@@ -65,3 +71,7 @@ spec:
           port: 4317
         - protocol: TCP
           port: 4318
+    # intra-replica (StatefulSet pod ↔ pod у тому ж namespace)
+    - to:
+        - podSelector:
+            matchLabels: {}

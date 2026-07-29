@@ -12,13 +12,7 @@
       <q-separator />
 
       <q-card-section class="q-py-sm">
-        <q-btn-toggle
-          v-model="filter"
-          :options="filters"
-          dense
-          flat
-          no-caps
-          size="sm" />
+        <q-btn-toggle v-model="filter" :options="filters" dense flat no-caps size="sm" />
       </q-card-section>
 
       <q-separator />
@@ -29,14 +23,24 @@
         </div>
         <div v-else-if="errorMessage" class="text-red">{{ errorMessage }}</div>
         <div v-else-if="!filteredPullRequests.length" class="pull-requests-empty">No pull requests in this group</div>
-        <article v-for="pr in filteredPullRequests" :key="`${pr.repository}-${pr.number}`" @click="openPullRequest(pr.url)" class="pr-row">
+        <article
+          v-for="pr in filteredPullRequests"
+          :key="`${pr.repository}-${pr.number}`"
+          @click="openPullRequest(pr.url)"
+          class="pr-row">
           <div class="row items-start no-wrap">
-            <q-icon :name="categoryConfig(pr.category).icon" :style="{ color: categoryConfig(pr.category).color }" size="19px" class="q-mr-sm q-mt-xs" />
+            <q-icon
+              :name="categoryConfig(pr.category).icon"
+              :style="{ color: categoryConfig(pr.category).color }"
+              size="19px"
+              class="q-mr-sm q-mt-xs" />
             <div class="col min-width-0">
               <div class="pr-title">{{ pr.title }}</div>
               <div class="pr-meta">{{ pr.repository }} #{{ pr.number }} · {{ formatRelativeTime(pr.updated_at) }}</div>
               <div class="pr-action">{{ pr.action }}</div>
-              <div v-if="pr.failed_checks.length" class="pr-details text-negative">CI: {{ pr.failed_checks.join(', ') }}</div>
+              <div v-if="pr.failed_checks.length" class="pr-details text-negative">
+                CI: {{ pr.failed_checks.join(', ') }}
+              </div>
               <div v-else-if="pr.reviewers.length" class="pr-details">Review: {{ pr.reviewers.join(', ') }}</div>
               <q-btn
                 @click.stop="summarize(pr)"
@@ -48,9 +52,13 @@
                 size="sm"
                 class="pr-summary-button" />
               <div v-if="summaries[summaryKey(pr)]" class="pr-summary">{{ summaries[summaryKey(pr)] }}</div>
-              <div v-else-if="summaryErrors[summaryKey(pr)]" class="pr-details text-negative">{{ summaryErrors[summaryKey(pr)] }}</div>
+              <div v-else-if="summaryErrors[summaryKey(pr)]" class="pr-details text-negative">
+                {{ summaryErrors[summaryKey(pr)] }}
+              </div>
             </div>
-            <q-badge outline :color="categoryConfig(pr.category).quasarColor" class="q-ml-sm">{{ roleLabel(pr.role) }}</q-badge>
+            <q-badge outline :color="categoryConfig(pr.category).quasarColor" class="q-ml-sm">
+              {{ roleLabel(pr.role) }}
+            </q-badge>
           </div>
         </article>
       </q-card-section>
@@ -99,12 +107,14 @@ const filteredPullRequests = computed(() =>
  * @returns {{ icon: string, color: string, quasarColor: string }} visual configuration
  */
 function categoryConfig(category) {
-  return {
-    needs_my_action: { icon: 'sym_o_error', color: '#ff453a', quasarColor: 'negative' },
-    needs_my_review: { icon: 'sym_o_rate_review', color: '#ff9f0a', quasarColor: 'warning' },
-    waiting_for_others: { icon: 'sym_o_schedule', color: '#0a84ff', quasarColor: 'primary' },
-    assigned_to_me: { icon: 'sym_o_assignment', color: '#bf5af2', quasarColor: 'purple' }
-  }[category] ?? { icon: 'sym_o_help', color: '#8e8e93', quasarColor: 'grey' }
+  return (
+    {
+      needs_my_action: { icon: 'sym_o_error', color: '#ff453a', quasarColor: 'negative' },
+      needs_my_review: { icon: 'sym_o_rate_review', color: '#ff9f0a', quasarColor: 'warning' },
+      waiting_for_others: { icon: 'sym_o_schedule', color: '#0a84ff', quasarColor: 'primary' },
+      assigned_to_me: { icon: 'sym_o_assignment', color: '#bf5af2', quasarColor: 'purple' }
+    }[category] ?? { icon: 'sym_o_help', color: '#8e8e93', quasarColor: 'grey' }
+  )
 }
 
 /**
@@ -190,17 +200,82 @@ watch(open, isOpen => {
 </script>
 
 <style scoped>
-.pull-requests-card { width: 760px; max-width: 94vw; max-height: 82vh; display: flex; flex-direction: column; border-radius: 12px; }
-.pull-requests-title, .pr-meta, .pr-details { font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace; }
-.pull-requests-title { font-size: 14px; font-weight: 600; }
-.pull-requests-body { flex: 1; overflow-y: auto; }
-.pull-requests-empty { text-align: center; padding: 32px 0; font-size: 13px; opacity: 0.4; }
-.pr-row { padding: 10px 4px; border-bottom: 1px solid rgb(255 255 255 / 8%); cursor: pointer; }
-.pr-row:hover { background: rgb(10 132 255 / 8%); }
-.pr-title { font-size: 13px; font-weight: 600; line-height: 1.35; }
-.pr-meta, .pr-details { margin-top: 3px; font-size: 11px; opacity: 0.62; }
-.pr-action { margin-top: 5px; font-size: 12px; }
-.min-width-0 { min-width: 0; }
-.pr-summary-button { margin-top: 5px; color: #0a84ff; }
-.pr-summary { margin-top: 6px; padding: 7px 8px; border-left: 2px solid #0a84ff; background: rgb(10 132 255 / 8%); font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+.pull-requests-card {
+  width: 760px;
+  max-width: 94vw;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+}
+
+.pull-requests-title,
+.pr-meta,
+.pr-details {
+  font-family: 'SF Mono', ui-monospace, 'JetBrains Mono', monospace;
+}
+
+.pull-requests-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pull-requests-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.pull-requests-empty {
+  text-align: center;
+  padding: 32px 0;
+  font-size: 13px;
+  opacity: 0.4;
+}
+
+.pr-row {
+  padding: 10px 4px;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  cursor: pointer;
+}
+
+.pr-row:hover {
+  background: rgb(10 132 255 / 8%);
+}
+
+.pr-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.pr-meta,
+.pr-details {
+  margin-top: 3px;
+  font-size: 11px;
+  opacity: 0.62;
+}
+
+.pr-action {
+  margin-top: 5px;
+  font-size: 12px;
+}
+
+.min-width-0 {
+  min-width: 0;
+}
+
+.pr-summary-button {
+  margin-top: 5px;
+  color: #0a84ff;
+}
+
+.pr-summary {
+  margin-top: 6px;
+  padding: 7px 8px;
+  border-left: 2px solid #0a84ff;
+  background: rgb(10 132 255 / 8%);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
 </style>
