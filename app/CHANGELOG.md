@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.2] - 2026-07-29
+
+### Fixed
+
+- oxfmt-форматування PullRequestsDialog.vue / TaskGraph.vue (частина repo-wide CI фіксів)
+
 ## [0.8.1] - 2026-07-27
 
 ### Fixed
