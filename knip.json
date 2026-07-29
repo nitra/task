@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "project": ["**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"],
-  "ignore": ["**/__fixtures__/**", ".pi/extensions/n-cursor-adr/**", "app/src-tauri/target/**"],
+  "ignore": ["**/__fixtures__/**", ".pi/extensions/**", "app/src-tauri/target/**"],
   "ignoreDependencies": [
     "@nitra/cspell-dict",
     "/@cspell\\/dict-.+/",
@@ -9,7 +9,10 @@
     "@nitra/stylelint-config",
     "@stryker-mutator/command-runner",
     "@vue/compiler-sfc",
-    "@vue/test-utils"
+    "@vue/test-utils",
+    "@7n/rules-ci-github",
+    "@7n/rules-lang-js",
+    "@7n/rules-lang-rust"
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreBinaries": [
