@@ -19,9 +19,9 @@
     },
     "app": {
       "name": "app",
-      "version": "0.7.0",
+      "version": "0.8.2",
       "dependencies": {
-        "@7n/tauri-components": "^0.13.9",
+        "@7n/tauri-components": "^0.16.2",
         "@quasar/extras": "^2.0.2",
         "@tauri-apps/api": "^2.11.1",
         "@tauri-apps/plugin-dialog": "^2.7.2",
@@ -51,7 +51,7 @@
     },
     "owner": {
       "name": "owner",
-      "version": "0.17.0",
+      "version": "0.18.1",
       "dependencies": {
         "@7n/tauri-components": "^0.12.0",
         "@quasar/extras": "^2.0.2",
@@ -100,7 +100,7 @@
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@0.7.0", "", { "dependencies": { "smol-toml": "^1.7.0" }, "peerDependencies": { "@7n/rules": ">=1.15.0" } }, "sha512-h1xYHn2qV1q/R3iNArschsl5jYk3kb3nSDzy5ql2mqVXVbjm38RKc5uBZnlvTKk5LynAfwbQpAEB8mImJWeTcQ=="],
 
-    "@7n/tauri-components": ["@7n/tauri-components@0.13.9", "", { "dependencies": { "marked": "^18.0.5" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "@tauri-apps/plugin-process": "^2.0.0", "@tauri-apps/plugin-updater": "^2.0.0", "@vue/test-utils": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "quasar"] }, "sha512-yo2tlJvigUZFq8zVAyh/f2tK/kn/mudDAvcXzJwi2bwzr0h4bvgPJxSZjs7PKcwqfKjcRUbe4ov2JpQiZD67Pw=="],
+    "@7n/tauri-components": ["@7n/tauri-components@0.16.2", "", { "dependencies": { "marked": "^18.0.7" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "@tauri-apps/plugin-process": "^2.0.0", "@tauri-apps/plugin-updater": "^2.0.0", "@vue/test-utils": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "quasar"] }, "sha512-U+prUgIP05vryat+nw1E617SURjRLQWqHVMZMF/rcY9Rjowvce+nQdvvhS/mzz4vmMchpAgLNAASk2P+H9AF7w=="],
 
     "@agentclientprotocol/claude-agent-acp": ["@agentclientprotocol/claude-agent-acp@0.59.0", "", { "dependencies": { "@agentclientprotocol/sdk": "1.2.1", "@anthropic-ai/claude-agent-sdk": "0.3.207", "zod": "^3.25.0 || ^4.0.0" }, "bin": { "claude-agent-acp": "dist/index.js" } }, "sha512-GejLH5qxsI5IoSDfhyOVDEsRNxqi6y0Rcj5FstVeOwMACSht/bUXII0HILbzOQNoA5qlyZle3FRvf+CAjD7Rpg=="],
 
@@ -2515,6 +2515,8 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
+
+    "@7n/tauri-components/marked": ["marked@18.0.7", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-iDVQ5ldaiKXn6b2JroX5kgRfmwgqolW7NpaEzTl1k/2Zh1njIEN9yniyLV/mOvWwtsE8OGgkjsCYvijuPk1dtA=="],
 
     "@aws-sdk/credential-provider-http/@smithy/node-http-handler": ["@smithy/node-http-handler@4.9.3", "", { "dependencies": { "@smithy/core": "^3.29.1", "@smithy/types": "^4.15.1", "tslib": "^2.6.2" } }, "sha512-qZTa4gQFUo8RM02rk6q5UVTDLNrQ1oS20LsepBzqq1QBVc/EHJ03OOUADcqMZiXHArW+Y7+OGY0BpdTwZRq/Yg=="],
 
