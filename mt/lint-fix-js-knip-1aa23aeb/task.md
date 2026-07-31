@@ -21,5 +21,6 @@ npx @7n/rules lint --no-fix --cwd ../.. js
 ## Inputs
 
 Target-файли:
+
 - `.pi/extensions/n-rules-adr/index.ts`
 - `.pi/extensions/rtk.ts`

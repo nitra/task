@@ -4,3 +4,6 @@ members = ["app/src-tauri", "owner/src-tauri", "owner/owner-llm"]
 
 [profile.dev]
 strip = true
+
+[patch."https://github.com/nitra/tauri-components"]
+tauri-plugin-agent = { path = "/Users/vitalii/www/nitra/tauri-components/.claude/worktrees/sleepy-visvesvaraya-dd5804/tauri-plugin-agent" }

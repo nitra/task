@@ -18,6 +18,7 @@ use tauri::{Emitter, Manager};
 mod config;
 mod git_util;
 mod pipeline;
+mod pull_requests;
 
 #[tauri::command]
 fn scan_tasks(tasks_dir: String) -> Result<Vec<TaskNode>, String> {
@@ -435,7 +436,9 @@ pub fn run() {
             run_node,
             run_auto,
             pipeline::list_pipeline_runs,
-            pipeline::pipeline_run_details
+            pipeline::pipeline_run_details,
+            pull_requests::list_pull_requests,
+            pull_requests::pull_request_context
         ]);
 
     #[cfg(desktop)]

@@ -2452,6 +2452,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "llm-lib"
+version = "0.2.3"
+source = "git+https://github.com/nitra/7n-rules.git?tag=llm-lib-v0.2.3#ecdc6d1a257843bbdacd74b9ca3babb0c450690b"
+dependencies = [
+ "agent-client-protocol",
+ "genai",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4929,11 +4942,11 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-agent"
 version = "0.1.0"
-source = "git+https://github.com/nitra/tauri-components?rev=87f87e74ab56358746e75af8904abec96f4648d1#87f87e74ab56358746e75af8904abec96f4648d1"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-rmcp",
  "axum",
+ "llm-lib",
  "rmcp",
  "serde",
  "serde_json",

@@ -1,4 +1,3 @@
-import { CODEX_ACP_AGENT_PRESET } from '@7n/tauri-components'
 import { useAcpAgent as useAcpAgentBase } from '@7n/tauri-components/vue'
 import { homeDir } from '@tauri-apps/api/path'
 import { TOOLS } from '../tool/catalog.js'
@@ -8,6 +7,12 @@ import { TOOLS } from '../tool/catalog.js'
 // longer apply: the ACP agent reads project context itself (AGENTS.md/
 // CLAUDE.md under cwd, plus the "workspaces" tool via the domain MCP bridge)
 // instead of an injected system prompt — see npm/SPEC.md §3.2 of the package.
+//
+// Agent kinds, model tiers, and UI labels all come from the backend
+// (`acp_list_tiers`, i.e. the Rust presets in llm-lib) since
+// @7n/tauri-components 0.16 — the app configures no agent presets at all;
+// the tier picker (including pi's, applied via a post-session
+// `session/set_config_option` call) renders whatever the backend returns.
 //
 // task manages mt task graphs across multiple, independently-discovered
 // workspaces (see TOOLS' "workspaces" tool) — there's no single "project
@@ -29,27 +34,5 @@ try {
  * @returns {object} the in-app ACP agent gateway (agentKind/modelTier refs, journal, loadEnv/request/respond/approve)
  */
 export function useAcpAgent() {
-  return useAcpAgentBase({
-    catalog: TOOLS,
-    cwd,
-    agents: {
-      codex: CODEX_ACP_AGENT_PRESET,
-      cursor: {
-        command: 'cursor',
-        args: ['agent', 'acp'],
-        tiers: {
-          MIN: { label: 'GPT-5 Mini', args: ['--model', 'gpt-5-mini'] },
-          AVG: { label: 'Grok 4.5', args: ['--model', 'cursor-grok-4.5-high'] },
-          MAX: { label: 'Auto', args: ['--model', 'auto'] }
-        }
-      },
-      pi: {
-        // pi-acp hardcodes its own spawn args (`pi --mode rpc --no-themes`) and
-        // has no model/provider passthrough — model comes from pi's own
-        // ~/.pi/agent/settings.json, so no per-tier override is possible here.
-        command: 'npx',
-        args: ['-y', 'pi-acp']
-      }
-    }
-  })
+  return useAcpAgentBase({ catalog: TOOLS, cwd })
 }

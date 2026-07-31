@@ -483,10 +483,10 @@
       "description": "Permission identifier",
       "oneOf": [
         {
-          "description": "Allow all agent commands: request journal (create/load/update/list) and the ACP client (spawn/prompt/cancel, permission responses, domain MCP bridge).\n#### This default permission set includes:\n\n- `allow-journal-create`\n- `allow-journal-load`\n- `allow-journal-update`\n- `allow-journal-list`\n- `allow-acp-spawn-agent`\n- `allow-acp-prompt`\n- `allow-acp-cancel`\n- `allow-acp-respond-permission`\n- `allow-acp-config`\n- `allow-acp-register-catalog`\n- `allow-acp-mcp-tool-result`\n- `allow-acp-start-mcp-bridge`",
+          "description": "Allow all agent commands: request journal (create/load/update/list) and the ACP client (spawn/prompt/cancel, permission responses, domain MCP bridge).\n#### This default permission set includes:\n\n- `allow-journal-create`\n- `allow-journal-load`\n- `allow-journal-update`\n- `allow-journal-list`\n- `allow-acp-spawn-agent`\n- `allow-acp-prompt`\n- `allow-acp-cancel`\n- `allow-acp-respond-permission`\n- `allow-acp-config`\n- `allow-acp-list-tiers`\n- `allow-acp-register-catalog`\n- `allow-acp-mcp-tool-result`\n- `allow-acp-start-mcp-bridge`",
           "type": "string",
           "const": "agent:default",
-          "markdownDescription": "Allow all agent commands: request journal (create/load/update/list) and the ACP client (spawn/prompt/cancel, permission responses, domain MCP bridge).\n#### This default permission set includes:\n\n- `allow-journal-create`\n- `allow-journal-load`\n- `allow-journal-update`\n- `allow-journal-list`\n- `allow-acp-spawn-agent`\n- `allow-acp-prompt`\n- `allow-acp-cancel`\n- `allow-acp-respond-permission`\n- `allow-acp-config`\n- `allow-acp-register-catalog`\n- `allow-acp-mcp-tool-result`\n- `allow-acp-start-mcp-bridge`"
+          "markdownDescription": "Allow all agent commands: request journal (create/load/update/list) and the ACP client (spawn/prompt/cancel, permission responses, domain MCP bridge).\n#### This default permission set includes:\n\n- `allow-journal-create`\n- `allow-journal-load`\n- `allow-journal-update`\n- `allow-journal-list`\n- `allow-acp-spawn-agent`\n- `allow-acp-prompt`\n- `allow-acp-cancel`\n- `allow-acp-respond-permission`\n- `allow-acp-config`\n- `allow-acp-list-tiers`\n- `allow-acp-register-catalog`\n- `allow-acp-mcp-tool-result`\n- `allow-acp-start-mcp-bridge`"
         },
         {
           "description": "Enables the acp_cancel command without any pre-configured scope.",
@@ -499,6 +499,12 @@
           "type": "string",
           "const": "agent:allow-acp-config",
           "markdownDescription": "Enables the acp_config command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the acp_list_tiers command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:allow-acp-list-tiers",
+          "markdownDescription": "Enables the acp_list_tiers command without any pre-configured scope."
         },
         {
           "description": "Enables the acp_mcp_tool_result command without any pre-configured scope.",
@@ -571,6 +577,12 @@
           "type": "string",
           "const": "agent:deny-acp-config",
           "markdownDescription": "Denies the acp_config command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the acp_list_tiers command without any pre-configured scope.",
+          "type": "string",
+          "const": "agent:deny-acp-list-tiers",
+          "markdownDescription": "Denies the acp_list_tiers command without any pre-configured scope."
         },
         {
           "description": "Denies the acp_mcp_tool_result command without any pre-configured scope.",
