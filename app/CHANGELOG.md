@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.3] - 2026-07-31
+
+### Changed
+
+- ACP agent отримує типи й model tiers з backend-конфігурацій.
+
 ## [0.8.2] - 2026-07-29
 
 ### Fixed
