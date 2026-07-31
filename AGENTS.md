@@ -11,6 +11,7 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-adr.mdc
 - .cursor/rules/n-bun.mdc
 - .cursor/rules/n-changelog.mdc
+- .cursor/rules/n-ci_artifact.mdc
 - .cursor/rules/n-doc-files.mdc
 - .cursor/rules/n-ga.mdc
 - .cursor/rules/n-image-avif.mdc
@@ -20,7 +21,6 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-local-ai.mdc
 - .cursor/rules/n-rust.mdc
 - .cursor/rules/n-security.mdc
-- .cursor/rules/n-storybook.mdc
 - .cursor/rules/n-style.mdc
 - .cursor/rules/n-tauri.mdc
 - .cursor/rules/n-test.mdc
@@ -45,15 +45,7 @@ Generated from the root `package.json` on each `npx @7n/rules` sync. Prefer `bun
 
 - **Залежності**: `bun i`
 - **test**: `bun run test`
-- **lint**: `bun run lint`
-- **lint-js**: `bun run lint-js`
-- **lint-text**: `bun run lint-text`
-- **lint-ga**: `bun run lint-ga`
 - **start**: `bun run start`
-- **lint-image**: `bun run lint-image`
-- **lint-rust**: `bun run lint-rust`
-- **lint-security**: `bun run lint-security`
-- **lint-style**: `bun run lint-style`
 - **Оновити правила та AGENTS.md** (після змін у правилах/шаблоні CLI): `npx @7n/rules`
 - **Перевірки правил (programmatic)**: `npx @7n/rules lint`
 - **knip (невикористані залежності та експорти)**: `bunx knip`
@@ -61,6 +53,10 @@ Generated from the root `package.json` on each `npx @7n/rules` sync. Prefer `bun
 ## Instructions for all agents
 
 Before making changes, read the relevant rule files for the area you are working on.
+
+## RTK
+
+Якщо `rtk` встановлено, використовуй підтримувані rtk wrappers, щоб скорочувати вивід для LLM: `rtk git status`, `rtk rg pattern`, `rtk vitest run`, `rtk npm run build`. Для команд без wrapper-а виконуй оригінальну команду.
 
 ## Інваріант після змін
 

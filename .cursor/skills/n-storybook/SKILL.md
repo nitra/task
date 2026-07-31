@@ -10,7 +10,7 @@ version: '1.0'
 
 <!-- n-rules:worktree:start -->
 > [!IMPORTANT]
-> **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-storybook/`) і **не** паралелиться — один інстанс за раз.
+> **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-storybook/`, де slash у назві замінено на `-`) і **не** паралелиться — один інстанс за раз.
 
 **Крок 0 — preflight (обовʼязковий, перед будь-якими іншими діями).** Якщо перевірка падає — **STOP**: не питай користувача про назву гілки, а сам створи worktree від поточної гілки за конвенцією `<current-branch>-storybook`. Суфікс `storybook` — коротка (до 10 символів) транслітерація задачі. Не виконуй **жоден** наступний крок скіла, поки preflight не завершився успіхом.
 
@@ -22,19 +22,21 @@ git branch --show-current
 
 **Root-assert.** Якщо `pwd` **не** збігається з виводом `git rev-parse --show-toplevel` — ти в **піддиректорії** робочого дерева (worktree-шляхи нижче відносні до кореня репо). Спершу перейди в корінь: `cd <toplevel>` (literal-шлях із виводу), і лише тоді продовжуй preflight. Не створюй worktree з піддиректорії — `cd .worktrees/<…>` звідти впаде.
 
-Якщо `git rev-parse --show-toplevel` показав, що ти **не** в `.worktrees/`, візьми вивід `git branch --show-current` як `<current-branch>` і виконай **literal-команди без shell expansion** (без command substitution, variable expansion чи backticks). Наприклад, якщо поточна гілка `feature/x`:
+**Вже ізольований — нічого не створюй.** Якщо `git rev-parse --show-toplevel` містить сегмент `.worktrees/<…>` (репо-конвенція) **або** `.claude/worktrees/<…>` (worktree харнесу Claude Code — туди `mt worktree create` класти заборонено, `n-worktree.mdc`) — ти вже виконуєшся в окремому git-worktree. Preflight пройдено: нічого не створюй, нікого не питай про назву гілки — переходь одразу до Кроку 0.1.
+
+Інакше, якщо toplevel не містить жодного з цих сегментів, візьми вивід `git branch --show-current` як `<current-branch>` і виконай **literal-команди без shell expansion** (без command substitution, variable expansion чи backticks). Наприклад, якщо поточна гілка `feature/x`:
 
 ```bash
-npx @7n/mt worktree create "feature/x-storybook" "n-storybook: worktree-only skill"
+mt worktree create "feature-x-storybook" --description "n-storybook: worktree-only skill"
 cd ".worktrees/feature-x-storybook"
 ```
 
-Тобто branch-argument лишає slash як у git-гілці, а шлях для `cd` бере sanitized форму: slash → `-`.
+Тобто name для `mt` і шлях для `cd` беруть sanitized форму: slash → `-`; CLI створює власну git-гілку `mt/feature-x-storybook`.
 
-**Крок 0.1 — bootstrap у новому дереві (після `cd`).** Дерево щойно створене й **без** `node_modules`. Постав залежності локально — тоді `npx @7n/rules <cmd>` бере локальну копію без походу в реєстр:
+**Крок 0.1 — bootstrap (якщо в дереві ще нема `node_modules`).** Свіжостворений worktree (Крок 0) точно без `node_modules`; вже ізольований harness-worktree може мати їх або ні — постав локально, тоді `npx @7n/rules <cmd>` бере локальну копію без походу в реєстр:
 
 ```bash
-bun install
+test -d node_modules || bun install
 ```
 <!-- n-rules:worktree:end -->
 
@@ -42,7 +44,7 @@ bun install
 
 Джерело рішення: `docs/adr/канон-storybook-для-vue-компонентних-бібліотек.md`. Уся логіка канону
 (скоуп, скафолд, vitest-конфіг, гігієна залежностей, adopt-діагностика) живе в правилі `storybook`
-пакета `@7n/rules-lang-js` (`node_modules/@7n/rules-lang-js/rules/storybook/`) — цей скіл лише
+пакета `@7n/rules-lang-js` (`node_modules/@7n/rules-lang-js/rules/test/`) — цей скіл лише
 тонка обгортка запуску, за зразком `doc-files`.
 
 ## Передумови
@@ -80,14 +82,14 @@ npx @7n/rules lint storybook
 
 ```bash
 # Діагностика всіх пакетів у скоупі (без запису)
-bun node_modules/@7n/rules-lang-js/rules/storybook/adopt/main.mjs
+bun node_modules/@7n/rules-lang-js/rules/test/storybook-adopt/main.mjs
 
 # + генерація повністю відсутніх секцій (main.js/preview.js/mocks/scripts/vitest-конфіги
 # лишаються недоторканими, якщо вже існують хоч у якомусь вигляді)
-bun node_modules/@7n/rules-lang-js/rules/storybook/adopt/main.mjs --fix-missing
+bun node_modules/@7n/rules-lang-js/rules/test/storybook-adopt/main.mjs --fix-missing
 
 # Звузити діагностику до конкретних пакетів (root dir, той самий формат що storybook.optOut)
-bun node_modules/@7n/rules-lang-js/rules/storybook/adopt/main.mjs --fix-missing packages/ui packages/legacy-ui
+bun node_modules/@7n/rules-lang-js/rules/test/storybook-adopt/main.mjs --fix-missing packages/ui packages/legacy-ui
 ```
 
 Прогін через прямий виклик скрипта плагіна (`node_modules/@7n/rules-lang-js/...`) — CLI-плюмбінг

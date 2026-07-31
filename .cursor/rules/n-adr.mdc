@@ -147,7 +147,7 @@ ADR живуть у єдиному каталозі **`docs/adr/`**. Clean ADR-�
 
 ## Фаза 1 — Capture
 
-Stop-hook `capture-decisions.sh` зчитує JSONL-транскрипт сесії (через `jq`), витягає текст, `thinking`-блоки та назви `tool_use`-викликів, передає компактний дайджест у LLM-бекенд з evidence-bound промптом і записує результат у **`docs/adr/<timestamp>-<slug-або-sid>.md`**, якщо модель повернула MADR-блок з шапкою `## ...`. Якщо модель повернула `NONE` (тривіальна сесія) або відповідь порожня — нічого не пишеться. Slug для імені файлу виводиться локально (без додаткового LLM-виклику) з першого `##`-заголовка відповіді. Рекурсію з внутрішнього виклику моделі блокує env-var `CAPTURE_DECISIONS_RUNNING=1`.
+Stop-hook `capture-decisions.sh` зчитує JSONL-транскрипт сесії (через `jq`), витягає текст, `thinking`-блоки та назви `tool_use`-викликів, передає компактний дайджест у LLM-бекенд з evidence-bound промптом і записує результат у **`docs/adr/<timestamp>-<slug-або-sid>.md`**, якщо модель повернула MADR-блок з шапкою `## ...`. Якщо модель повернула `NONE` (тривіальна сесія) або відповідь порожня — нічого не пишеться. Slug для імені файлу виводиться локально (без додаткового LLM-виклику) з першого `## `-заголовка відповіді. Рекурсію з внутрішнього виклику моделі блокує env-var `CAPTURE_DECISIONS_RUNNING=1`.
 
 Для Cursor payload скрипт бере `transcript_path`, `conversation_id` / `generation_id` і `workspace_roots[0]`; для Claude Code — `transcript_path`, `session_id` і `CLAUDE_PROJECT_DIR`.
 
@@ -173,7 +173,7 @@ LLM повертає масив операцій:
 | `op` | Семантика | Поля |
 | --- | --- | --- |
 | `delete` | Чернетка тривіальна / повністю покрита іншим clean-ADR-ом. | `file`, `reason` |
-| `rewrite` | Чернетка стає окремим clean-файлом MADR v4 minimal: draft-frontmatter (`session:`/`captured:`/`transcript:`) заміняється на OKF v0.1 (`type: ADR`, `title:`), ім'я → `<timestamp>-<slug>.md` (timestamp-префікс чернетки збережено), додаються `**Status:** Accepted`, `**Date:**` з `captured` і canonical MADR headings. Якщо LLM не повернула OKF frontmatter, скрипт сам дописує мінімальне (`type: ADR`, `title:` з першого `#`-рядка або зі `slug`). | `file`, `slug`, `content` |
+| `rewrite` | Чернетка стає окремим clean-файлом MADR v4 minimal: draft-frontmatter (`session:`/`captured:`/`transcript:`) заміняється на OKF v0.1 (`type: ADR`, `title:`), ім'я → `<timestamp>-<slug>.md` (timestamp-префікс чернетки збережено), додаються `**Status:** Accepted`, `**Date:**` з `captured` і canonical MADR headings. Якщо LLM не повернула OKF frontmatter, скрипт сам дописує мінімальне (`type: ADR`, `title:` з першого `# `-рядка або зі `slug`). | `file`, `slug`, `content` |
 | `merge-into` | Чернетка повторює тему вже існуючого clean-файлу; дописуємо `## Update YYYY-MM-DD` у кінець `target`. Скрипт резолвить `target` у три кроки: точна назва в `docs/adr/`, slug свіжо створеного `rewrite` цього ж батчу, або унікальний існуючий файл, що закінчується на `-<slug>.md`. | `file`, `target`, `additions` |
 
 `slug` — kebab-case українською (`ланцюжок-запуску-abie`, `npm-publish-flow`); англійські технічні терміни лишаються англійською без транслітерації. До імені clean-файлу скрипт додає `YYMMDD-HHMM-` чернетки, тож запис лишається прив'язаним до часу capture, а `docs/adr/` сортується хронологічно. Колізія імен обробляється детермінованим суфіксом `-2`, `-3`. Старі чернетки з `YYYYMMDD-HHMMSS-` prefix нормалізатор також розпізнає, щоб не ламати наявний inbox.

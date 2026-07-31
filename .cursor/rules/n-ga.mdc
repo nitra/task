@@ -12,7 +12,6 @@ alwaysApply: false
 ```json
 { "[github-actions-workflow]": { "editor.defaultFormatter": "oxc.oxc-vscode" } }
 ```
-
 - `git-ai.yml`:
 
 ```yaml
@@ -37,7 +36,7 @@ jobs:
       - name: Install git-ai
         run: |
           curl -fsSL https://usegitai.com/install.sh | bash
-          echo "$HOME/.git-ai/bin" >> $GITHUB_PATH
+          echo "$HOME/.git-ai/bin" >> "$GITHUB_PATH"
       - name: Run git-ai
         id: run-git-ai
         env:
@@ -47,7 +46,6 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git-ai ci github run
 ```
-
 - `clean-ga-workflows.yml`:
 
 ```yaml
@@ -78,7 +76,6 @@ jobs:
           save_period: 31
           save_min_runs_number: 0
 ```
-
 - `lint-ga.yml`:
 
 ```yaml
@@ -96,6 +93,9 @@ on:
     branches:
       - dev
       - main
+    paths:
+      - '.github/actions/**'
+      - '.github/workflows/**'
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
@@ -124,7 +124,6 @@ jobs:
       - name: Lint GA
         run: bunx n-rules lint ga --no-fix
 ```
-
 - `zizmor.yml`:
 
 ```yaml
@@ -134,7 +133,6 @@ rules:
       policies:
         '*': ref-pin
 ```
-
 - `clean-merged-branch.yml`:
 
 ```yaml
@@ -176,13 +174,11 @@ jobs:
         run: |
           echo "Deleted branches: ${DELETED_BRANCHES}"
 ```
-
 - `extensions.json`:
 
 ```json
 { "recommendations": ["github.vscode-github-actions"] }
 ```
-
 - `uses-min-versions`:
 
 ```json
@@ -191,7 +187,6 @@ jobs:
   "Infisical/secrets-action": "1.0.16"
 }
 ```
-
 - `lint-repo.yml`:
 
 ```yaml
@@ -233,144 +228,6 @@ jobs:
 Перевірки без path-підтримки (`scope: full` без glob: knip, jscpd, dep-policy тощо) живуть в окремому обовʼязковому workflow `.github/workflows/lint-repo.yml` із кроком `bunx n-rules lint --repo-wide --no-fix`. Він **не гейтить деплой** — жоден deploy-workflow не має на нього `needs`. Деталі: [lint_repo_yml.mdc](./lint_repo_yml/lint_repo_yml.mdc).
 
 ## Сервіс-орієнтовані deploy-workflow (опційно)
-
-Монорепо з деплой-сервісами (каталог сервісу, напр. `run/nexus`) оформлює деплой per-service workflow: тригер `paths` по каталогу (dir-scoped glob `run/<service>/**` — саме він, а не імʼя файлу, робить workflow сервісним; імʼя довільне — `npm-publish.yml`, `deploy-<service>.yml`, і **не перейменовуй наявні** — OIDC trusted publishing привʼязаний до імені) → джоба `plan` (`bunx n-rules ci plan --path <svc> --github`) → паралельні `lint-<domain>`-джоби з гейтом по outputs плану + тести сервісу → deploy з `needs` на всі перевірки (skipped не блокує, failed блокує). Форму перевіряє rego-концерн `service_deploy_workflow` — вимоги вмикаються лише за наявності lint-джоб у workflow; приклад — `deploy-service.yml`:
-
-```yaml
-# Документаційний приклад сервіс-орієнтованого deploy-workflow (ga.mdc).
-# Це НЕ deep-subset-канон (перелік сервісів консюмер-специфічний) — форму
-# перевіряє service_deploy_workflow.rego за ЗМІСТОМ: сервісний workflow =
-# dir-scoped glob у on.push.paths. Імʼя файлу довільне (npm-publish.yml,
-# deploy-<service>.yml, …) — не перейменовуй наявні: OIDC trusted publishing
-# привʼязаний до імені workflow. Плейсхолдер run/<service> заміни на каталог
-# сервісу; набір lint-<domain> джоб добери під стеки сервісу (зайва джоба
-# нешкідлива — ci plan її скіпне).
-name: Deploy <service>
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - 'run/<service>/**'
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  plan:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      js: ${{ steps.plan.outputs.js }}
-      python: ${{ steps.plan.outputs.python }}
-      any: ${{ steps.plan.outputs.any }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - id: plan
-        run: bunx n-rules ci plan --path run/<service> --github
-
-  lint-js:
-    needs: plan
-    if: needs.plan.outputs.js == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - run: bunx n-rules lint js --path run/<service> --no-fix
-
-  # …lint-<domain> для кожного домену сервісу (python/docker/k8s/security/…)
-
-  test:
-    needs: plan
-    if: needs.plan.outputs.any == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      # python-стек: перед тестами ще uv (uses: astral-sh/setup-uv@v7 + uv sync --locked)
-      - run: bun test run/<service>
-
-  deploy:
-    needs:
-      - plan
-      - lint-js
-      - test
-    # Skipped-лінт (гейт ci plan) НЕ блокує деплой; failed — блокує.
-    if: ${{ !cancelled() && needs.plan.result == 'success' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      # …кроки деплою сервісу (build/push/apply)
-```, деталі — [service_deploy_workflow.mdc](./service_deploy_workflow/service_deploy_workflow.mdc). Співіснує з file-type-workflow (`lint-js.yml` тощо) — ті покривають зміни поза сервіс-каталогами.
-
-- `lint-repo.yml`:
-
-```yaml
-name: Lint repo-wide
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-
-  pull_request:
-    branches:
-      - dev
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  lint-repo:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - name: Repo-wide lint
-        run: bunx n-rules lint --repo-wide --no-fix
-```
-
-## Repo-wide лінти у прикладі (`lint-repo.yml`, обовʼязковий)
-
-Перевірки без path-підтримки (`scope: full` без glob: knip, jscpd, dep-policy тощо) живуть в окремому обовʼязковому workflow `.github/workflows/lint-repo.yml` із кроком `bunx n-rules lint --repo-wide --no-fix`. Він **не гейтить деплой** — жоден deploy-workflow не має на нього `needs`. Деталі: [lint_repo_yml.mdc](./lint_repo_yml/lint_repo_yml.mdc).
-
-## Сервіс-орієнтовані deploy-workflow у прикладі (опційно)
 
 Монорепо з деплой-сервісами (каталог сервісу, напр. `run/nexus`) оформлює деплой per-service workflow: тригер `paths` по каталогу (dir-scoped glob `run/<service>/**` — саме він, а не імʼя файлу, робить workflow сервісним; імʼя довільне — `npm-publish.yml`, `deploy-<service>.yml`, і **не перейменовуй наявні** — OIDC trusted publishing привʼязаний до імені) → джоба `plan` (`bunx n-rules ci plan --path <svc> --github`) → паралельні `lint-<domain>`-джоби з гейтом по outputs плану + тести сервісу → deploy з `needs` на всі перевірки (skipped не блокує, failed блокує). Форму перевіряє rego-концерн `service_deploy_workflow` — вимоги вмикаються лише за наявності lint-джоб у workflow; приклад — `deploy-service.yml`:
 
@@ -546,6 +403,7 @@ Rego-пакет: `ga.lint_ga`
 - `on.push.branches` — superset: містить `dev` і `main`
 - `on.pull_request.branches` — superset: містить `dev` і `main`
 - `on.push.paths` — superset: містить `.github/actions/**` і `.github/workflows/**`
+- `on.pull_request.paths` — superset: містить `.github/actions/**` і `.github/workflows/**`
 - `jobs.lint-ga` — job має існувати
 - `jobs.lint-ga.runs-on` — за template (`ubuntu-latest`)
 - `jobs.lint-ga.permissions.contents` — `read`

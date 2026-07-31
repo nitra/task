@@ -3,6 +3,7 @@
 @.cursor/rules/n-adr.mdc
 @.cursor/rules/n-bun.mdc
 @.cursor/rules/n-changelog.mdc
+@.cursor/rules/n-ci_artifact.mdc
 @.cursor/rules/n-doc-files.mdc
 @.cursor/rules/n-ga.mdc
 @.cursor/rules/n-image-avif.mdc
@@ -12,7 +13,6 @@
 @.cursor/rules/n-local-ai.mdc
 @.cursor/rules/n-rust.mdc
 @.cursor/rules/n-security.mdc
-@.cursor/rules/n-storybook.mdc
 @.cursor/rules/n-style.mdc
 @.cursor/rules/n-tauri.mdc
 @.cursor/rules/n-test.mdc
@@ -30,7 +30,7 @@
 
 ## Файлова документація (`doc-files` — обовʼязковий крок, як lint)
 
-Після зміни чи додавання кодового файлу його файлова дока (`<dir>/docs/<stem>.md`) має бути **актуальною** — це **обовʼязковий крок кожної задачі**, нарівні з lint. Застарілість детермінується за **CRC** джерела у frontmatter доки. PostToolUse hook (`hook --post-tool-use`) **сигналить** про дрейф після правки через per-file lint правила. Регенерація — `/doc-files` (JS-оркестрована, не диспатч субагентів). Агрегуюча дока (module-summary, доменні) — окремий скіл `/doc-aggregate`, за запитом.
+Після зміни чи додавання кодового файлу його файлова дока (`<dir>/docs/<stem>.md`) має бути **актуальною** — це **обовʼязковий крок кожної задачі**, нарівні з lint. Застарілість детермінується за **CRC** джерела у frontmatter доки. PostToolUse hook (`hook --post-tool-use`) **сигналить** про дрейф після правки через per-file lint правила. Регенерація — `/doc-files` (JS-оркестрована, не диспатч субагентів). Package-level business/architecture projection належить тій самій `doc-files` surface і запускається через atomic `n-rules docs …` workflow.
 
 ## Skills
 

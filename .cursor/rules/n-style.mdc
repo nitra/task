@@ -16,13 +16,11 @@ alwaysApply: false
   "scss.validate": false
 }
 ```
-
 - `extensions.json`:
 
 ```json
 { "recommendations": ["stylelint.vscode-stylelint"] }
 ```
-
 - `package.json`:
 
 ```json
