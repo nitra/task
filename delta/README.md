@@ -21,6 +21,70 @@ mandates_show` дає те саме в CLI):
 - CLI-паритет: `bin/delta.mjs` з tools `whoami`, `set_identity`, `mandates_dir`, `set_mandates_dir`,
   `mandates_show` — той самий каталог (`src/tool/catalog.js`) і той самий мок-парсер, що GUI.
 
+## M1 — черга «Вирішую», квіз-гейт (one-tap), підпис Ed25519
+
+Демо-критерій: підписати рішення; git log показує пару `decision-request` + `quiz` + підпис; без квізу підпис
+неможливий. M1 реалізує лише `depth: one-tap` — `standard`/`teach-back` лишаються M2.
+
+- **Decision-request-парсер** (`src/decisions.js`) — файловий мок git-refs транспорту
+  `refs/mt/runs/{run-id}/decisions/NNNN-decision-request.md` (mt: `docs/architecture/mandates.md`, «Артефакт
+  decision-request»): скануємо `<mandatesDir>/runs/{run-id}/decisions/NNNN-decision-request.md` на диску —
+  структура директорій дзеркалить контрактний git-шлях, поки git-refs транспорт не прийде з mt-rust.
+- **Черга «Вирішую»** (`deriveQueue`) — відкриті decision-request-и (немає сусіднього `NNNN-approval.json`), чий
+  `computed_owner` == мій handle, відсортовані за leverage-фасетами (`irreversible`/ширший `blast_radius` — вище).
+- **Квіз-генератор one-tap** (`src/quiz.js`) — джерело питання: локальний OpenAI-сумісний ендпоінт (дефолт
+  `http://127.0.0.1:8080`, модель `gemma-4-26b-a4b-it` — конфіг у `config.json`, не константа); ендпоінт
+  недоступний → детермінований фолбек, зібраний із самих варіантів decision-request (`generated_by:
+  quiz-gen-fallback`). Квіз ніколи не пропускається; `generated_by` завжди ≠ `recommended_by` decision-request.
+- **Квіз-файл** `NNNN-quiz.md` (`src/quiz.js`: `formatQuizFile`/`parseQuizFile`) — точний контрактний формат:
+  `schema_version: 1` першим полем, `depth`, `iterations`, `time_to_understanding_sec`; без полів `passed`/`failed`
+  («фейл ≠ покарання» — неправильна відповідь дописує «Питання 1 (спроба N)» з мікроуроком, той самий номер
+  питання).
+- **Підпис Ed25519** (`src/signing.js`) — ключ пристрою генерується Web Crypto (`crypto.subtle`, `'Ed25519'`) при
+  першому підписі, зберігається в `device_key.json` поряд із `config.json` (поза git; приватний ключ ніколи в
+  репо). `src/approval.js: buildAndSignApproval` перевіряє інваріант «квіз завершено» ДО підпису — без
+  `iterations`/`time_to_understanding_sec` підпис кидає, не пишеться.
+- **`NNNN-approval.json`** поруч із decision-request: `{ schema_version, request_id, approved, chosen_option,
+  quiz_ref, signed_at, pubkey, signature }`.
+- **UI «Вирішую»** (нова вкладка поряд із «Карта мандатів») — картка розвилки (`DecisionCard.vue`): контекст,
+  варіанти, рекомендація агента, deadline_cost, фасети → вибір варіанта → one-tap квіз-картка → підпис.
+- **CLI-паритет**: `decisions_show`, `decision_quiz`, `decision_approve`, `device_pubkey`, `llm_config`/
+  `set_llm_config` — той самий `src/decision-flow.js`, що GUI.
+
+### Demo-послідовність
+
+```bash
+cd delta
+export DELTA_CONFIG_PATH=/tmp/delta-demo/config.json   # ізольований конфіг для демо
+
+# 1. Створити runs/demo-1/decisions/0001-decision-request.md з фікстури
+mkdir -p /tmp/delta-demo/runs/demo-1/decisions
+cp src/tests/fixtures/runs/demo-1/decisions/0001-decision-request.md /tmp/delta-demo/runs/demo-1/decisions/
+
+# 2. Онбординг — ідентичність і шлях до воркспейсу
+bun bin/delta.mjs set_identity '{"handle":"olena"}'
+bun bin/delta.mjs set_mandates_dir '{"dir":"/tmp/delta-demo"}'
+
+# 3. decisions_show — відкрита розвилка «olena» у черзі
+bun bin/delta.mjs decisions_show '{}'
+
+# 4. decision_quiz — генерує one-tap питання (фолбек, якщо LLM-ендпоінт недоступний), пише чернетку NNNN-quiz.md
+bun bin/delta.mjs decision_quiz '{"runId":"demo-1","nnnn":"0001","chosenOption":"B"}'
+
+# 5. decision_approve — неправильна відповідь: мікроурок, iterations++, approval НЕ пишеться
+bun bin/delta.mjs decision_approve '{"runId":"demo-1","nnnn":"0001","chosenOption":"B","answer":0}'
+
+# 6. decision_approve — правильна відповідь: фіналізує квіз, пише підписаний NNNN-approval.json
+bun bin/delta.mjs decision_approve '{"runId":"demo-1","nnnn":"0001","chosenOption":"B","answer":1}'
+
+# 7. git-log-подібна пара — decision-request + quiz + approval поруч у decisions/
+ls /tmp/delta-demo/runs/demo-1/decisions/
+# 0001-decision-request.md  0001-quiz.md  0001-approval.json
+
+# 8. Черга знову порожня — розвилка закрита
+bun bin/delta.mjs decisions_show '{}'
+```
+
 ## Розробка
 
 ```bash

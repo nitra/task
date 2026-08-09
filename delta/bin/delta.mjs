@@ -1,20 +1,25 @@
 #!/usr/bin/env bun
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { createDispatch, listTools, toolManifest } from '@7n/tauri-components'
+import { decisionApprove, decisionQuiz } from '../src/decision-flow.js'
+import { deriveQueue } from '../src/decisions.js'
 import { deriveMandatesView } from '../src/mandates.js'
+import { defaultLlmConfig } from '../src/quiz.js'
+import { loadOrCreateDeviceKey } from '../src/signing.js'
 import { TOOLS } from '../src/tool/catalog.js'
 
 // Headless-вхід delta-поверхні (n-tool-surface): `delta <tool> '<json>'`,
 // `delta list`, `delta schema`. Каталог той самий, що в GUI (src/tool/catalog.js).
-// На відміну від owner (spawn mt-scanner), у delta M0 нема Rust-бінарника-читача:
-// CLI читає config.json і .mt/mandates.yaml напряму через node:fs і деривує тим
-// самим мок-парсером (src/mandates.js), що й Tauri-транспорт GUI — обидві
-// поверхні бачать той самий результат з того самого файлу (демо-критерій M0).
+// На відміну від owner (spawn mt-scanner), у delta нема Rust-бінарника-читача:
+// CLI читає config.json/.mt/mandates.yaml/runs/*/decisions/ напряму через
+// node:fs і деривує тим самим спільним JS-шаром (src/*.js), що й Tauri-
+// транспорт GUI — обидві поверхні бачать той самий результат з тих самих
+// файлів (демо-критерій M0/M1).
 
 /**
- *
+ * @returns {string} абсолютний шлях до `config.json` застосунку (`DELTA_CONFIG_PATH` — тестовий override)
  */
 function configPath() {
   if (process.env.DELTA_CONFIG_PATH) return process.env.DELTA_CONFIG_PATH
@@ -23,7 +28,7 @@ function configPath() {
 }
 
 /**
- *
+ * @returns {object} весь конфіг (відсутній/битий файл — порожній обʼєкт, не помилка)
  */
 function readConfig() {
   try {
@@ -34,7 +39,9 @@ function readConfig() {
 }
 
 /**
- *
+ * Мерджить патч у конфіг, зберігаючи решту ключів (read-merge-write).
+ * @param {object} patch поля для оновлення
+ * @returns {void}
  */
 function writeConfig(patch) {
   const path = configPath()
@@ -43,30 +50,154 @@ function writeConfig(patch) {
 }
 
 /**
- * CLI-транспорт: без mt-scanner, читає config.json / mandates.yaml напряму.
+ * Скановує `<mandatesDir>/runs/{run-id}/decisions/` для кожного run-а у ту
+ * саму форму `{dir, files}[]`, що Rust-команда `scan_decisions` у GUI —
+ * `src/decisions.js: deriveQueue` не знає (і не має знати), звідки прийшов знімок.
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @returns {{dir: string, files: {name: string, content: string}[]}[]} скановані decisions-директорії
+ */
+function scanDecisionsDirs(mandatesDir) {
+  const runsDir = join(mandatesDir, 'runs')
+  if (!existsSync(runsDir)) return []
+  const result = []
+  for (const runEntry of readdirSync(runsDir, { withFileTypes: true })) {
+    if (!runEntry.isDirectory()) continue
+    const decisionsDir = join(runsDir, runEntry.name, 'decisions')
+    if (!existsSync(decisionsDir)) continue
+    const files = readdirSync(decisionsDir, { withFileTypes: true })
+      .filter(entry => entry.isFile())
+      .map(entry => ({ name: entry.name, content: readFileSync(join(decisionsDir, entry.name), 'utf8') }))
+    result.push({ dir: decisionsDir, files })
+  }
+  return result
+}
+
+/**
+ * fs-транспорт для `decision-flow.js` — `readFile` повертає `null` (не
+ * кидає), коли файл відсутній, той самий контракт, що Rust-команда
+ * `read_text_file` у GUI.
+ * @returns {{readFile: (path: string) => Promise<string|null>, writeFile: (path: string, content: string) => Promise<void>}} io
+ */
+function fsIo() {
+  return {
+    readFile: path => (existsSync(path) ? readFileSync(path, 'utf8') : null),
+    writeFile: (path, content) => {
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, content)
+    }
+  }
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @param {string} runId run-id
+ * @returns {string} абсолютний шлях до `runs/{runId}/decisions`
+ */
+function decisionsDirPath(mandatesDir, runId) {
+  return join(mandatesDir, 'runs', runId, 'decisions')
+}
+
+/**
+ * @returns {string} абсолютний шлях до ключа пристрою (файл-сусід `config.json`, поза git)
+ */
+function deviceKeyPath() {
+  return join(dirname(configPath()), 'device_key.json')
+}
+
+/**
+ * Завантажує ключ пристрою з диску, генеруючи й персистуючи новий при
+ * першому підписі — приватний ключ ніколи не потрапляє в репо (той самий
+ * каталог, що `config.json`, поза git).
+ * @returns {Promise<{privateKeyJwk: object, publicKeyJwk: object, publicKeyBase64: string}>} ключ пристрою
+ */
+async function loadDeviceKeyCli() {
+  const path = deviceKeyPath()
+  const existing = existsSync(path) ? readFileSync(path, 'utf8') : null
+  const key = await loadOrCreateDeviceKey(existing)
+  if (key.created) {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, JSON.stringify(key))
+  }
+  return key
+}
+
+/**
+ * @returns {{baseUrl: string, model: string}} конфіг LLM-ендпоінта з `config.json`, дефолт — `quiz.js`
+ */
+function readLlmConfig() {
+  const config = readConfig()
+  const fallback = defaultLlmConfig()
+  return { baseUrl: config.llm_base_url ?? fallback.baseUrl, model: config.llm_model ?? fallback.model }
+}
+
+/**
+ * CLI-транспорт: без mt-scanner, читає config.json / mandates.yaml /
+ * runs/*​/decisions/ напряму.
  * @param {object} tool визначення тула
  * @param {object} input вхід тула
- * @returns {unknown} результат виклику
+ * @returns {Promise<unknown>} результат виклику
  */
-function cliTransport(tool, input) {
+async function cliTransport(tool, input) {
   switch (tool.name) {
-    case 'whoami':
+    case 'whoami': {
       return readConfig().identity ?? null
-    case 'set_identity':
+    }
+    case 'set_identity': {
       writeConfig({ identity: input.handle.trim() })
       return null
-    case 'mandates_dir':
+    }
+    case 'mandates_dir': {
       return readConfig().mandates_dir ?? null
-    case 'set_mandates_dir':
+    }
+    case 'set_mandates_dir': {
       writeConfig({ mandates_dir: input.dir.trim() })
       return null
+    }
     case 'mandates_show': {
       const path = join(input.mandatesDir, '.mt', 'mandates.yaml')
       const yamlText = existsSync(path) ? readFileSync(path, 'utf8') : ''
       return deriveMandatesView(yamlText, input.handle ?? null)
     }
-    default:
+    case 'decisions_show': {
+      return deriveQueue(scanDecisionsDirs(input.mandatesDir), input.handle ?? null)
+    }
+    case 'decision_quiz': {
+      return decisionQuiz({
+        io: fsIo(),
+        decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+        nnnn: input.nnnn,
+        chosenOption: input.chosenOption,
+        llmConfig: readLlmConfig()
+      })
+    }
+    case 'decision_approve': {
+      return decisionApprove({
+        io: fsIo(),
+        decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+        runId: input.runId,
+        nnnn: input.nnnn,
+        chosenOption: input.chosenOption,
+        answer: input.answer,
+        deviceKey: await loadDeviceKeyCli()
+      })
+    }
+    case 'device_pubkey': {
+      const key = await loadDeviceKeyCli()
+      return { publicKeyBase64: key.publicKeyBase64 }
+    }
+    case 'llm_config': {
+      return readLlmConfig()
+    }
+    case 'set_llm_config': {
+      writeConfig({
+        ...(input.baseUrl !== undefined && { llm_base_url: input.baseUrl.trim() }),
+        ...(input.model !== undefined && { llm_model: input.model.trim() })
+      })
+      return null
+    }
+    default: {
       throw new Error(`tool "${tool.name}" has no CLI transport`)
+    }
   }
 }
 
@@ -96,12 +227,14 @@ async function main() {
       return 2
     }
   }
-  // whoami/mandates_show без явного mandatesDir/handle падають на конфіг —
-  // зручність для інтерактивного CLI-використання (GUI завжди передає явно).
-  if (cmd === 'mandates_show' && input.mandatesDir === undefined) {
+  // mandates_show/decisions_show/decision_quiz/decision_approve без явного
+  // mandatesDir/handle падають на конфіг — зручність для інтерактивного
+  // CLI-використання (GUI завжди передає явно).
+  const MANDATES_DIR_DEFAULT_TOOLS = ['mandates_show', 'decisions_show', 'decision_quiz', 'decision_approve']
+  if (MANDATES_DIR_DEFAULT_TOOLS.includes(cmd) && input.mandatesDir === undefined) {
     input.mandatesDir = readConfig().mandates_dir
   }
-  if (cmd === 'mandates_show' && input.handle === undefined) {
+  if ((cmd === 'mandates_show' || cmd === 'decisions_show') && input.handle === undefined) {
     input.handle = readConfig().identity ?? null
   }
 
