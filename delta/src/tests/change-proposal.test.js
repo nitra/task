@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
-import { applyMandateChangeProposal, applyMandateNarrow, changeProposalDecisionsDir, changeProposalRunId, describeMandateDiffLines, readChangeProposal, writeChangeProposal } from '../change-proposal.js'
+import {
+  applyMandateChangeProposal,
+  applyMandateNarrow,
+  changeProposalDecisionsDir,
+  changeProposalRunId,
+  describeMandateDiffLines,
+  readChangeProposal,
+  writeChangeProposal
+} from '../change-proposal.js'
 import { decisionApprove, decisionQuiz } from '../decision-flow.js'
 import { parseDecisionRequest } from '../decisions.js'
 import { parseMandatesFile, validateMandateChange } from '../mandate-change.js'
@@ -101,10 +109,19 @@ describe('buildChangeProposalMarkdown / writeChangeProposal', () => {
 
     expect(decisionRequestPath).toBe(`${changeProposalDecisionsDir(MANDATES_DIR, 'mc-1')}/0001-decision-request.md`)
     const text = io.store.get(decisionRequestPath)
-    const parsed = parseDecisionRequest(text, { path: decisionRequestPath, runId: changeProposalRunId('mc-1'), nnnn: '0001' })
+    const parsed = parseDecisionRequest(text, {
+      path: decisionRequestPath,
+      runId: changeProposalRunId('mc-1'),
+      nnnn: '0001'
+    })
     expect(parsed.computedOwner).toBe('olena')
     expect(parsed.decisionType).toBe('mandate-change')
-    expect(parsed.leverageFacets).toEqual({ irreversible: false, blastRadius: 'subtree', divergence: 'high', estCostEur: null })
+    expect(parsed.leverageFacets).toEqual({
+      irreversible: false,
+      blastRadius: 'subtree',
+      divergence: 'high',
+      estCostEur: null
+    })
     expect(parsed.recommendedBy).toBe('ai-petition-fable-5')
     expect(parsed.options.map(o => o.label)).toEqual(['A', 'B'])
     expect(parsed.context).toMatch(DIFF_AUDACITY_RE)
@@ -154,7 +171,11 @@ async function runFullFlow({ chosenOption }) {
   // depth: standard (форсовано), 2 питання про саму розвилку.
   await decisionQuiz({ io, decisionsDir, nnnn: '0001', chosenOption, fetchImpl: REJECTING_FETCH })
   const draft1 = io.store.get(`${decisionsDir}/0001-quiz.md`)
-  const options1 = draft1.matchAll(OPTION_LINE_RE).map(m => m[1]).toArray().slice(0, 3)
+  const options1 = draft1
+    .matchAll(OPTION_LINE_RE)
+    .map(m => m[1])
+    .toArray()
+    .slice(0, 3)
   const correctAnswer1 = ANSWER_SECTION_RE.exec(draft1)[1].trim()
   const correctIndex1 = options1.indexOf(correctAnswer1)
   const afterFirst = await decisionApprove({
@@ -171,7 +192,10 @@ async function runFullFlow({ chosenOption }) {
   const draft2 = io.store.get(`${decisionsDir}/0001-quiz.md`)
   const blocks2 = draft2.split(QUESTION_BLOCK_SPLIT_RE)
   const secondBlock = blocks2[2]
-  const options2 = secondBlock.matchAll(OPTION_LINE_RE).map(m => m[1]).toArray()
+  const options2 = secondBlock
+    .matchAll(OPTION_LINE_RE)
+    .map(m => m[1])
+    .toArray()
   const correctAnswer2 = ANSWER_SECTION_RE.exec(secondBlock)[1].trim()
   const correctIndex2 = options2.indexOf(correctAnswer2)
   const approveResult = await decisionApprove({
@@ -213,6 +237,46 @@ describe('applyMandateChangeProposal — міст квіз-гейт → validate
     expect(io.store.has('/root/.mt/mandates.yaml')).toBe(false)
   })
 
+  it('М6: appliedMarkerPath — Valid-вердикт пише маркер {appliedAt, handle, role}, invalid НЕ пише', async () => {
+    const old = baseFile(3)
+    const newFile = clone(old)
+    newFile.generation = 4
+    newFile.mandates[0].thresholds.audacity = 'high'
+    const deviceKey = await generateDeviceKeypair()
+    const markerPath = '/root/runs/mandate-change-demo-1/decisions/0001-applied.json'
+
+    const validApproval = { approved: true, chosen_option: 'A' }
+    const validIo = memoryIo()
+    const verdict = await applyMandateChangeProposal({
+      io: validIo,
+      mandatesYamlPath: '/root/.mt/mandates.yaml',
+      old,
+      new: newFile,
+      approval: validApproval,
+      handle: 'olena',
+      role: 'human',
+      deviceKey,
+      appliedMarkerPath: markerPath,
+      now: () => new Date('2026-08-09T10:00:00.000Z')
+    })
+    expect(verdict).toEqual({ valid: true })
+    expect(JSON.parse(validIo.store.get(markerPath))).toEqual({ appliedAt: '2026-08-09T10:00:00.000Z', handle: 'olena', role: 'human' })
+
+    const invalidIo = memoryIo()
+    await applyMandateChangeProposal({
+      io: invalidIo,
+      mandatesYamlPath: '/root/.mt/mandates.yaml',
+      old,
+      new: newFile,
+      approval: { approved: true, chosen_option: 'B' },
+      handle: 'olena',
+      role: 'human',
+      deviceKey,
+      appliedMarkerPath: markerPath
+    })
+    expect(invalidIo.store.has(markerPath)).toBe(false)
+  })
+
   it('спроба застосувати підписом делегатора з роллю model (а не human) — validate_mandate_change відхиляє («остання константа»)', async () => {
     const old = baseFile(3)
     const newFile = clone(old)
@@ -245,7 +309,15 @@ describe('applyMandateNarrow — звуження, без квізу, одраз
 
     const deviceKey = await generateDeviceKeypair()
     const io = memoryIo()
-    const verdict = await applyMandateNarrow({ io, mandatesYamlPath: '/root/.mt/mandates.yaml', old, new: newFile, handle: 'olena', role: 'human', deviceKey })
+    const verdict = await applyMandateNarrow({
+      io,
+      mandatesYamlPath: '/root/.mt/mandates.yaml',
+      old,
+      new: newFile,
+      handle: 'olena',
+      role: 'human',
+      deviceKey
+    })
     expect(verdict).toEqual({ valid: true })
     expect(parseMandatesFile(io.store.get('/root/.mt/mandates.yaml'))).toEqual(newFile)
   })
@@ -257,7 +329,15 @@ describe('applyMandateNarrow — звуження, без квізу, одраз
     newFile.mandates[1].thresholds.budgetEur = 1000
     const deviceKey = await generateDeviceKeypair()
     const io = memoryIo()
-    await applyMandateNarrow({ io, mandatesYamlPath: '/root/.mt/mandates.yaml', old, new: newFile, handle: 'olena', role: 'human', deviceKey })
+    await applyMandateNarrow({
+      io,
+      mandatesYamlPath: '/root/.mt/mandates.yaml',
+      old,
+      new: newFile,
+      handle: 'olena',
+      role: 'human',
+      deviceKey
+    })
     const direct = await validateMandateChange({ old, new: newFile, signatures: [] })
     expect(direct.valid).toBe(false) // без підпису напряму — звуження вимагає самопідпису
   })

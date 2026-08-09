@@ -97,7 +97,15 @@ export function describeMandateDiffLines(oldMandate, newMandate) {
  * @param {string} [params.evidenceText] текст evidence з трек-рекорду (додається до контексту, якщо є)
  * @returns {string} markdown decision-request
  */
-export function buildChangeProposalMarkdown({ old, new: newFile, ownerHandle, delegatorHandle, initiatedBy, reasonText, evidenceText }) {
+export function buildChangeProposalMarkdown({
+  old,
+  new: newFile,
+  ownerHandle,
+  delegatorHandle,
+  initiatedBy,
+  reasonText,
+  evidenceText
+}) {
   const oldMandate = old.mandates.find(m => m.owner === ownerHandle)
   const newMandate = newFile.mandates.find(m => m.owner === ownerHandle)
   const diffLines = oldMandate && newMandate ? describeMandateDiffLines(oldMandate, newMandate) : []
@@ -192,11 +200,30 @@ export function changeProposalDecisionsDir(mandatesDir, changeId) {
  * @param {string} [params.evidenceText] evidence-текст (ШІ-петиція)
  * @returns {Promise<{decisionRequestPath: string, changeJsonPath: string}>} шляхи записаних файлів
  */
-export async function writeChangeProposal({ io, mandatesDir, changeId, old, new: newFile, ownerHandle, delegatorHandle, initiatedBy, reasonText, evidenceText }) {
+export async function writeChangeProposal({
+  io,
+  mandatesDir,
+  changeId,
+  old,
+  new: newFile,
+  ownerHandle,
+  delegatorHandle,
+  initiatedBy,
+  reasonText,
+  evidenceText
+}) {
   const decisionsDir = changeProposalDecisionsDir(mandatesDir, changeId)
   const decisionRequestPath = `${decisionsDir}/0001-decision-request.md`
   const changeJsonPath = `${decisionsDir}/0001-change.json`
-  const markdown = buildChangeProposalMarkdown({ old, new: newFile, ownerHandle, delegatorHandle, initiatedBy, reasonText, evidenceText })
+  const markdown = buildChangeProposalMarkdown({
+    old,
+    new: newFile,
+    ownerHandle,
+    delegatorHandle,
+    initiatedBy,
+    reasonText,
+    evidenceText
+  })
   await io.writeFile(decisionRequestPath, markdown)
   await io.writeFile(changeJsonPath, `${JSON.stringify({ old, new: newFile }, null, 2)}\n`)
   return { decisionRequestPath, changeJsonPath }
@@ -237,11 +264,30 @@ export async function readChangeProposal(io, mandatesDir, changeId) {
  * @param {'human'} params.role роль ключа — ЗАВЖДИ `'human'` (підпис зміни мандата ніколи не модельний)
  * @param {{privateKeyJwk: object, publicKeyBase64: string}} params.deviceKey ключ пристрою (той самий, що підписав approval)
  * @param {object[]} [params.extraSignatures] додаткові підписи акта зміни (напр. другий підпис при зміні escalates_to)
+ * @param {string} [params.appliedMarkerPath] абсолютний шлях до `0001-applied.json` — переданий, лише коли викликач
+ *   хоче зафіксувати «застосовано» (M6, `report.js`: «рух межі» скановує САМЕ цей маркер, не сам факт мутації
+ *   mandates.yaml — той самий run-каталог, що decision-request, тримає повний слід «коли й хто застосував»)
+ * @param {() => Date} [params.now] ін'єкція годинника (тести)
  * @returns {Promise<{valid: true}|{valid: false, reason: string}>} вердикт застосування
  */
-export async function applyMandateChangeProposal({ io, mandatesYamlPath, old, new: newFile, approval, handle, role, deviceKey, extraSignatures = [] }) {
+export async function applyMandateChangeProposal({
+  io,
+  mandatesYamlPath,
+  old,
+  new: newFile,
+  approval,
+  handle,
+  role,
+  deviceKey,
+  extraSignatures = [],
+  appliedMarkerPath,
+  now
+}) {
   if (!approval?.approved || approval.chosen_option !== 'A') {
-    return { valid: false, reason: 'change-proposal не підписано варіантом A (застосувати) — mandates.yaml не змінюється' }
+    return {
+      valid: false,
+      reason: 'change-proposal не підписано варіантом A (застосувати) — mandates.yaml не змінюється'
+    }
   }
   const signature = await signMandateChangeAct({
     oldGeneration: old.generation,
@@ -251,7 +297,18 @@ export async function applyMandateChangeProposal({ io, mandatesYamlPath, old, ne
     privateKeyJwk: deviceKey.privateKeyJwk,
     publicKeyBase64: deviceKey.publicKeyBase64
   })
-  return applyMandateChangeIfValid({ io, mandatesYamlPath, old, new: newFile, signatures: [...extraSignatures, signature] })
+  const verdict = await applyMandateChangeIfValid({
+    io,
+    mandatesYamlPath,
+    old,
+    new: newFile,
+    signatures: [...extraSignatures, signature]
+  })
+  if (verdict.valid && appliedMarkerPath) {
+    const appliedAt = (now ? now() : new Date()).toISOString()
+    await io.writeFile(appliedMarkerPath, `${JSON.stringify({ appliedAt, handle, role }, null, 2)}\n`)
+  }
+  return verdict
 }
 
 /**
