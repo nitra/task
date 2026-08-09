@@ -3,6 +3,7 @@ import { appLocalDataDir, join as joinPath } from '@tauri-apps/api/path'
 import { createDispatch } from '@7n/tauri-components'
 import { tauriTransport } from '@7n/tauri-components/vue'
 import { aiPetition } from '../ai-petition.js'
+import { aiCandor, candorShow, markCandorRead } from '../candor.js'
 import {
   applyMandateChangeProposal,
   applyMandateNarrow,
@@ -11,15 +12,18 @@ import {
   writeChangeProposal
 } from '../change-proposal.js'
 import { decisionApprove, decisionQuiz } from '../decision-flow.js'
-import { deriveQueue } from '../decisions.js'
+import { deriveQueue, parseDecisionRequest } from '../decisions.js'
+import { delegateDecision, delegationQuiz } from '../delegation.js'
 import { formatDeviceRegistry, parseDeviceRegistry, upsertDevice } from '../device-registry.js'
 import { formatDirectory, parseDirectory, setDirectoryEntry } from '../directory.js'
+import { loadDriftCards, runDriftScan } from '../drift.js'
 import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../knowledge.js'
 import { parseMandatesFile } from '../mandate-change.js'
 import { deriveMandatesView } from '../mandates.js'
 import { loadQuorumStatus, quorumApprove, quorumQuiz } from '../quorum.js'
 import { defaultLlmConfig } from '../quiz.js'
 import { loadOrCreateDeviceKey } from '../signing.js'
+import { decisionBrief } from '../staff.js'
 import { deriveTrackRecord } from '../track-record.js'
 import { deriveTrustView, narrowMandateOneStep, widenMandateOneStep, withMandateReplaced } from '../trust.js'
 import { buildWhatSystemKnows } from '../what-system-knows.js'
@@ -452,7 +456,7 @@ async function handleQuorumApproveGui(input) {
     nnnn: input.nnnn,
     signerHandle: input.signerHandle,
     chosenOption: input.chosenOption,
-    answer: input.answer,
+    transcript: input.transcript,
     deviceKey: await loadDeviceKeyGui(),
     llmConfig: await loadLlmConfigGui()
   })
@@ -532,6 +536,7 @@ async function handleDecisionApproveGui(input) {
     nnnn: input.nnnn,
     chosenOption: input.chosenOption,
     answer: input.answer,
+    transcript: input.transcript,
     deviceKey: await loadDeviceKeyGui(),
     llmConfig: await loadLlmConfigGui(),
     knowledgeIo: knowledgeIoGui()
@@ -554,6 +559,145 @@ async function handleDevicePubkeyGui() {
 async function handleKnowledgeShowGui() {
   const entries = await loadKnowledgeEntries(knowledgeIoGui())
   return { digest: domainDigest(entries), trend: timeToUnderstandingTrend(entries), entryCount: entries.length }
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @param {string} runId run-id
+ * @param {string} nnnn чотиризначний номер
+ * @returns {string} абсолютний шлях до `NNNN-decision-request.md`
+ */
+function decisionRequestPathGui(mandatesDir, runId, nnnn) {
+  return `${decisionsDirPath(mandatesDir, runId)}/${nnnn}-decision-request.md`
+}
+
+/**
+ * Тіло tool `decision_brief` (M5, Штаб) — ледаче: читає decision-request і
+ * стискає в бриф лише за явним запитом (заголовок `staff.js`).
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} бриф
+ */
+async function handleDecisionBriefGui(input) {
+  const text = await invoke('read_text_file', { path: decisionRequestPathGui(input.mandatesDir, input.runId, input.nnnn) })
+  if (!text) throw new Error(`decision_brief: decision-request не знайдено: ${input.nnnn}`)
+  const decisionRequest = parseDecisionRequest(text, { nnnn: input.nnnn })
+  return decisionBrief({ decisionRequest, llmConfig: await loadLlmConfigGui() })
+}
+
+/**
+ * Тіло tool `ai_candor`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{path, record}`
+ */
+async function handleAiCandorGui(input) {
+  const mandatesFile = await readMandatesFileGui(input.mandatesDir)
+  return aiCandor({
+    io: tauriIo(),
+    mandatesDir: input.mandatesDir,
+    toHandle: input.toHandle,
+    fromModelHandle: input.fromModelHandle,
+    statement: input.statement,
+    evidenceRefs: input.evidenceRefs,
+    audacityLevel: input.audacityLevel,
+    mandatesFile
+  })
+}
+
+/**
+ * `candor_read.json` (M5) над generic `read_text_file`/`write_text_file` —
+ * той самий каталог, що `config.json`/`knowledge.json`, поза git; ЛОКАЛЬНА
+ * позначка «прочитано» (`candor.js`, заголовок модуля) — не синхронізується.
+ * @returns {{read: () => Promise<string|null>, write: (content: string) => Promise<void>}} io
+ */
+function candorReadMarksIoGui() {
+  return {
+    read: async () => invoke('read_text_file', { path: await joinPath(await appLocalDataDir(), 'candor_read.json') }),
+    write: async content => invoke('write_text_file', { path: await joinPath(await appLocalDataDir(), 'candor_read.json'), content })
+  }
+}
+
+/**
+ * Тіло tool `candor_show`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object[]>} інбокс «незручна правда» з `id`/`read`
+ */
+function handleCandorShowGui(input) {
+  return candorShow({ io: tauriIo(), mandatesDir: input.mandatesDir, handle: input.handle, readMarksIo: candorReadMarksIoGui() })
+}
+
+/**
+ * Тіло tool `candor_mark_read`.
+ * @param {object} input вхід тула
+ * @returns {Promise<null>} завжди `null` (write-tool)
+ */
+async function handleCandorMarkReadGui(input) {
+  await markCandorRead({ readMarksIo: candorReadMarksIoGui(), id: input.id })
+  return null
+}
+
+/**
+ * `drift.json` (M5) над generic `read_text_file`/`write_text_file` — той
+ * самий каталог, поза git; ЛОКАЛЬНЕ дзеркало, НІКОЛИ не `.mt/notifications`
+ * (`drift.js`, заголовок модуля).
+ * @returns {{read: () => Promise<string|null>, write: (content: string) => Promise<void>}} io
+ */
+function driftIoGui() {
+  return {
+    read: async () => invoke('read_text_file', { path: await joinPath(await appLocalDataDir(), 'drift.json') }),
+    write: async content => invoke('write_text_file', { path: await joinPath(await appLocalDataDir(), 'drift.json'), content })
+  }
+}
+
+/**
+ * Тіло tool `drift_scan`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object[]>} свіжі дрейф-картки
+ */
+async function handleDriftScanGui(input) {
+  const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
+  return runDriftScan({ decisionsDirs, handle: input.handle, driftIo: driftIoGui() })
+}
+
+/**
+ * Тіло tool `drift_show`.
+ * @returns {Promise<object[]>} локально збережені дрейф-картки
+ */
+function handleDriftShowGui() {
+  return loadDriftCards(driftIoGui())
+}
+
+/**
+ * Тіло tool `delegation_quiz`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} активне one-tap мета-питання делегування
+ */
+async function handleDelegationQuizGui(input) {
+  const decisionRequestText = await invoke('read_text_file', { path: decisionRequestPathGui(input.mandatesDir, input.runId, input.nnnn) })
+  return delegationQuiz({
+    io: tauriIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    nnnn: input.nnnn,
+    modelHandle: input.modelHandle,
+    decisionRequestText
+  })
+}
+
+/**
+ * Тіло tool `decision_delegate`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} результат делегування
+ */
+async function handleDecisionDelegateGui(input) {
+  return delegateDecision({
+    io: tauriIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    runId: input.runId,
+    nnnn: input.nnnn,
+    modelHandle: input.modelHandle,
+    delegatedByHandle: input.delegatedByHandle,
+    answer: input.answer,
+    deviceKey: await loadDeviceKeyGui()
+  })
 }
 
 // Диспетчерська таблиця замість довгого `if`-ланцюга (знижує cognitive
@@ -582,7 +726,15 @@ const HANDLERS_GUI = {
   notifications_show: input => readNotificationsGui(input.mandatesDir, input.handle),
   quiet_hours: loadQuietHoursGui,
   set_quiet_hours: handleSetQuietHoursGui,
-  what_system_knows: handleWhatSystemKnowsGui
+  what_system_knows: handleWhatSystemKnowsGui,
+  decision_brief: handleDecisionBriefGui,
+  ai_candor: handleAiCandorGui,
+  candor_show: handleCandorShowGui,
+  candor_mark_read: handleCandorMarkReadGui,
+  drift_scan: handleDriftScanGui,
+  drift_show: handleDriftShowGui,
+  delegation_quiz: handleDelegationQuizGui,
+  decision_delegate: handleDecisionDelegateGui
 }
 
 /**

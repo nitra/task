@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { createDispatch, listTools, toolManifest } from '@7n/tauri-components'
 import { aiPetition } from '../src/ai-petition.js'
+import { aiCandor, candorShow, markCandorRead } from '../src/candor.js'
 import {
   applyMandateChangeProposal,
   applyMandateNarrow,
@@ -13,15 +14,18 @@ import {
   writeChangeProposal
 } from '../src/change-proposal.js'
 import { decisionApprove, decisionQuiz } from '../src/decision-flow.js'
-import { deriveQueue } from '../src/decisions.js'
+import { deriveQueue, parseDecisionRequest } from '../src/decisions.js'
+import { delegateDecision, delegationQuiz } from '../src/delegation.js'
 import { formatDeviceRegistry, parseDeviceRegistry, upsertDevice } from '../src/device-registry.js'
 import { formatDirectory, parseDirectory, setDirectoryEntry } from '../src/directory.js'
+import { loadDriftCards, runDriftScan } from '../src/drift.js'
 import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../src/knowledge.js'
 import { parseMandatesFile } from '../src/mandate-change.js'
 import { deriveMandatesView } from '../src/mandates.js'
 import { loadQuorumStatus, quorumApprove, quorumQuiz } from '../src/quorum.js'
 import { defaultLlmConfig } from '../src/quiz.js'
 import { loadOrCreateDeviceKey } from '../src/signing.js'
+import { decisionBrief } from '../src/staff.js'
 import { TOOLS } from '../src/tool/catalog.js'
 import { deriveTrackRecord } from '../src/track-record.js'
 import { deriveTrustView, narrowMandateOneStep, widenMandateOneStep, withMandateReplaced } from '../src/trust.js'
@@ -157,6 +161,48 @@ function knowledgeIoCli() {
     write: content => {
       mkdirSync(dirname(knowledgePath()), { recursive: true })
       writeFileSync(knowledgePath(), content)
+    }
+  }
+}
+
+/**
+ * @returns {string} абсолютний шлях до `drift.json` (M5, поза git — той самий каталог, що `knowledge.json`)
+ */
+function driftPath() {
+  return join(dirname(configPath()), 'drift.json')
+}
+
+/**
+ * io дрейф-карток для `src/drift.js` — той самий `{read, write}`-контракт, що `knowledgeIoCli`.
+ * @returns {{read: () => Promise<string|null>, write: (content: string) => Promise<void>}} io
+ */
+function driftIoCli() {
+  return {
+    read: () => (existsSync(driftPath()) ? readFileSync(driftPath(), 'utf8') : null),
+    write: content => {
+      mkdirSync(dirname(driftPath()), { recursive: true })
+      writeFileSync(driftPath(), content)
+    }
+  }
+}
+
+/**
+ * @returns {string} абсолютний шлях до `candor_read.json` (M5, поза git — локальні позначки «прочитано»)
+ */
+function candorReadMarksPath() {
+  return join(dirname(configPath()), 'candor_read.json')
+}
+
+/**
+ * io позначок «прочитано» кандору — той самий `{read, write}`-контракт, що `knowledgeIoCli`.
+ * @returns {{read: () => Promise<string|null>, write: (content: string) => Promise<void>}} io
+ */
+function candorReadMarksIoCli() {
+  return {
+    read: () => (existsSync(candorReadMarksPath()) ? readFileSync(candorReadMarksPath(), 'utf8') : null),
+    write: content => {
+      mkdirSync(dirname(candorReadMarksPath()), { recursive: true })
+      writeFileSync(candorReadMarksPath(), content)
     }
   }
 }
@@ -319,7 +365,7 @@ async function handleQuorumApproveCli(input) {
     nnnn: input.nnnn,
     signerHandle: input.signerHandle,
     chosenOption: input.chosenOption,
-    answer: input.answer,
+    transcript: input.transcript,
     deviceKey: await loadDeviceKeyCli(),
     llmConfig: readLlmConfig()
   })
@@ -360,6 +406,90 @@ async function handleWhatSystemKnowsCli(input) {
   const notifications = readNotificationsCli(input.mandatesDir, input.handle)
   const deviceRegistry = readDeviceRegistryCli(input.mandatesDir)
   return buildWhatSystemKnows({ handle: input.handle, knowledgeEntries, notifications, deviceRegistry })
+}
+
+/**
+ * Тіло case `decision_brief` (M5, Штаб).
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} бриф
+ */
+function handleDecisionBriefCli(input) {
+  const path = join(decisionsDirPath(input.mandatesDir, input.runId), `${input.nnnn}-decision-request.md`)
+  if (!existsSync(path)) throw new Error(`decision_brief: decision-request не знайдено: ${input.nnnn}`)
+  const decisionRequest = parseDecisionRequest(readFileSync(path, 'utf8'), { nnnn: input.nnnn })
+  return decisionBrief({ decisionRequest, llmConfig: readLlmConfig() })
+}
+
+/**
+ * Тіло case `ai_candor`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{path, record}`
+ */
+function handleAiCandorCli(input) {
+  const mandatesFile = readMandatesFileCli(input.mandatesDir)
+  return aiCandor({
+    io: fsIo(),
+    mandatesDir: input.mandatesDir,
+    toHandle: input.toHandle,
+    fromModelHandle: input.fromModelHandle,
+    statement: input.statement,
+    evidenceRefs: input.evidenceRefs,
+    audacityLevel: input.audacityLevel,
+    mandatesFile
+  })
+}
+
+/**
+ * Тіло case `candor_show`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object[]>} інбокс «незручна правда» з `id`/`read`
+ */
+function handleCandorShowCli(input) {
+  return candorShow({ io: fsIo(), mandatesDir: input.mandatesDir, handle: input.handle, readMarksIo: candorReadMarksIoCli() })
+}
+
+/**
+ * Тіло case `drift_scan`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object[]>} свіжі дрейф-картки
+ */
+function handleDriftScanCli(input) {
+  return runDriftScan({ decisionsDirs: scanDecisionsDirs(input.mandatesDir), handle: input.handle, driftIo: driftIoCli() })
+}
+
+/**
+ * Тіло case `delegation_quiz`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} активне one-tap мета-питання делегування
+ */
+function handleDelegationQuizCli(input) {
+  const path = join(decisionsDirPath(input.mandatesDir, input.runId), `${input.nnnn}-decision-request.md`)
+  const decisionRequestText = existsSync(path) ? readFileSync(path, 'utf8') : null
+  return delegationQuiz({
+    io: fsIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    nnnn: input.nnnn,
+    modelHandle: input.modelHandle,
+    decisionRequestText
+  })
+}
+
+/**
+ * Тіло case `decision_delegate`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} результат делегування
+ */
+async function handleDecisionDelegateCli(input) {
+  return delegateDecision({
+    io: fsIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    runId: input.runId,
+    nnnn: input.nnnn,
+    modelHandle: input.modelHandle,
+    delegatedByHandle: input.delegatedByHandle,
+    answer: input.answer,
+    deviceKey: await loadDeviceKeyCli()
+  })
 }
 
 /**
@@ -507,131 +637,170 @@ async function handleMandateChangeApplyCli(input) {
 }
 
 /**
+ * Тіло case `mandates_show`.
+ * @param {object} input вхід тула
+ * @returns {object} дериваційний зріз карти мандатів
+ */
+function handleMandatesShowCli(input) {
+  const path = join(input.mandatesDir, '.mt', 'mandates.yaml')
+  const yamlText = existsSync(path) ? readFileSync(path, 'utf8') : ''
+  return deriveMandatesView(yamlText, input.handle ?? null)
+}
+
+/**
+ * Тіло case `decision_quiz`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} активне питання/підказка квізу
+ */
+function handleDecisionQuizCli(input) {
+  return decisionQuiz({
+    io: fsIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    nnnn: input.nnnn,
+    chosenOption: input.chosenOption,
+    llmConfig: readLlmConfig(),
+    knowledgeIo: knowledgeIoCli()
+  })
+}
+
+/**
+ * Тіло case `decision_approve`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} результат спроби/підпису
+ */
+async function handleDecisionApproveCli(input) {
+  return decisionApprove({
+    io: fsIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    runId: input.runId,
+    nnnn: input.nnnn,
+    chosenOption: input.chosenOption,
+    answer: input.answer,
+    transcript: input.transcript,
+    deviceKey: await loadDeviceKeyCli(),
+    llmConfig: readLlmConfig(),
+    knowledgeIo: knowledgeIoCli()
+  })
+}
+
+/**
+ * Тіло case `device_pubkey`.
+ * @returns {Promise<{publicKeyBase64: string}>} публічний ключ пристрою
+ */
+async function handleDevicePubkeyCli() {
+  const key = await loadDeviceKeyCli()
+  return { publicKeyBase64: key.publicKeyBase64 }
+}
+
+/**
+ * Тіло case `set_llm_config`.
+ * @param {object} input вхід тула
+ * @returns {null} завжди `null` (write-tool)
+ */
+function handleSetLlmConfigCli(input) {
+  writeConfig({
+    ...(input.baseUrl !== undefined && { llm_base_url: input.baseUrl.trim() }),
+    ...(input.model !== undefined && { llm_model: input.model.trim() })
+  })
+  return null
+}
+
+/**
+ * Тіло case `knowledge_show`.
+ * @returns {Promise<object>} конспект/тренд особистої бази знань
+ */
+async function handleKnowledgeShowCli() {
+  const entries = await loadKnowledgeEntries(knowledgeIoCli())
+  return { digest: domainDigest(entries), trend: timeToUnderstandingTrend(entries), entryCount: entries.length }
+}
+
+/**
+ * Тіло case `quorum_status`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{nnnn, approvers, signed, pending, status}`
+ */
+function handleQuorumStatusCli(input) {
+  return loadQuorumStatus({ io: fsIo(), decisionsDir: decisionsDirPath(input.mandatesDir, input.runId), nnnn: input.nnnn })
+}
+
+/**
+ * Тіло case `set_quiet_hours`.
+ * @param {object} input вхід тула
+ * @returns {null} завжди `null` (write-tool)
+ */
+function handleSetQuietHoursCli(input) {
+  writeConfig({ quiet_hours_start: input.start.trim(), quiet_hours_end: input.end.trim() })
+  return null
+}
+
+/**
+ * Тіло case `candor_mark_read`.
+ * @param {object} input вхід тула
+ * @returns {Promise<null>} завжди `null` (write-tool)
+ */
+async function handleCandorMarkReadCli(input) {
+  await markCandorRead({ readMarksIo: candorReadMarksIoCli(), id: input.id })
+  return null
+}
+
+// Диспетчерська таблиця замість довгого `switch` (sonarjs/max-switch-cases
+// — той самий рефактор, що HANDLERS_GUI у tool/index.js): КОЖЕН tool — один
+// запис, `cliTransport` лишається чистим lookup+виклик.
+const CLI_HANDLERS = {
+  whoami: () => readConfig().identity ?? null,
+  set_identity: input => {
+    writeConfig({ identity: input.handle.trim() })
+    return null
+  },
+  mandates_dir: () => readConfig().mandates_dir ?? null,
+  set_mandates_dir: input => {
+    writeConfig({ mandates_dir: input.dir.trim() })
+    return null
+  },
+  mandates_show: handleMandatesShowCli,
+  decisions_show: input => deriveQueue(scanDecisionsDirs(input.mandatesDir), input.handle ?? null),
+  decision_quiz: handleDecisionQuizCli,
+  decision_approve: handleDecisionApproveCli,
+  device_pubkey: handleDevicePubkeyCli,
+  llm_config: readLlmConfig,
+  set_llm_config: handleSetLlmConfigCli,
+  knowledge_show: handleKnowledgeShowCli,
+  trust_show: handleTrustShowCli,
+  mandate_narrow: handleMandateNarrowCli,
+  mandate_widen_propose: handleMandateWidenProposeCli,
+  ai_petition: handleAiPetitionCli,
+  mandate_change_apply: handleMandateChangeApplyCli,
+  directory_show: input => readDirectoryCli(input.mandatesDir),
+  directory_set: handleDirectorySetCli,
+  quorum_quiz: handleQuorumQuizCli,
+  quorum_approve: handleQuorumApproveCli,
+  quorum_status: handleQuorumStatusCli,
+  watcher_scan: handleWatcherScanCli,
+  notifications_show: input => readNotificationsCli(input.mandatesDir, input.handle),
+  quiet_hours: readQuietHours,
+  set_quiet_hours: handleSetQuietHoursCli,
+  what_system_knows: handleWhatSystemKnowsCli,
+  decision_brief: handleDecisionBriefCli,
+  ai_candor: handleAiCandorCli,
+  candor_show: handleCandorShowCli,
+  candor_mark_read: handleCandorMarkReadCli,
+  drift_scan: handleDriftScanCli,
+  drift_show: () => loadDriftCards(driftIoCli()),
+  delegation_quiz: handleDelegationQuizCli,
+  decision_delegate: handleDecisionDelegateCli
+}
+
+/**
  * CLI-транспорт: без mt-scanner, читає config.json / mandates.yaml /
  * runs/*​/decisions/ напряму.
  * @param {object} tool визначення тула
  * @param {object} input вхід тула
  * @returns {Promise<unknown>} результат виклику
  */
-async function cliTransport(tool, input) {
-  switch (tool.name) {
-    case 'whoami': {
-      return readConfig().identity ?? null
-    }
-    case 'set_identity': {
-      writeConfig({ identity: input.handle.trim() })
-      return null
-    }
-    case 'mandates_dir': {
-      return readConfig().mandates_dir ?? null
-    }
-    case 'set_mandates_dir': {
-      writeConfig({ mandates_dir: input.dir.trim() })
-      return null
-    }
-    case 'mandates_show': {
-      const path = join(input.mandatesDir, '.mt', 'mandates.yaml')
-      const yamlText = existsSync(path) ? readFileSync(path, 'utf8') : ''
-      return deriveMandatesView(yamlText, input.handle ?? null)
-    }
-    case 'decisions_show': {
-      return deriveQueue(scanDecisionsDirs(input.mandatesDir), input.handle ?? null)
-    }
-    case 'decision_quiz': {
-      return decisionQuiz({
-        io: fsIo(),
-        decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-        nnnn: input.nnnn,
-        chosenOption: input.chosenOption,
-        llmConfig: readLlmConfig(),
-        knowledgeIo: knowledgeIoCli()
-      })
-    }
-    case 'decision_approve': {
-      return decisionApprove({
-        io: fsIo(),
-        decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-        runId: input.runId,
-        nnnn: input.nnnn,
-        chosenOption: input.chosenOption,
-        answer: input.answer,
-        deviceKey: await loadDeviceKeyCli(),
-        llmConfig: readLlmConfig(),
-        knowledgeIo: knowledgeIoCli()
-      })
-    }
-    case 'device_pubkey': {
-      const key = await loadDeviceKeyCli()
-      return { publicKeyBase64: key.publicKeyBase64 }
-    }
-    case 'llm_config': {
-      return readLlmConfig()
-    }
-    case 'set_llm_config': {
-      writeConfig({
-        ...(input.baseUrl !== undefined && { llm_base_url: input.baseUrl.trim() }),
-        ...(input.model !== undefined && { llm_model: input.model.trim() })
-      })
-      return null
-    }
-    case 'knowledge_show': {
-      const entries = await loadKnowledgeEntries(knowledgeIoCli())
-      return { digest: domainDigest(entries), trend: timeToUnderstandingTrend(entries), entryCount: entries.length }
-    }
-    case 'trust_show': {
-      return handleTrustShowCli(input)
-    }
-    case 'mandate_narrow': {
-      return handleMandateNarrowCli(input)
-    }
-    case 'mandate_widen_propose': {
-      return handleMandateWidenProposeCli(input)
-    }
-    case 'ai_petition': {
-      return handleAiPetitionCli(input)
-    }
-    case 'mandate_change_apply': {
-      return handleMandateChangeApplyCli(input)
-    }
-    case 'directory_show': {
-      return readDirectoryCli(input.mandatesDir)
-    }
-    case 'directory_set': {
-      return handleDirectorySetCli(input)
-    }
-    case 'quorum_quiz': {
-      return handleQuorumQuizCli(input)
-    }
-    case 'quorum_approve': {
-      return handleQuorumApproveCli(input)
-    }
-    case 'quorum_status': {
-      return loadQuorumStatus({
-        io: fsIo(),
-        decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-        nnnn: input.nnnn
-      })
-    }
-    case 'watcher_scan': {
-      return handleWatcherScanCli(input)
-    }
-    case 'notifications_show': {
-      return readNotificationsCli(input.mandatesDir, input.handle)
-    }
-    case 'quiet_hours': {
-      return readQuietHours()
-    }
-    case 'set_quiet_hours': {
-      writeConfig({ quiet_hours_start: input.start.trim(), quiet_hours_end: input.end.trim() })
-      return null
-    }
-    case 'what_system_knows': {
-      return handleWhatSystemKnowsCli(input)
-    }
-    default: {
-      throw new Error(`tool "${tool.name}" has no CLI transport`)
-    }
-  }
+function cliTransport(tool, input) {
+  const handler = CLI_HANDLERS[tool.name]
+  if (!handler) throw new Error(`tool "${tool.name}" has no CLI transport`)
+  return handler(input)
 }
 
 const dispatch = createDispatch(TOOLS, cliTransport)
@@ -680,14 +849,22 @@ async function main() {
     'quorum_status',
     'watcher_scan',
     'notifications_show',
-    'what_system_knows'
+    'what_system_knows',
+    'decision_brief',
+    'ai_candor',
+    'candor_show',
+    'drift_scan',
+    'delegation_quiz',
+    'decision_delegate'
   ]
   const HANDLE_DEFAULT_TOOLS = [
     'mandates_show',
     'decisions_show',
     'trust_show',
     'notifications_show',
-    'what_system_knows'
+    'what_system_knows',
+    'candor_show',
+    'drift_scan'
   ]
   if (MANDATES_DIR_DEFAULT_TOOLS.includes(cmd) && input.mandatesDir === undefined) {
     input.mandatesDir = readConfig().mandates_dir

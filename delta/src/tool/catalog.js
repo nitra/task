@@ -110,9 +110,11 @@ export const TOOLS = [
     tier: 'write',
     name: 'decision_quiz',
     summary:
-      'Generate (first call) or show (repeat call) the active quiz question for a decision-request variant — ' +
-      'writes the mutable NNNN-quiz.md draft. depth: one-tap may mix in a second spaced-repetition question from ' +
-      'the personal knowledge base; depth: standard generates 2 questions about the decision itself (M2).',
+      'Generate (first call) or show (repeat call) the active quiz gate for a decision-request variant — writes the ' +
+      'mutable NNNN-quiz.md draft. depth: one-tap may mix in a second spaced-repetition question from the personal ' +
+      'knowledge base; depth: standard generates 2 questions about the decision itself (M2); depth: teach-back ' +
+      '(irreversible / wide blast_radius, M5) has no question — returns a `prompt` asking the owner to retell the ' +
+      'decision in their own words (decision_approve takes `transcript`, not `answer`).',
     input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN, chosenOption: CHOSEN_OPTION },
     tauri: 'decision_quiz', // немає прямої Rust-команди — GUI-транспорт (tool/index.js) оркеструє через decision-flow.js
     cli: true
@@ -121,16 +123,26 @@ export const TOOLS = [
     tier: 'write',
     name: 'decision_approve',
     summary:
-      "Submit an answer for the quiz's active question. Wrong: returns the microlesson and layered decision-request " +
-      'context ("right to depth", M2), iterations++, no approval written. Right on a non-last question: returns the ' +
-      'next question (done: false), still no approval. Right on the last question: finalizes the quiz, records a ' +
-      'personal-knowledge-base entry, and writes a signed NNNN-approval.json.',
+      "Submit an answer (Q&A depths) or a transcript (depth: teach-back, M5) for the quiz's active question/prompt. " +
+      'Wrong / not-understood: returns feedback and layered decision-request context ("right to depth", M2), ' +
+      'iterations++, no approval written. Right on a non-last question: returns the next question (done: false), ' +
+      'still no approval. Right / understood on the last step: finalizes the quiz, records a personal-knowledge-base ' +
+      'entry, and writes a signed NNNN-approval.json. teach-back with the local model unavailable returns ' +
+      '`available: false` — an honest refusal, NOT a fallback to a lower depth; the decision stays open.',
     input: {
       mandatesDir: MANDATES_DIR,
       runId: RUN_ID,
       nnnn: NNNN,
       chosenOption: CHOSEN_OPTION,
-      answer: { required: true, description: '0-based quiz option index (number), or the exact option text (string).' }
+      answer: {
+        required: false,
+        description: '0-based quiz option index (number), or the exact option text (string) — Q&A depths (one-tap/standard).'
+      },
+      transcript: {
+        type: 'string',
+        required: false,
+        description: 'Retell of the decision and its consequences in the owner\'s own words — depth: teach-back only (M5).'
+      }
     },
     tauri: 'decision_approve', // те саме — оркестрація в decision-flow.js, Rust лишається fs-шаром
     cli: true
@@ -285,8 +297,9 @@ export const TOOLS = [
     tier: 'write',
     name: 'quorum_quiz',
     summary:
-      'Multi-signer quorum (M4): generate/show the OWN quiz question for one approver of an irreversible decision-request ' +
-      '(leverage_facets.irreversible: true) — depth forced to standard (teach-back is M5), one quiz file per signer handle.',
+      'Multi-signer quorum (M4/M5): generate/show the OWN teach-back prompt for one approver of an irreversible ' +
+      'decision-request (leverage_facets.irreversible: true) — depth: teach-back (M5, no longer forced to standard), ' +
+      'one quiz file per signer handle; each signer writes their OWN transcript (quorum_approve).',
     input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN, signerHandle: HANDLE, chosenOption: CHOSEN_OPTION },
     tauri: 'quorum_quiz',
     cli: true
@@ -295,16 +308,21 @@ export const TOOLS = [
     tier: 'write',
     name: 'quorum_approve',
     summary:
-      "Multi-signer quorum (M4): submit an answer for one approver's own quiz. Right on the last question writes THIS " +
-      "signer's own NNNN-approval-{handle}.json — the decision closes only once every approver signed the SAME " +
-      'chosen_option (quorum_status shows pending/closed/diverged).',
+      "Multi-signer quorum (M4/M5): submit one approver's OWN teach-back transcript. Understood on evaluation writes " +
+      "THIS signer's own NNNN-approval-{handle}.json — the decision closes only once every approver signed the SAME " +
+      'chosen_option (quorum_status shows pending/closed/diverged). Local model unavailable returns `available: ' +
+      'false` — honest refusal, no fallback depth.',
     input: {
       mandatesDir: MANDATES_DIR,
       runId: RUN_ID,
       nnnn: NNNN,
       signerHandle: HANDLE,
       chosenOption: CHOSEN_OPTION,
-      answer: { required: true, description: '0-based quiz option index (number), or the exact option text (string).' }
+      transcript: {
+        type: 'string',
+        required: true,
+        description: "This signer's own retell of the decision and its consequences, in their own words."
+      }
     },
     tauri: 'quorum_approve',
     cli: true
@@ -396,6 +414,102 @@ export const TOOLS = [
       }
     },
     tauri: 'mandate_change_apply',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'decision_brief',
+    summary:
+      'Штаб (M5): lazily compress a decision-request into a brief — 3-sentence context, one price line per option, ' +
+      'recommendation + the STRONGEST objection against it (anti-rubber-stamping, owner-spec «Штаб»), cost of ' +
+      'delay. LLM unavailable — honest structural fallback (frontmatter + headings, no compression, no objection).',
+    input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN },
+    tauri: 'decision_brief', // немає прямої Rust-команди — GUI-транспорт оркеструє через src/staff.js
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'ai_candor',
+    summary:
+      'Headless tool simulating a model (M5, "незручна правда" pattern — mirrors ai_petition): appends a candor ' +
+      'record {from_model, statement, evidence_refs, audacity_level, created_at} to the ADDRESSEE\'s SEPARATE ' +
+      '.mt/candor/{handle}.jsonl inbox (never mixed into the decisions queue). audacity_level is validated against ' +
+      "the sender model's mandate audacity budget — rejected if it exceeds it.",
+    input: {
+      mandatesDir: MANDATES_DIR,
+      toHandle: { type: 'string', required: true, description: 'Handle who should hear this — the candor inbox owner.' },
+      fromModelHandle: { type: 'string', required: true, description: 'Handle of the model (kind: model) sending the candor.' },
+      statement: { type: 'string', required: true, description: 'The uncomfortable truth itself.' },
+      evidenceRefs: { type: 'array', required: false, description: 'References backing the statement (decision-refs, quiz-refs, ...).' },
+      audacityLevel: { type: 'string', required: true, description: '"low" | "medium" | "high" — validated against the mandate budget.' }
+    },
+    tauri: 'ai_candor',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'candor_show',
+    summary: 'Read my "незручна правда" inbox (.mt/candor/{handle}.jsonl) — separate from the decisions queue, with local (private) read marks.',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'candor_show', // немає прямої Rust-команди — оркеструє src/candor.js
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'candor_mark_read',
+    summary: 'Mark one candor record as read — LOCAL to this device only (candor_read.json, outside git; never synced/shared).',
+    input: { id: { type: 'string', required: true, description: 'Candor record id (candorShow()[].id).' } },
+    tauri: 'candor_mark_read',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'drift_scan',
+    summary:
+      'Private mirror (M5, constitution p.6): scans MY open decision-requests for systematic postponement (stale ' +
+      'past a threshold, or repeated quiz iterations without signing), grouped by decision_type. Cards are stored ' +
+      'LOCALLY outside git (next to knowledge.json) — NEVER in the shared .mt/notifications log; visible to the ' +
+      'owner ONLY. Each scan overwrites the local file with a fresh result.',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'drift_scan', // немає прямої Rust-команди — оркеструє src/drift.js над scan_decisions
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'drift_show',
+    summary: 'Read the locally persisted drift cards from the last drift_scan (outside git, owner-private).',
+    input: {},
+    tauri: 'drift_show',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'delegation_quiz',
+    summary:
+      'Deferred-action queue (M5): generate/show the ONE deterministic one-tap meta-question for delegating a ' +
+      'decision-request to a model ("what exactly are you delegating and what will the model do") — writes ' +
+      'NNNN-delegation-quiz.md, no LLM involved (the correct answer has a fixed shape regardless of domain).',
+    input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN, modelHandle: HANDLE },
+    tauri: 'delegation_quiz',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'decision_delegate',
+    summary:
+      'Deferred-action queue (M5): submit the delegation meta-quiz answer. Right answer signs and writes ' +
+      'NNNN-delegation.json {delegated_to, delegated_by, signed_at, pubkey, signature, quiz_ref} — the ' +
+      'decision-request itself is NEVER mutated (computed_owner stays put); presence of the delegation file is a ' +
+      "derived signal that moves the item from the delegator's queue into the model's (decisions_show).",
+    input: {
+      mandatesDir: MANDATES_DIR,
+      runId: RUN_ID,
+      nnnn: NNNN,
+      modelHandle: { type: 'string', required: true, description: 'Handle of the model the decision is delegated to.' },
+      delegatedByHandle: { type: 'string', required: true, description: 'Handle of the human delegating (directorial responsibility stays with them).' },
+      answer: { required: true, description: '0-based quiz option index (number), or the exact option text (string).' }
+    },
+    tauri: 'decision_delegate',
     cli: true
   }
 ]
