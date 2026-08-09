@@ -4,16 +4,22 @@ import { describe, expect, it, vi } from 'vitest'
 import { parseDecisionRequest } from '../decisions.js'
 import {
   buildQuizPrompt,
+  buildTeachBackEvalPrompt,
   callLlmQuizGenerator,
   callLlmStandardQuizGenerator,
+  callLlmTeachBackEvaluator,
   defaultLlmConfig,
   fallbackQuiz,
   fallbackStandardQuiz,
   formatQuizFile,
+  formatTeachBackFile,
   generateQuiz,
   generateStandardQuiz,
   parseQuizFile,
-  rephraseQuestion
+  parseTeachBackFile,
+  rephraseQuestion,
+  teachBackPromptText,
+  TEACHBACK_UNAVAILABLE_MESSAGE
 } from '../quiz.js'
 
 const DR_TEXT = readFileSync(
@@ -453,5 +459,173 @@ describe('rephraseQuestion', () => {
     const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: () => ({ choices: [{ message: { content: ' '.repeat(3) } }] }) })
     const result = await rephraseQuestion({ decisionRequest, chosenOption: 'B', previousQuestion: 'Старе питання?', fetchImpl })
     expect(result).toBeNull()
+  })
+})
+
+const TRANSCRIPT_MENTION_RE = /мій переказ рішення/
+const TEACHBACK_UNAVAILABLE_MENTION_RE = /недоступний без локальної моделі/
+const FRONTMATTER_START_RE = /^---\nschema_version: 1\ntype: quiz\n/
+const DEPTH_TEACHBACK_RE = /depth: teach-back/
+const TEACHBACK_HEADING_RE = /## Переказ \(teach-back\)\n/
+const TRANSCRIPT_TEXT_RE = /Обираю варіант B/
+const VERDICT_UNDERSTOOD_RE = /### Оцінка локальної моделі\nЗрозумів: так\nПропущено: немає/
+const PASSED_FAILED_TEACHBACK_RE = /passed|failed/
+const TEACHBACK_ATTEMPT1_RE = /## Переказ \(teach-back\)\nкоротко/
+const TEACHBACK_ATTEMPT2_RE = /## Переказ \(teach-back\) \(спроба 2\)/
+const MISSING_ASPECTS_RE = /Пропущено: головний ризик, обраний варіант/
+const SHOWN_AT_TEACHBACK_RE = /shown_at: 2026-08-09T10:00:00\.000Z/
+const TIME_TO_UNDERSTANDING_MENTION_RE = /time_to_understanding_sec/
+
+describe('teach-back (M5)', () => {
+  it('teachBackPromptText — непорожня стабільна підказка', () => {
+    expect(teachBackPromptText()).toBeTruthy()
+    expect(teachBackPromptText()).toBe(teachBackPromptText())
+  })
+
+  it('buildTeachBackEvalPrompt — включає контекст decision-request і сам переказ', () => {
+    const prompt = buildTeachBackEvalPrompt(decisionRequest, 'B', 'мій переказ рішення')
+    expect(prompt).toMatch(CONTEXT_RE)
+    expect(prompt).toMatch(TRANSCRIPT_MENTION_RE)
+  })
+
+  describe('callLlmTeachBackEvaluator', () => {
+    it('валідна відповідь understood: true — generatedBy: teachback-eval-<model>', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => ({
+          choices: [{ message: { content: JSON.stringify({ understood: true, missingAspects: [], feedback: 'покрито' }) } }]
+        })
+      })
+      const result = await callLlmTeachBackEvaluator(defaultLlmConfig(), decisionRequest, 'B', 'переказ', fetchImpl)
+      expect(result).toEqual({
+        understood: true,
+        missingAspects: [],
+        feedback: 'покрито',
+        generatedBy: 'teachback-eval-gemma-4-26b-a4b-it'
+      })
+    })
+
+    it('валідна відповідь understood: false з missingAspects', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({ understood: false, missingAspects: ['головний ризик'], feedback: 'бракує ризику' })
+              }
+            }
+          ]
+        })
+      })
+      const result = await callLlmTeachBackEvaluator(defaultLlmConfig(), decisionRequest, 'B', 'переказ', fetchImpl)
+      expect(result.understood).toBe(false)
+      expect(result.missingAspects).toEqual(['головний ризик'])
+    })
+
+    it('мережева помилка — null, не кидає (ЧЕСНА відмова, не фолбек)', async () => {
+      const fetchImpl = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'))
+      expect(await callLlmTeachBackEvaluator(defaultLlmConfig(), decisionRequest, 'B', 'переказ', fetchImpl)).toBeNull()
+    })
+
+    it('не-2xx відповідь — null', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue({ ok: false })
+      expect(await callLlmTeachBackEvaluator(defaultLlmConfig(), decisionRequest, 'B', 'переказ', fetchImpl)).toBeNull()
+    })
+
+    it('невалідний missingAspects (не з дозволеного набору) — null', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => ({
+          choices: [{ message: { content: JSON.stringify({ understood: false, missingAspects: ['стиль'], feedback: 'x' }) } }]
+        })
+      })
+      expect(await callLlmTeachBackEvaluator(defaultLlmConfig(), decisionRequest, 'B', 'переказ', fetchImpl)).toBeNull()
+    })
+
+    it('битий JSON у content — null, не кидає', async () => {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValue({ ok: true, json: () => ({ choices: [{ message: { content: 'not json' } }] }) })
+      expect(await callLlmTeachBackEvaluator(defaultLlmConfig(), decisionRequest, 'B', 'переказ', fetchImpl)).toBeNull()
+    })
+  })
+
+  it('TEACHBACK_UNAVAILABLE_MESSAGE — непорожнє, пояснює «немає фолбека»', () => {
+    expect(TEACHBACK_UNAVAILABLE_MESSAGE).toMatch(TEACHBACK_UNAVAILABLE_MENTION_RE)
+  })
+
+  describe('formatTeachBackFile / parseTeachBackFile — round-trip за контрактом M5', () => {
+    it('одна спроба, understood: true — секції «## Переказ (teach-back)» + «### Оцінка локальної моделі»', () => {
+      const state = {
+        decisionRef: '0001-decision-request.md',
+        generatedBy: 'teachback-eval-gemma-4-26b-a4b-it',
+        iterations: 1,
+        timeToUnderstandingSec: 42,
+        attempts: [
+          {
+            transcript: 'Обираю варіант B, головний наслідок — X, головний ризик — Y.',
+            evaluation: { understood: true, missingAspects: [], feedback: 'Переказ покриває всі аспекти.' }
+          }
+        ]
+      }
+      const text = formatTeachBackFile(state)
+      expect(text).toMatch(FRONTMATTER_START_RE)
+      expect(text).toMatch(DEPTH_TEACHBACK_RE)
+      expect(text).toMatch(TEACHBACK_HEADING_RE)
+      expect(text).toMatch(TRANSCRIPT_TEXT_RE)
+      expect(text).toMatch(VERDICT_UNDERSTOOD_RE)
+      expect(text).not.toMatch(PASSED_FAILED_TEACHBACK_RE)
+
+      const parsed = parseTeachBackFile(text)
+      expect(parsed.depth).toBe('teach-back')
+      expect(parsed.decisionRef).toBe('0001-decision-request.md')
+      expect(parsed.iterations).toBe(1)
+      expect(parsed.timeToUnderstandingSec).toBe(42)
+      expect(parsed.attempts).toHaveLength(1)
+      expect(parsed.attempts[0]).toMatchObject({
+        transcript: 'Обираю варіант B, головний наслідок — X, головний ризик — Y.',
+        evaluation: { understood: true, missingAspects: [], feedback: 'Переказ покриває всі аспекти.' }
+      })
+    })
+
+    it('дві спроби (перша не зрозумів) — заголовок другої «(спроба 2)», перша спроба лишається у файлі', () => {
+      const state = {
+        decisionRef: '0001-decision-request.md',
+        generatedBy: 'teachback-eval-gemma-4-26b-a4b-it',
+        iterations: 2,
+        attempts: [
+          {
+            transcript: 'коротко',
+            evaluation: { understood: false, missingAspects: ['головний ризик', 'обраний варіант'], feedback: 'бракує двох аспектів' }
+          },
+          {
+            transcript: 'Обираю B, наслідок X, ризик Y.',
+            evaluation: { understood: true, missingAspects: [], feedback: 'тепер повно' }
+          }
+        ]
+      }
+      const text = formatTeachBackFile(state)
+      expect(text).toMatch(TEACHBACK_ATTEMPT1_RE)
+      expect(text).toMatch(TEACHBACK_ATTEMPT2_RE)
+      expect(text).toMatch(MISSING_ASPECTS_RE)
+
+      const parsed = parseTeachBackFile(text)
+      expect(parsed.attempts).toHaveLength(2)
+      expect(parsed.attempts[0].evaluation.understood).toBe(false)
+      expect(parsed.attempts[0].evaluation.missingAspects).toEqual(['головний ризик', 'обраний варіант'])
+      expect(parsed.attempts[1].evaluation.understood).toBe(true)
+      expect(parsed.attempts[1].transcript).toBe('Обираю B, наслідок X, ризик Y.')
+    })
+
+    it('чернетка (без time_to_understanding_sec) — поле відсутнє у файлі й null у розборі', () => {
+      const draft = { decisionRef: '0001-decision-request.md', generatedBy: 'teach-back-prompt', shownAt: '2026-08-09T10:00:00.000Z', iterations: 0, attempts: [] }
+      const text = formatTeachBackFile(draft)
+      expect(text).toMatch(SHOWN_AT_TEACHBACK_RE)
+      expect(text).not.toMatch(TIME_TO_UNDERSTANDING_MENTION_RE)
+      const parsed = parseTeachBackFile(text)
+      expect(parsed.timeToUnderstandingSec).toBeNull()
+      expect(parsed.attempts).toEqual([])
+    })
   })
 })

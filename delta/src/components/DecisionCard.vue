@@ -86,6 +86,47 @@
         </div>
       </template>
 
+      <!-- teach-back (M5) — немає варіантів відповіді: переказ ВІЛЬНИМ
+           текстом своїми словами, локальна модель оцінює покриття. Голосовий
+           ввід НЕ реалізовано окремо — macOS-диктовка друкує в цю textarea сама. -->
+      <template v-else-if="quiz && isTeachBack">
+        <p class="quiz-question">{{ quiz.prompt }}</p>
+        <div v-if="quiz.lastFeedback" class="microlesson-banner">
+          <div class="microlesson-title">
+            <q-icon name="sym_o_smart_toy" size="14px" /> Модель каже
+          </div>
+          <p>{{ quiz.lastFeedback }}</p>
+          <p v-if="quiz.missingAspects && quiz.missingAspects.length > 0" class="missing-aspects">
+            Пропущено: {{ quiz.missingAspects.join(', ') }}
+          </p>
+        </div>
+        <q-input
+          v-model="transcript"
+          type="textarea"
+          filled
+          autogrow
+          dense
+          :disable="answering"
+          placeholder="перекажи, що підписуєш і що станеться: обраний варіант, головний наслідок, головний ризик…" />
+        <q-btn
+          @click="submitTeachBack"
+          :disable="answering || !transcript.trim()"
+          unelevated
+          no-caps
+          color="primary"
+          size="sm"
+          label="переказати" />
+
+        <div v-if="explain && explain.length > 0" class="explain-panel">
+          <div v-for="layer in explain" :key="layer.layer" class="explain-layer">
+            <div class="explain-heading">{{ layer.heading }}</div>
+            <p class="explain-content">{{ layer.content }}</p>
+          </div>
+        </div>
+
+        <div v-if="error" class="banner banner-error">{{ error }}</div>
+      </template>
+
       <template v-else-if="quiz">
         <div v-if="quiz.questionCount > 1" class="question-progress">
           Питання {{ quiz.questionIndex }}/{{ quiz.questionCount }}
@@ -149,6 +190,10 @@ const props = defineProps({
 const emit = defineEmits(['approved', 'quorum-signed'])
 
 const isQuorum = computed(() => Boolean(props.decision.quorum))
+// teach-back (M5) — найвища глибина, немає варіантів відповіді (переказ
+// вільним текстом, не вибір з опцій) — картка гілкує UI за depth, той самий
+// одноосібний/кворумний вибір tool-а (isQuorum), що для Q&A-квізів.
+const isTeachBack = computed(() => props.decision.depth === 'teach-back')
 
 const chosenOption = ref(null)
 const quiz = ref(null)
@@ -160,6 +205,7 @@ const microlesson = ref(null)
 const explain = ref(null)
 const iterations = ref(0)
 const error = ref(null)
+const transcript = ref('')
 
 const shortPubkey = computed(() => {
   const key = approvalResult.value?.approval?.pubkey ?? ''
@@ -197,13 +243,15 @@ async function chooseOption(label) {
     error.value = res.error.message
     return
   }
-  quiz.value = {
-    question: res.output.question,
-    options: res.output.options,
-    questionIndex: res.output.questionIndex,
-    questionCount: res.output.questionCount,
-    repetition: res.output.repetition
-  }
+  quiz.value = isTeachBack.value
+    ? { prompt: res.output.prompt, lastFeedback: res.output.lastFeedback, missingAspects: res.output.missingAspects }
+    : {
+        question: res.output.question,
+        options: res.output.options,
+        questionIndex: res.output.questionIndex,
+        questionCount: res.output.questionCount,
+        repetition: res.output.repetition
+      }
   iterations.value = res.output.iterations
 }
 
@@ -218,6 +266,7 @@ function reset() {
   microlesson.value = null
   explain.value = null
   error.value = null
+  transcript.value = ''
 }
 
 /**
@@ -292,6 +341,64 @@ async function answer(index) {
     return
   }
 
+  explain.value = res.output.explain ?? null
+}
+
+/**
+ * Проводить teach-back-переказ через `decision_approve`/`quorum_approve`
+ * (`transcript`, не `answer`). LLM недоступний (`available: false`) —
+ * ЧЕСНА відмова показується як помилка, нічого не рахується як спроба.
+ * Не зрозумів — фідбек моделі й навчальний режим (`explain`), новий
+ * переказ. Зрозумів — фіналізує й підписує, той самий шлях, що `answer()`.
+ * @returns {Promise<void>}
+ */
+async function submitTeachBack() {
+  answering.value = true
+  error.value = null
+  const res = isQuorum.value
+    ? await dispatch('quorum_approve', {
+        mandatesDir: props.mandatesDir,
+        runId: props.decision.runId,
+        nnnn: props.decision.nnnn,
+        signerHandle: props.identity,
+        chosenOption: chosenOption.value,
+        transcript: transcript.value
+      })
+    : await dispatch('decision_approve', {
+        mandatesDir: props.mandatesDir,
+        runId: props.decision.runId,
+        nnnn: props.decision.nnnn,
+        chosenOption: chosenOption.value,
+        transcript: transcript.value
+      })
+  answering.value = false
+  if (!res.ok) {
+    error.value = res.error.message
+    return
+  }
+  if (res.output.available === false) {
+    error.value = res.output.message
+    return
+  }
+  transcript.value = ''
+  iterations.value = res.output.iterations
+
+  if (res.output.approved && isQuorum.value) {
+    explain.value = null
+    approved.value = true
+    approvalResult.value = res.output
+    emit('quorum-signed', { runId: props.decision.runId, nnnn: props.decision.nnnn, approval: res.output.approval })
+    return
+  }
+  if (res.output.approved) {
+    explain.value = null
+    approved.value = true
+    approvalResult.value = res.output
+    emit('approved', { runId: props.decision.runId, nnnn: props.decision.nnnn, approval: res.output.approval })
+    return
+  }
+
+  quiz.value = { prompt: quiz.value.prompt, lastFeedback: res.output.feedback, missingAspects: res.output.missingAspects }
   explain.value = res.output.explain ?? null
 }
 </script>
@@ -462,6 +569,12 @@ async function answer(index) {
 .microlesson-banner p {
   margin: 0;
   opacity: 0.85;
+}
+
+.missing-aspects {
+  margin: 4px 0 0;
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 .question-progress {

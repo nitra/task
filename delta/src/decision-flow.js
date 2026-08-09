@@ -33,12 +33,26 @@
 import { buildAndSignApproval, buildRequestId, formatApprovalFile } from './approval.js'
 import { depthForFacets, parseDecisionRequest } from './decisions.js'
 import { appendKnowledgeEntry, dueRepetition, loadKnowledgeEntries, recordRepetitionAnswer, saveKnowledgeEntries } from './knowledge.js'
-import { formatQuizFile, generateQuiz, generateStandardQuiz, parseQuizFile, rephraseQuestion } from './quiz.js'
+import {
+  callLlmTeachBackEvaluator,
+  defaultLlmConfig,
+  formatQuizFile,
+  formatTeachBackFile,
+  generateQuiz,
+  generateStandardQuiz,
+  parseQuizFile,
+  parseTeachBackFile,
+  rephraseQuestion,
+  teachBackPromptText,
+  TEACHBACK_UNAVAILABLE_MESSAGE
+} from './quiz.js'
 
-// M2 реалізує `one-tap` (1-2 питання зі spaced-repetition) і `standard`
-// (2 питання про саму розвилку) — `teach-back` лишається M5
-// (docs/specs/260809-delta-app.md, «Обсяг M2», п.6).
-const SUPPORTED_DEPTHS = new Set(['one-tap', 'standard'])
+// M2 реалізувала `one-tap` (1-2 питання зі spaced-repetition) і `standard`
+// (2 питання про саму розвилку); M5 (docs/specs/260809-delta-app.md, «Обсяг
+// M5», п.1) додає `teach-back` — найвища глибина (irreversible/широкий
+// blast_radius), переказ своїми словами замість Q&A (детальніше — заголовок
+// `quiz.js`, секція teach-back).
+const SUPPORTED_DEPTHS = new Set(['one-tap', 'standard', 'teach-back'])
 // Spaced-repetition (п.5 конституції) підмішується ЛИШЕ в `one-tap`: два
 // незалежні механізми множинних питань (standard-генерація ВЛАСНИХ 2-3
 // питань про розвилку, і підмішування ЧУЖОГО питання з бази знань) свідомо
@@ -174,11 +188,62 @@ function toQuestionState(generated, repetition = false) {
 }
 
 /**
+ * Гілка `decisionQuiz` для `depth: teach-back` (M5) — немає питання для
+ * генерації (переказ вільний текст, LLM лише ОЦІНЮЄ його пізніше в
+ * `submitTeachBack`), тому перший виклик просто пише порожню чернетку з
+ * `shown_at` (старт «часу до розуміння») і повертає підказку-промпт; повторний
+ * виклик показує ту саму підказку разом із фідбеком останньої НЕвдалої
+ * спроби (навчальний режим М2 — «право на глибину» через `explain` дає
+ * `submitTeachBack`, тут лише короткий feedback моделі).
+ * @param {object} params вхідні параметри
+ * @param {{readFile: (path: string) => Promise<string|null>, writeFile: (path: string, content: string) => Promise<void>}} params.io fs-транспорт decisions/
+ * @param {string} params.path абсолютний шлях до `NNNN-quiz.md`
+ * @param {string} params.nnnn чотиризначний номер
+ * @param {string} params.domain домен розвилки
+ * @param {() => Date} [params.now] ін'єкція годинника (тести)
+ * @returns {Promise<{quizPath: string, depth: 'teach-back', prompt: string, iterations: number,
+ *   generatedBy: string, domain: string, lastFeedback: string|null, missingAspects: string[]}>} підказка teach-back
+ */
+async function decisionQuizTeachBack({ io, path, nnnn, domain, now }) {
+  const existingText = await io.readFile(path)
+  if (existingText) {
+    const state = parseTeachBackFile(existingText)
+    const lastAttempt = state.attempts.at(-1) ?? null
+    const failed = lastAttempt && lastAttempt.evaluation.understood === false
+    return {
+      quizPath: path,
+      depth: 'teach-back',
+      prompt: teachBackPromptText(),
+      iterations: state.iterations ?? 0,
+      generatedBy: state.generatedBy,
+      domain,
+      lastFeedback: failed ? lastAttempt.evaluation.feedback : null,
+      missingAspects: failed ? lastAttempt.evaluation.missingAspects : []
+    }
+  }
+
+  const shownAt = (now ? now() : new Date()).toISOString()
+  const draft = { decisionRef: `${nnnn}-decision-request.md`, generatedBy: 'teach-back-prompt', shownAt, iterations: 0, attempts: [] }
+  await io.writeFile(path, formatTeachBackFile(draft))
+  return {
+    quizPath: path,
+    depth: 'teach-back',
+    prompt: teachBackPromptText(),
+    iterations: 0,
+    generatedBy: 'teach-back-prompt',
+    domain,
+    lastFeedback: null,
+    missingAspects: []
+  }
+}
+
+/**
  * Генерує (при першому виклику) або показує (при повторному) активне
  * питання квізу для обраного варіанта — `delta`-tool `decision_quiz`.
  * `depth: standard` генерує 2 питання про саму розвилку; `depth: one-tap`
  * підмішує друге питання зі spaced-repetition бази знань, якщо інтервал
  * домену настав (п.5 конституції) — інакше лишається одним питанням.
+ * `depth: teach-back` (M5) делегує {@link decisionQuizTeachBack}.
  * @param {object} params вхідні параметри
  * @param {{readFile: (path: string) => Promise<string|null>, writeFile: (path: string, content: string) => Promise<void>}} params.io fs-транспорт decisions/
  * @param {string} params.decisionsDir абсолютний шлях до директорії `decisions/`
@@ -197,6 +262,7 @@ export async function decisionQuiz({ io, decisionsDir, nnnn, chosenOption, llmCo
   const { decisionRequest, depth } = await loadSupportedDecisionRequest(io, decisionsDir, nnnn)
   const domain = domainOf(decisionRequest)
   const path = quizPath(decisionsDir, nnnn)
+  if (depth === 'teach-back') return decisionQuizTeachBack({ io, path, nnnn, domain, now })
   const existingText = await io.readFile(path)
 
   if (existingText) {
@@ -272,6 +338,84 @@ export async function decisionQuiz({ io, decisionsDir, nnnn, chosenOption, llmCo
 }
 
 /**
+ * Проводить teach-back-спробу (M5): оцінює `transcript` локальною моделлю
+ * ({@link callLlmTeachBackEvaluator}) проти decision-request. `understood:
+ * false` — дописує спробу з фідбеком, `iterations++`, навчальний режим
+ * («право на глибину» — {@link layeredExplain}, той самий інваріант, що
+ * Q&A-квіз); `understood: true` — фіналізує teach-back-файл
+ * (`time_to_understanding_sec`), дописує особисту базу знань, відкриває
+ * шлях до підпису. Ендпоінт недоступний (`callLlmTeachBackEvaluator`
+ * повертає `null`) — `available: false`, ЧЕСНА відмова
+ * ({@link TEACHBACK_UNAVAILABLE_MESSAGE}): нічого не пишеться на диск
+ * (спроба НЕ рахується — недоступність моделі не має коштувати iterations
+ * власнику), рішення лишається відкритим.
+ * @param {object} params вхідні параметри
+ * @param {{readFile: (path: string) => Promise<string|null>, writeFile: (path: string, content: string) => Promise<void>}} params.io fs-транспорт decisions/
+ * @param {string} params.path абсолютний шлях до `NNNN-quiz.md`
+ * @param {object} params.decisionRequest розібраний decision-request
+ * @param {string} params.chosenOption обраний варіант (обов'язковий — оцінка teach-back звіряє переказ проти НЬОГО)
+ * @param {string} params.transcript переказ власника своїми словами
+ * @param {{baseUrl: string, model: string}} [params.llmConfig] адреса й модель LLM-ендпоінта
+ * @param {typeof fetch} [params.fetchImpl] ін'єкція fetch (тести)
+ * @param {() => Date} [params.now] ін'єкція годинника (тести)
+ * @param {{read: () => Promise<string|null>, write: (content: string) => Promise<void>}} [params.knowledgeIo] io бази знань
+ * @param {string} params.existingText сирий вміст teach-back-квіз-файлу (вже прочитаний викликачем)
+ * @returns {Promise<object>} результат спроби
+ */
+async function submitTeachBack({ io, path, decisionRequest, chosenOption, transcript, llmConfig, fetchImpl, now, knowledgeIo, existingText }) {
+  if (typeof transcript !== 'string' || !transcript.trim()) {
+    throw new Error('teach-back: потрібен непорожній transcript (переказ своїми словами) — decision_approve з полем transcript')
+  }
+
+  const domain = domainOf(decisionRequest)
+  const state = parseTeachBackFile(existingText)
+  const evaluation = await callLlmTeachBackEvaluator(llmConfig ?? defaultLlmConfig(), decisionRequest, chosenOption, transcript, fetchImpl)
+  if (!evaluation) {
+    return { correct: false, done: false, available: false, iterations: state.iterations ?? 0, message: TEACHBACK_UNAVAILABLE_MESSAGE, domain }
+  }
+
+  const attempts = [...state.attempts, { transcript, evaluation }]
+  const iterations = attempts.length
+
+  if (!evaluation.understood) {
+    const draft = { decisionRef: state.decisionRef, generatedBy: evaluation.generatedBy, shownAt: state.shownAt, iterations, attempts }
+    await io.writeFile(path, formatTeachBackFile(draft))
+    return {
+      correct: false,
+      done: false,
+      available: true,
+      iterations,
+      feedback: evaluation.feedback,
+      missingAspects: evaluation.missingAspects,
+      explain: layeredExplain(decisionRequest, iterations),
+      domain
+    }
+  }
+
+  const nowDate = now ? now() : new Date()
+  const shownAtMs = state.shownAt ? Date.parse(state.shownAt) : Date.now()
+  const timeToUnderstandingSec = Math.max(0, Math.round((nowDate.getTime() - shownAtMs) / 1000))
+  const finalState = { decisionRef: state.decisionRef, generatedBy: evaluation.generatedBy, iterations, timeToUnderstandingSec, attempts }
+  await io.writeFile(path, formatTeachBackFile(finalState))
+
+  const baseEntries = await loadKnowledgeEntries(knowledgeIo)
+  const withNewEntry = appendKnowledgeEntry(baseEntries, {
+    decisionRef: state.decisionRef,
+    domain,
+    question: 'teach-back: переказ рішення власними словами',
+    options: null,
+    correctAnswer: null,
+    microlesson: evaluation.feedback,
+    iterations,
+    timeToUnderstandingSec,
+    completedAt: nowDate.toISOString()
+  })
+  await saveKnowledgeEntries(knowledgeIo, withNewEntry)
+
+  return { correct: true, done: true, available: true, iterations, quiz: finalState, feedback: evaluation.feedback, domain }
+}
+
+/**
  * Проводить квіз-відповідь на АКТИВНЕ (перше нездане) питання квізу:
  * неправильна — дописує нову спробу того самого питання (перефразовану
  * LLM-ом, якщо `llmConfig`/`fetchImpl` і `chosenOption` дано й ендпоінт
@@ -282,26 +426,34 @@ export async function decisionQuiz({ io, decisionsDir, nnnn, chosenOption, llmCo
  * підпис ще недоступний), або, якщо це було останнє питання, фіналізує
  * квіз-файл (`iterations`, `time_to_understanding_sec`, `done: true`),
  * дописує запис у базу знань і відкриває шлях до підпису.
+ * `depth: teach-back` (M5) делегує {@link submitTeachBack} — інша форма
+ * входу (`transcript`, не `answer`) і результату (`available`, `feedback`,
+ * `missingAspects`, не `options`/`questionIndex`).
  * @param {object} params вхідні параметри
  * @param {{readFile: (path: string) => Promise<string|null>, writeFile: (path: string, content: string) => Promise<void>}} params.io fs-транспорт decisions/
  * @param {string} params.decisionsDir абсолютний шлях до директорії `decisions/`
  * @param {string} params.nnnn чотиризначний номер
- * @param {number|string} params.answer індекс (0-based) або точний текст обраної відповіді
- * @param {string} [params.chosenOption] обраний варіант decision-request (для перефразування питання на ретраї)
- * @param {{baseUrl: string, model: string}} [params.llmConfig] адреса й модель LLM-ендпоінта (перефразування)
+ * @param {number|string} [params.answer] індекс (0-based) або точний текст обраної відповіді (Q&A-глибини)
+ * @param {string} [params.transcript] переказ власника своїми словами (`depth: teach-back`)
+ * @param {string} [params.chosenOption] обраний варіант decision-request (перефразування на ретраї Q&A; ОБОВ'ЯЗКОВИЙ для teach-back)
+ * @param {{baseUrl: string, model: string}} [params.llmConfig] адреса й модель LLM-ендпоінта
  * @param {typeof fetch} [params.fetchImpl] ін'єкція fetch (тести)
  * @param {() => Date} [params.now] ін'єкція годинника (тести)
  * @param {{read: () => Promise<string|null>, write: (content: string) => Promise<void>}} [params.knowledgeIo] io бази знань
- * @returns {Promise<object>} результат спроби (форма різна для `correct`/`done` — див. тіло функції)
+ * @returns {Promise<object>} результат спроби (форма різна для `correct`/`done`/`depth` — див. тіло функції)
  */
-export async function submitQuizAnswer({ io, decisionsDir, nnnn, answer, chosenOption, llmConfig, fetchImpl, now, knowledgeIo }) {
+export async function submitQuizAnswer({ io, decisionsDir, nnnn, answer, transcript, chosenOption, llmConfig, fetchImpl, now, knowledgeIo }) {
   await assertDecisionOpen(io, decisionsDir, nnnn)
   const path = quizPath(decisionsDir, nnnn)
   const existingText = await io.readFile(path)
   if (!existingText) throw new Error(`квіз для ${nnnn} ще не згенеровано — виклич decision_quiz спершу`)
 
+  const { decisionRequest, depth } = await loadSupportedDecisionRequest(io, decisionsDir, nnnn)
+  if (depth === 'teach-back') {
+    return submitTeachBack({ io, path, decisionRequest, chosenOption, transcript, llmConfig, fetchImpl, now, knowledgeIo, existingText })
+  }
+
   const quiz = parseQuizFile(existingText)
-  const { decisionRequest } = await loadSupportedDecisionRequest(io, decisionsDir, nnnn)
   const domain = domainOf(decisionRequest)
 
   const resolvedCount = quiz.resolvedCount ?? 0
@@ -452,13 +604,14 @@ export async function submitQuizAnswer({ io, decisionsDir, nnnn, answer, chosenO
  * @param {string} params.runId run-id (для `request_id`)
  * @param {string} params.nnnn чотиризначний номер
  * @param {string} params.chosenOption обраний варіант decision-request (label)
- * @param {number|string} params.answer квіз-відповідь (індекс або текст)
+ * @param {number|string} [params.answer] квіз-відповідь (індекс або текст, Q&A-глибини)
+ * @param {string} [params.transcript] переказ власника своїми словами (`depth: teach-back`, M5)
  * @param {{privateKeyJwk: object, publicKeyBase64: string}} params.deviceKey ключ пристрою підписанта
- * @param {{baseUrl: string, model: string}} [params.llmConfig] адреса й модель LLM-ендпоінта (перефразування на ретраї)
+ * @param {{baseUrl: string, model: string}} [params.llmConfig] адреса й модель LLM-ендпоінта (перефразування на ретраї / teach-back-оцінка)
  * @param {typeof fetch} [params.fetchImpl] ін'єкція fetch (тести)
  * @param {() => Date} [params.now] ін'єкція годинника (тести)
  * @param {{read: () => Promise<string|null>, write: (content: string) => Promise<void>}} [params.knowledgeIo] io бази знань
- * @returns {Promise<object>} результат — `{approved, correct, done, iterations, ...}`
+ * @returns {Promise<object>} результат — `{approved, correct, done, iterations, ...}` (`available: false` — teach-back недоступний, ЧЕСНА відмова)
  */
 export async function decisionApprove({
   io,
@@ -467,13 +620,17 @@ export async function decisionApprove({
   nnnn,
   chosenOption,
   answer,
+  transcript,
   deviceKey,
   llmConfig,
   fetchImpl,
   now,
   knowledgeIo
 }) {
-  const result = await submitQuizAnswer({ io, decisionsDir, nnnn, answer, chosenOption, llmConfig, fetchImpl, now, knowledgeIo })
+  const result = await submitQuizAnswer({ io, decisionsDir, nnnn, answer, transcript, chosenOption, llmConfig, fetchImpl, now, knowledgeIo })
+  if (result.available === false) {
+    return { approved: false, correct: false, done: false, available: false, iterations: result.iterations, message: result.message, domain: result.domain }
+  }
   if (!result.correct) {
     return {
       approved: false,
@@ -485,7 +642,9 @@ export async function decisionApprove({
       domain: result.domain,
       questionIndex: result.questionIndex,
       questionCount: result.questionCount,
-      repetition: result.repetition
+      repetition: result.repetition,
+      feedback: result.feedback,
+      missingAspects: result.missingAspects
     }
   }
   if (!result.done) {
@@ -522,6 +681,7 @@ export async function decisionApprove({
     approval,
     approvalPath: approvalFilePath,
     microlesson: result.microlesson,
+    feedback: result.feedback,
     domain: result.domain
   }
 }

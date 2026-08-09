@@ -381,6 +381,135 @@ export async function rephraseQuestion({ llmConfig, decisionRequest, chosenOptio
   }
 }
 
+// M5 (docs/specs/260809-delta-app.md, «Обсяг M5», п.1) — `depth: teach-back`,
+// найвища глибина квіз-гейта (mandates.md: «irreversible + широкий
+// blast_radius → teach-back: власник переказує рішення і наслідки своїми
+// словами, агент оцінює переказ»). Механіка ПРИНЦИПОВО інша за Q&A-квіз вище
+// (one-tap/standard): немає варіантів відповіді — власник пише ВІЛЬНИЙ ТЕКСТ
+// (переказ), локальна модель оцінює ПОКРИТТЯ чотирьох аспектів (суть
+// розвилки, обраний варіант, головний наслідок, головний ризик), не звіряє з
+// заданою правильною відповіддю. Тому teach-back має ВЛАСНИЙ формат
+// квіз-файлу (`formatTeachBackFile`/`parseTeachBackFile`) — та сама
+// frontmatter-шапка (`schema_version`/`decision_ref`/`depth`/`generated_by`/
+// `iterations`/`shown_at`/`time_to_understanding_sec`), інше тіло:
+// «## Переказ (teach-back)» + транскрипт + «### Оцінка локальної моделі» —
+// точний контракт задачі M5.
+//
+// **Немає детермінованого фолбека, свідомо** (задокументоване рішення M5,
+// відмінне від one-tap/standard): оцінка ПОКРИТТЯ вільного тексту
+// принципово потребує LLM — детермінований фолбек із самих полів
+// decision-request не може «прочитати» переказ людини. LLM недоступний →
+// {@link callLlmTeachBackEvaluator} повертає `null`, `decision-flow.js`/
+// `quorum.js` повертають ЧЕСНУ відмову ({@link TEACHBACK_UNAVAILABLE_MESSAGE})
+// замість підміни глибини на `standard` — незворотне без доведеного
+// розуміння не підписується (конституція п.2, «квіз — насамперед навчання»,
+// і директорська модель п.4: «остання константа» не має шляху повз доведене
+// розуміння).
+
+const TEACHBACK_PROMPT =
+  'Перекажи своїми словами: що саме ти підписуєш і що станеться. Включи: обраний варіант, головний ' +
+  'наслідок цього вибору і головний ризик рішення.'
+
+const TEACHBACK_SYSTEM_PROMPT =
+  'Ти оцінюєш ПЕРЕКАЗ (teach-back) розвилки системи «Дельта» (mt mandates.md, «Квіз-гейт») — власник ' +
+  'переказав своїми словами, що підписує, ПЕРЕД незворотним рішенням. Перевір, чи переказ ПО СУТІ покриває ' +
+  'чотири аспекти: (1) суть розвилки, (2) обраний варіант, (3) головний наслідок обраного варіанта, ' +
+  '(4) головний ризик рішення. Не суди стиль, граматику чи довжину переказу — лише покриття цих аспектів по ' +
+  'суті; перефразування своїми словами зараховується як покриття. Поверни СТРОГО JSON без пояснень поза ним: ' +
+  '{"understood": boolean, "missingAspects": string[], "feedback": string}. missingAspects — підмножина ' +
+  '["суть розвилки","обраний варіант","головний наслідок","головний ризик"], порожній масив коли ' +
+  'understood: true. feedback — 1-2 речення: що саме пропущено (understood: false), або коротке ' +
+  'підтвердження розуміння (understood: true).'
+
+/**
+ * @returns {string} текст-підказка для UI/CLI («перекажи, що підписуєш і що станеться»)
+ */
+export function teachBackPromptText() {
+  return TEACHBACK_PROMPT
+}
+
+export const TEACHBACK_UNAVAILABLE_MESSAGE =
+  'teach-back недоступний без локальної моделі — рішення лишається відкритим. Незворотне рішення не ' +
+  'підписується без доведеного розуміння (mandates.md: «irreversible → teach-back»); фолбек на нижчу ' +
+  'глибину квізу тут свідомо НЕ застосовується (docs/specs/260809-delta-app.md, «Обсяг M5», п.1).'
+
+/**
+ * Формує user-промпт для оцінки переказу — той самий контекст, що
+ * {@link buildQuizPrompt}, плюс сам переказ власника.
+ * @param {object} decisionRequest розібраний decision-request
+ * @param {string} chosenOption обраний варіант (label)
+ * @param {string} transcript переказ власника своїми словами
+ * @returns {string} промпт для оцінювача
+ */
+export function buildTeachBackEvalPrompt(decisionRequest, chosenOption, transcript) {
+  return `${buildQuizPrompt(decisionRequest, chosenOption)}\n\n## Переказ власника (teach-back)\n${transcript}`
+}
+
+const TEACHBACK_ASPECTS = new Set(['суть розвилки', 'обраний варіант', 'головний наслідок', 'головний ризик'])
+
+/**
+ * @param {unknown} payload розпарсений JSON від оцінювача
+ * @returns {boolean} true — форма валідна
+ */
+function isValidTeachBackPayload(payload) {
+  return Boolean(
+    payload &&
+    typeof payload.understood === 'boolean' &&
+    Array.isArray(payload.missingAspects) &&
+    payload.missingAspects.every(a => typeof a === 'string' && TEACHBACK_ASPECTS.has(a)) &&
+    typeof payload.feedback === 'string' &&
+    payload.feedback.trim()
+  )
+}
+
+/**
+ * Викликає локальний ендпоінт для ОЦІНКИ переказу (не генерації питання —
+ * teach-back немає питання, лише вільний текст власника проти
+ * decision-request). Той самий контракт помилок, що {@link callLlmQuizGenerator}:
+ * мережева/парсингова помилка, недоступний ендпоінт, чи невалідна форма
+ * відповіді повертає `null`, НЕ кидає — але, на відміну від Q&A-квізу, `null`
+ * тут означає «teach-back недоступний», а НЕ «перейти на фолбек» (заголовок
+ * секції вище — свідомо немає детермінованого фолбека).
+ * @param {{baseUrl: string, model: string}} llmConfig адреса й модель ендпоінта
+ * @param {object} decisionRequest розібраний decision-request
+ * @param {string} chosenOption обраний варіант
+ * @param {string} transcript переказ власника
+ * @param {typeof fetch} [fetchImpl] ін'єкція fetch (тести)
+ * @returns {Promise<{understood: boolean, missingAspects: string[], feedback: string, generatedBy: string}|null>}
+ *   оцінка, або `null` — ендпоінт недоступний/відповідь невалідна
+ */
+export async function callLlmTeachBackEvaluator(llmConfig, decisionRequest, chosenOption, transcript, fetchImpl = fetch) {
+  const config = llmConfig ?? defaultLlmConfig()
+  try {
+    const response = await fetchImpl(`${config.baseUrl.replace(TRAILING_SLASH_RE, '')}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: config.model,
+        temperature: 0.1,
+        messages: [
+          { role: 'system', content: TEACHBACK_SYSTEM_PROMPT },
+          { role: 'user', content: buildTeachBackEvalPrompt(decisionRequest, chosenOption, transcript) }
+        ]
+      })
+    })
+    if (!response.ok) return null
+    const data = await response.json()
+    const raw = data?.choices?.[0]?.message?.content
+    if (typeof raw !== 'string') return null
+    const parsed = JSON.parse(raw)
+    if (!isValidTeachBackPayload(parsed)) return null
+    return {
+      understood: parsed.understood,
+      missingAspects: parsed.missingAspects,
+      feedback: parsed.feedback.trim(),
+      generatedBy: `teachback-eval-${config.model}`
+    }
+  } catch {
+    return null
+  }
+}
+
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/
 const HEADING_RE = /^## Питання (\d+)(?: \(([^)]*)\))?$/
 const ATTEMPT_NUM_RE = /спроба (\d+)/
@@ -562,5 +691,135 @@ export function parseQuizFile(text) {
     iterations: fields.iterations === undefined ? null : Number(fields.iterations),
     attempts,
     questions
+  }
+}
+
+const TEACHBACK_BLOCK_SPLIT_RE = /\r?\n(?=## Переказ \(teach-back\))/
+const TEACHBACK_HEADING_RE = /^## Переказ \(teach-back\)(?: \(спроба (\d+)\))?$/
+const TEACHBACK_VERDICT_SECTION_RE = /### Оцінка локальної моделі\r?\n([\s\S]*?)$/
+const TEACHBACK_TRANSCRIPT_RE = /^([\s\S]*?)(?:\r?\n\r?\n### Оцінка локальної моделі)/
+const UNDERSTOOD_LINE_RE = /^Зрозумів: (так|ні)$/m
+const MISSING_LINE_RE = /^Пропущено: (.*)$/m
+
+/**
+ * @param {number} attemptIndex 0-based номер спроби (переказу)
+ * @returns {string} заголовок `## Переказ (teach-back) ...` — той самий підхід форматування номера спроби, що {@link formatHeading}
+ */
+function formatTeachBackHeading(attemptIndex) {
+  return attemptIndex > 0 ? `## Переказ (teach-back) (спроба ${attemptIndex + 1})` : '## Переказ (teach-back)'
+}
+
+/**
+ * @param {{understood: boolean, missingAspects: string[], feedback: string}} evaluation оцінка локальної моделі
+ * @returns {string} тіло секції `### Оцінка локальної моделі`
+ */
+function formatTeachBackVerdict(evaluation) {
+  const missingLine = evaluation.missingAspects.length > 0 ? evaluation.missingAspects.join(', ') : 'немає'
+  return [`Зрозумів: ${evaluation.understood ? 'так' : 'ні'}`, `Пропущено: ${missingLine}`, evaluation.feedback].join(
+    '\n'
+  )
+}
+
+/**
+ * Серіалізує стан teach-back-квізу в markdown — контракт задачі M5: «##
+ * Переказ (teach-back)» з транскриптом + «### Оцінка локальної моделі» з
+ * вердиктом, для КОЖНОЇ спроби (перша неправильна спроба лишається в
+ * файлі — той самий інваріант «фейл ≠ покарання», що {@link formatQuizFile}).
+ * @param {{decisionRef: string, generatedBy: string, iterations: number, shownAt?: string|null,
+ *   timeToUnderstandingSec?: number|null, attempts: {transcript: string, evaluation: {understood: boolean, missingAspects: string[], feedback: string}}[]}} state
+ *   teach-back-стан
+ * @returns {string} markdown-текст квіз-файлу
+ */
+export function formatTeachBackFile(state) {
+  const lines = [
+    '---',
+    'schema_version: 1',
+    'type: quiz',
+    `decision_ref: ${state.decisionRef}`,
+    'depth: teach-back',
+    `generated_by: ${state.generatedBy}`
+  ]
+  if (state.shownAt) lines.push(`shown_at: ${state.shownAt}`)
+  if (typeof state.timeToUnderstandingSec === 'number')
+    lines.push(`time_to_understanding_sec: ${state.timeToUnderstandingSec}`)
+  lines.push(`iterations: ${state.iterations}`, '---', '')
+
+  const body = state.attempts
+    .map((a, i) =>
+      [formatTeachBackHeading(i), a.transcript, '', '### Оцінка локальної моделі', formatTeachBackVerdict(a.evaluation), '']
+        .join('\n')
+    )
+    .join('\n')
+
+  return `${lines.join('\n')}\n${body}`
+}
+
+/**
+ * Розбирає teach-back-квіз-файл назад у структурований стан — той самий
+ * frontmatter-парсинг, що {@link parseQuizFile}, тіло — власний формат
+ * («## Переказ (teach-back)» блоки, не «## Питання N»).
+ * @param {string} text markdown-текст teach-back-квіз-файлу
+ * @returns {{schemaVersion: number|null, type: string|null, decisionRef: string|null, depth: string|null,
+ *   generatedBy: string|null, shownAt: string|null, timeToUnderstandingSec: number|null, iterations: number|null,
+ *   attempts: {attempt: number, transcript: string, evaluation: {understood: boolean|null, missingAspects: string[], feedback: string}}[]}}
+ *   розібраний teach-back-стан
+ */
+export function parseTeachBackFile(text) {
+  const match = FRONTMATTER_RE.exec(text ?? '')
+  const raw = match ? match[1] : ''
+  const body = match ? match[2] : (text ?? '')
+
+  const fields = Object.fromEntries(
+    raw
+      .split(NEWLINE_RE)
+      .filter(Boolean)
+      .map(line => {
+        const idx = line.indexOf(':')
+        return [line.slice(0, idx).trim(), line.slice(idx + 1).trim()]
+      })
+  )
+
+  const blocks = body.split(TEACHBACK_BLOCK_SPLIT_RE).filter(b => b.trim())
+  const attempts = blocks.map((block, blockIndex) => {
+    const lines = block.split(NEWLINE_RE)
+    const headingMatch = TEACHBACK_HEADING_RE.exec(lines[0].trim())
+    const rest = lines.slice(1).join('\n')
+    const transcriptMatch = TEACHBACK_TRANSCRIPT_RE.exec(rest)
+    const verdictMatch = TEACHBACK_VERDICT_SECTION_RE.exec(rest)
+    const verdictBody = verdictMatch ? verdictMatch[1] : ''
+    const understoodMatch = UNDERSTOOD_LINE_RE.exec(verdictBody)
+    const missingMatch = MISSING_LINE_RE.exec(verdictBody)
+    const missingRaw = missingMatch ? missingMatch[1].trim() : ''
+    const feedback = verdictBody
+      .split(NEWLINE_RE)
+      .slice(2)
+      .join('\n')
+      .trim()
+    return {
+      attempt: headingMatch?.[1] ? Number(headingMatch[1]) : blockIndex + 1,
+      transcript: (transcriptMatch ? transcriptMatch[1] : rest).trim(),
+      // `evaluation` — вкладено (не сплощено), той самий вхід, що очікує
+      // {@link formatTeachBackFile} — round-trip `format(parse(text))` без
+      // додаткового ремаппінгу форми на боці викликача (decision-flow.js/
+      // quorum.js дописують нову спробу до `state.attempts` напряму).
+      evaluation: {
+        understood: understoodMatch ? understoodMatch[1] === 'так' : null,
+        missingAspects: missingRaw && missingRaw !== 'немає' ? missingRaw.split(', ').filter(Boolean) : [],
+        feedback
+      }
+    }
+  })
+
+  return {
+    schemaVersion: fields.schema_version === undefined ? null : Number(fields.schema_version),
+    type: fields.type ?? null,
+    decisionRef: fields.decision_ref ?? null,
+    depth: fields.depth ?? null,
+    generatedBy: fields.generated_by ?? null,
+    shownAt: fields.shown_at ?? null,
+    timeToUnderstandingSec:
+      fields.time_to_understanding_sec === undefined ? null : Number(fields.time_to_understanding_sec),
+    iterations: fields.iterations === undefined ? null : Number(fields.iterations),
+    attempts
   }
 }

@@ -15,6 +15,10 @@ const DR_STANDARD_TEXT = readFileSync(
   join(import.meta.dirname, 'fixtures/runs/demo-1/decisions/0002-decision-request.md'),
   'utf8'
 )
+const DR_TEACHBACK_TEXT = readFileSync(
+  join(import.meta.dirname, 'fixtures/runs/demo-1/decisions/0003-decision-request.md'),
+  'utf8'
+)
 
 const SHOWN_AT_PREFIX_RE = /shown_at:/
 const SHOWN_AT_FIELD_RE = /shown_at/
@@ -26,6 +30,13 @@ const ANSWER_SECTION_RE = /### Відповідь\n([\s\S]*?)\n\n### Мікро�
 const TIME_TO_UNDERSTANDING_FIELD_RE = /time_to_understanding_sec: 47/
 const QUESTION_2_REPETITION_RE = /## Питання 2 \(повторення\)/
 const CLOSED_ERROR_RE = /вже закрите/
+const DEPTH_TEACHBACK_FIELD_RE = /depth: teach-back/
+const TEACHBACK_UNAVAILABLE_MENTION_RE = /недоступний без локальної моделі/
+const TRANSCRIPT_REQUIRED_RE = /потрібен непорожній transcript/
+const TEACHBACK_HEADING_RE = /## Переказ \(teach-back\)/
+const TEACHBACK_ATTEMPT1_RE = /## Переказ \(teach-back\)\nкоротко/
+const TEACHBACK_ATTEMPT2_RE = /## Переказ \(teach-back\) \(спроба 2\)/
+const TIME_TO_UNDERSTANDING_MENTION_RE = /time_to_understanding_sec/
 const CONTEXT_MENTION_RE = /MandateCard\.vue/
 const OPTIONS_MENTION_RE = /MandateChipRow/
 const RECOMMENDATION_MENTION_RE = /Варіант B/
@@ -585,5 +596,147 @@ describe('depth: standard — 2 питання про саму розвилку 
     expect(result.correct).toBe(false)
     expect(result.explain).toHaveLength(1)
     expect(io.store.has(`${standardDecisionsDir}/0002-approval.json`)).toBe(false)
+  })
+})
+
+/**
+ * @param {{understood: boolean, missingAspects?: string[], feedback?: string}} verdict бажаний вердикт оцінки
+ * @returns {ReturnType<typeof vi.fn>} мок fetch, що повертає ОДНУ LLM-відповідь оцінки teach-back
+ */
+function teachBackFetch({ understood, missingAspects = [], feedback = 'ок' }) {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => ({ choices: [{ message: { content: JSON.stringify({ understood, missingAspects, feedback }) } }] })
+  })
+}
+
+describe('teach-back — depth: teach-back одноосібного шляху (M5, blast_radius: company + irreversible: false)', () => {
+  const TEACHBACK_DIR = '/root/runs/demo-1/decisions'
+
+  it('decisionQuiz — перший виклик пише порожню чернетку з shown_at, повертає prompt (не question)', async () => {
+    const io = memoryIo({ [`${TEACHBACK_DIR}/0003-decision-request.md`]: DR_TEACHBACK_TEXT })
+    const result = await decisionQuiz({ io, decisionsDir: TEACHBACK_DIR, nnnn: '0003', chosenOption: 'A' })
+    expect(result.depth).toBe('teach-back')
+    expect(result.prompt).toBeTruthy()
+    expect(result.iterations).toBe(0)
+    expect(io.store.get(`${TEACHBACK_DIR}/0003-quiz.md`)).toMatch(SHOWN_AT_PREFIX_RE)
+    expect(io.store.get(`${TEACHBACK_DIR}/0003-quiz.md`)).toMatch(DEPTH_TEACHBACK_FIELD_RE)
+  })
+
+  it('submitQuizAnswer — LLM недоступний: available false, ЧЕСНА відмова, нічого не пишеться, спроба не рахується', async () => {
+    const io = memoryIo({ [`${TEACHBACK_DIR}/0003-decision-request.md`]: DR_TEACHBACK_TEXT })
+    await decisionQuiz({ io, decisionsDir: TEACHBACK_DIR, nnnn: '0003', chosenOption: 'A' })
+    const before = io.store.get(`${TEACHBACK_DIR}/0003-quiz.md`)
+    const result = await submitQuizAnswer({
+      io,
+      decisionsDir: TEACHBACK_DIR,
+      nnnn: '0003',
+      chosenOption: 'A',
+      transcript: 'переказ',
+      fetchImpl: REJECTING_FETCH
+    })
+    expect(result.correct).toBe(false)
+    expect(result.available).toBe(false)
+    expect(result.message).toMatch(TEACHBACK_UNAVAILABLE_MENTION_RE)
+    expect(io.store.get(`${TEACHBACK_DIR}/0003-quiz.md`)).toBe(before)
+  })
+
+  it('кидає без transcript', async () => {
+    const io = memoryIo({ [`${TEACHBACK_DIR}/0003-decision-request.md`]: DR_TEACHBACK_TEXT })
+    await decisionQuiz({ io, decisionsDir: TEACHBACK_DIR, nnnn: '0003', chosenOption: 'A' })
+    await expect(
+      submitQuizAnswer({ io, decisionsDir: TEACHBACK_DIR, nnnn: '0003', chosenOption: 'A', fetchImpl: REJECTING_FETCH })
+    ).rejects.toThrow(TRANSCRIPT_REQUIRED_RE)
+  })
+
+  it('understood: false — навчальний режим (explain), iterations++, approval НЕ пишеться', async () => {
+    const io = memoryIo({ [`${TEACHBACK_DIR}/0003-decision-request.md`]: DR_TEACHBACK_TEXT })
+    await decisionQuiz({ io, decisionsDir: TEACHBACK_DIR, nnnn: '0003', chosenOption: 'A' })
+    const result = await decisionApprove({
+      io,
+      decisionsDir: TEACHBACK_DIR,
+      runId: 'demo-1',
+      nnnn: '0003',
+      chosenOption: 'A',
+      transcript: 'коротко',
+      deviceKey: await generateDeviceKeypair(),
+      fetchImpl: teachBackFetch({ understood: false, missingAspects: ['головний ризик'], feedback: 'бракує ризику' })
+    })
+    expect(result.approved).toBe(false)
+    expect(result.correct).toBe(false)
+    expect(result.feedback).toBe('бракує ризику')
+    expect(result.missingAspects).toEqual(['головний ризик'])
+    expect(result.explain).toHaveLength(1) // 1-й фейл — лише «## Контекст», той самий інваріант, що Q&A-квіз
+    expect(io.store.has(`${TEACHBACK_DIR}/0003-approval.json`)).toBe(false)
+    expect(io.store.get(`${TEACHBACK_DIR}/0003-quiz.md`)).toMatch(TEACHBACK_HEADING_RE)
+  })
+
+  it('understood: true — фіналізує, підписує, дописує особисту базу знань', async () => {
+    const io = memoryIo({ [`${TEACHBACK_DIR}/0003-decision-request.md`]: DR_TEACHBACK_TEXT })
+    const knowledgeIo = memoryKnowledgeIo()
+    await decisionQuiz({ io, decisionsDir: TEACHBACK_DIR, nnnn: '0003', chosenOption: 'A' })
+    const { privateKeyJwk, publicKeyBase64 } = await generateDeviceKeypair()
+    const result = await decisionApprove({
+      io,
+      decisionsDir: TEACHBACK_DIR,
+      runId: 'demo-1',
+      nnnn: '0003',
+      chosenOption: 'A',
+      transcript: 'Обираю варіант A (чотириденний тиждень), головний наслідок — вища залученість, головний ризик — SLA на перехідний період.',
+      deviceKey: { privateKeyJwk, publicKeyBase64 },
+      knowledgeIo,
+      fetchImpl: teachBackFetch({ understood: true, feedback: 'Переказ покриває всі аспекти.' })
+    })
+    expect(result.approved).toBe(true)
+    expect(result.done).toBe(true)
+    expect(await verifyApproval(result.approval)).toBe(true)
+    expect(io.store.has(`${TEACHBACK_DIR}/0003-approval.json`)).toBe(true)
+
+    const entries = knowledgeIo.entries()
+    expect(entries).toHaveLength(1)
+    expect(entries[0].domain).toBe('process')
+    expect(entries[0].microlesson).toBe('Переказ покриває всі аспекти.')
+  })
+
+  it('не зрозумів → новий переказ зрозумілий — друга спроба фіналізує teach-back-файл з обома спробами', async () => {
+    const io = memoryIo({ [`${TEACHBACK_DIR}/0003-decision-request.md`]: DR_TEACHBACK_TEXT })
+    await decisionQuiz({ io, decisionsDir: TEACHBACK_DIR, nnnn: '0003', chosenOption: 'A' })
+    await decisionApprove({
+      io,
+      decisionsDir: TEACHBACK_DIR,
+      runId: 'demo-1',
+      nnnn: '0003',
+      chosenOption: 'A',
+      transcript: 'коротко',
+      deviceKey: await generateDeviceKeypair(),
+      fetchImpl: teachBackFetch({ understood: false, missingAspects: ['головний ризик'], feedback: 'бракує ризику' })
+    })
+    const deviceKey = await generateDeviceKeypair()
+    const result = await decisionApprove({
+      io,
+      decisionsDir: TEACHBACK_DIR,
+      runId: 'demo-1',
+      nnnn: '0003',
+      chosenOption: 'A',
+      transcript: 'Тепер повний переказ з наслідком і ризиком.',
+      deviceKey,
+      fetchImpl: teachBackFetch({ understood: true })
+    })
+    expect(result.approved).toBe(true)
+    expect(result.iterations).toBe(2)
+    const finalText = io.store.get(`${TEACHBACK_DIR}/0003-quiz.md`)
+    expect(finalText).toMatch(TEACHBACK_ATTEMPT1_RE)
+    expect(finalText).toMatch(TEACHBACK_ATTEMPT2_RE)
+    expect(finalText).toMatch(TIME_TO_UNDERSTANDING_MENTION_RE)
+  })
+
+  it('рішення вже закрите — подальші виклики кидають (термінальний approval)', async () => {
+    const io = memoryIo({
+      [`${TEACHBACK_DIR}/0003-decision-request.md`]: DR_TEACHBACK_TEXT,
+      [`${TEACHBACK_DIR}/0003-approval.json`]: '{"approved":true}'
+    })
+    await expect(decisionQuiz({ io, decisionsDir: TEACHBACK_DIR, nnnn: '0003', chosenOption: 'A' })).rejects.toThrow(
+      CLOSED_ERROR_RE
+    )
   })
 })

@@ -20,8 +20,23 @@ const NOT_IRREVERSIBLE_RE = /кворум-конвеєр/
 const NOT_APPROVER_RE = /не входить до approvers/
 const ALREADY_SIGNED_RE = /уже підписав/
 const NOT_GENERATED_RE = /ще не згенеровано/
+const TRANSCRIPT_REQUIRED_RE = /потрібен непорожній transcript/
+const DEPTH_TEACHBACK_FIELD_RE = /depth: teach-back/
+const UNAVAILABLE_MESSAGE_RE = /недоступний без локальної моделі/
+const TEACHBACK_HEADING_RE = /## Переказ \(teach-back\)/
 
 const REJECTING_FETCH = vi.fn().mockRejectedValue(new Error('no network in tests'))
+
+/**
+ * @param {{understood: boolean, missingAspects?: string[], feedback?: string}} verdict бажаний вердикт оцінки
+ * @returns {ReturnType<typeof vi.fn>} мок fetch, що повертає ОДНУ LLM-відповідь оцінки teach-back
+ */
+function teachBackFetch({ understood, missingAspects = [], feedback = 'ок' }) {
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    json: () => ({ choices: [{ message: { content: JSON.stringify({ understood, missingAspects, feedback }) } }] })
+  })
+}
 
 /**
  * @param {object} [seed] початковий вміст сховища
@@ -43,90 +58,42 @@ describe('quorumQuiz', () => {
   it('кидає для НЕ-irreversible decision-request — кворум лише для irreversible', async () => {
     const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_REVERSIBLE })
     await expect(
-      quorumQuiz({
-        io,
-        decisionsDir: DECISIONS_DIR,
-        nnnn: '0001',
-        signerHandle: 'olena',
-        chosenOption: 'B',
-        fetchImpl: REJECTING_FETCH
-      })
+      quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena' })
     ).rejects.toThrow(NOT_IRREVERSIBLE_RE)
   })
 
   it('кидає, коли signerHandle не входить до approvers', async () => {
     const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_IRREVERSIBLE })
     await expect(
-      quorumQuiz({
-        io,
-        decisionsDir: DECISIONS_DIR,
-        nnnn: '0001',
-        signerHandle: 'fable-5',
-        chosenOption: 'A',
-        fetchImpl: REJECTING_FETCH
-      })
+      quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'fable-5' })
     ).rejects.toThrow(NOT_APPROVER_RE)
   })
 
-  it('перший виклик генерує 2 standard-питання (форсована depth), пише ВЛАСНИЙ квіз-файл підписанта', async () => {
+  it('перший виклик пише ВЛАСНИЙ teach-back-квіз-файл підписанта (depth: teach-back, M5)', async () => {
     const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_IRREVERSIBLE })
-    const result = await quorumQuiz({
-      io,
-      decisionsDir: DECISIONS_DIR,
-      nnnn: '0001',
-      signerHandle: 'olena',
-      chosenOption: 'A',
-      fetchImpl: REJECTING_FETCH
-    })
-    expect(result.depth).toBe('standard')
-    expect(result.questionCount).toBe(2)
-    expect(result.questionIndex).toBe(1)
+    const result = await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena' })
+    expect(result.depth).toBe('teach-back')
+    expect(result.prompt).toBeTruthy()
     expect(result.signerHandle).toBe('olena')
+    expect(result.iterations).toBe(0)
     expect(io.store.has(`${DECISIONS_DIR}/0001-quiz-olena.md`)).toBe(true)
+    expect(io.store.get(`${DECISIONS_DIR}/0001-quiz-olena.md`)).toMatch(DEPTH_TEACHBACK_FIELD_RE)
     // Vitalii — окремий підписант, окремий (ще не написаний) квіз-файл.
     expect(io.store.has(`${DECISIONS_DIR}/0001-quiz-vitalii.md`)).toBe(false)
   })
 
-  it('повторний виклик показує ТЕ САМЕ активне питання, не регенерує', async () => {
+  it('повторний виклик показує ТУ САМУ підказку без повторної генерації', async () => {
     const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_IRREVERSIBLE })
-    const first = await quorumQuiz({
-      io,
-      decisionsDir: DECISIONS_DIR,
-      nnnn: '0001',
-      signerHandle: 'olena',
-      chosenOption: 'A',
-      fetchImpl: REJECTING_FETCH
-    })
-    const second = await quorumQuiz({
-      io,
-      decisionsDir: DECISIONS_DIR,
-      nnnn: '0001',
-      signerHandle: 'olena',
-      chosenOption: 'A',
-      fetchImpl: REJECTING_FETCH
-    })
-    expect(second.question).toBe(first.question)
-    expect(second.options).toEqual(first.options)
+    const first = await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena' })
+    const second = await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena' })
+    expect(second.prompt).toBe(first.prompt)
+    expect(second.iterations).toBe(0)
   })
 
-  it('два підписанти отримують НЕЗАЛЕЖНІ квіз-файли одного decision-request', async () => {
+  it('два підписанти отримують НЕЗАЛЕЖНІ teach-back-файли одного decision-request', async () => {
     const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_IRREVERSIBLE })
-    await quorumQuiz({
-      io,
-      decisionsDir: DECISIONS_DIR,
-      nnnn: '0001',
-      signerHandle: 'olena',
-      chosenOption: 'A',
-      fetchImpl: REJECTING_FETCH
-    })
-    await quorumQuiz({
-      io,
-      decisionsDir: DECISIONS_DIR,
-      nnnn: '0001',
-      signerHandle: 'vitalii',
-      chosenOption: 'A',
-      fetchImpl: REJECTING_FETCH
-    })
+    await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena' })
+    await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'vitalii' })
     expect(io.store.has(`${DECISIONS_DIR}/0001-quiz-olena.md`)).toBe(true)
     expect(io.store.has(`${DECISIONS_DIR}/0001-quiz-vitalii.md`)).toBe(true)
   })
@@ -137,36 +104,30 @@ describe('quorumQuiz', () => {
       [`${DECISIONS_DIR}/0001-approval-olena.json`]: '{"chosen_option":"A"}'
     })
     await expect(
-      quorumQuiz({
-        io,
-        decisionsDir: DECISIONS_DIR,
-        nnnn: '0001',
-        signerHandle: 'olena',
-        chosenOption: 'A',
-        fetchImpl: REJECTING_FETCH
-      })
+      quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena' })
     ).rejects.toThrow(ALREADY_SIGNED_RE)
   })
 })
 
-describe('submitQuorumAnswer / quorumApprove — повний цикл одного підписанта', () => {
+describe('submitQuorumAnswer / quorumApprove — повний цикл одного підписанта (teach-back, M5)', () => {
   it('кидає, якщо квіз ще не згенеровано', async () => {
     const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_IRREVERSIBLE })
     await expect(
-      submitQuorumAnswer({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena', answer: 0 })
+      submitQuorumAnswer({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena', transcript: 'x', chosenOption: 'A' })
     ).rejects.toThrow(NOT_GENERATED_RE)
   })
 
-  it('неправильна відповідь — iterations++, мікроурок, approval НЕ пишеться', async () => {
+  it('кидає без transcript', async () => {
     const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_IRREVERSIBLE })
-    await quorumQuiz({
-      io,
-      decisionsDir: DECISIONS_DIR,
-      nnnn: '0001',
-      signerHandle: 'olena',
-      chosenOption: 'A',
-      fetchImpl: REJECTING_FETCH
-    })
+    await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena' })
+    await expect(
+      submitQuorumAnswer({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena', chosenOption: 'A' })
+    ).rejects.toThrow(TRANSCRIPT_REQUIRED_RE)
+  })
+
+  it('LLM недоступний — available: false, ЧЕСНА відмова, approval НЕ пишеться, спроба НЕ рахується', async () => {
+    const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_IRREVERSIBLE })
+    await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena' })
     const result = await quorumApprove({
       io,
       decisionsDir: DECISIONS_DIR,
@@ -174,72 +135,67 @@ describe('submitQuorumAnswer / quorumApprove — повний цикл одно�
       nnnn: '0001',
       signerHandle: 'olena',
       chosenOption: 'A',
-      answer: 'definitely not a real option',
+      transcript: 'Видаляємо базу постачальника без бекапу, незворотно.',
       deviceKey: await generateDeviceKeypair(),
       fetchImpl: REJECTING_FETCH
     })
     expect(result.approved).toBe(false)
-    expect(result.correct).toBe(false)
-    expect(result.microlesson).toBeTruthy()
+    expect(result.available).toBe(false)
+    expect(result.message).toMatch(UNAVAILABLE_MESSAGE_RE)
     expect(io.store.has(`${DECISIONS_DIR}/0001-approval-olena.json`)).toBe(false)
+    expect(io.store.get(`${DECISIONS_DIR}/0001-quiz-olena.md`)).not.toMatch(TEACHBACK_HEADING_RE)
+  })
+
+  it('не зрозумів (understood: false) — iterations++, фідбек+missingAspects, approval НЕ пишеться', async () => {
+    const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_IRREVERSIBLE })
+    await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle: 'olena' })
+    const result = await quorumApprove({
+      io,
+      decisionsDir: DECISIONS_DIR,
+      runId: 'demo-5',
+      nnnn: '0001',
+      signerHandle: 'olena',
+      chosenOption: 'A',
+      transcript: 'щось коротке',
+      deviceKey: await generateDeviceKeypair(),
+      fetchImpl: teachBackFetch({ understood: false, missingAspects: ['головний ризик'], feedback: 'бракує ризику' })
+    })
+    expect(result.approved).toBe(false)
+    expect(result.correct).toBe(false)
+    expect(result.feedback).toBe('бракує ризику')
+    expect(result.iterations).toBe(1)
+    expect(io.store.has(`${DECISIONS_DIR}/0001-approval-olena.json`)).toBe(false)
+    expect(io.store.get(`${DECISIONS_DIR}/0001-quiz-olena.md`)).toMatch(TEACHBACK_HEADING_RE)
   })
 
   it('2/2 однаковий chosen_option — обидва підписи незалежно верифіковані, deriveQuorumStatus → closed', async () => {
     const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_IRREVERSIBLE })
     const olenaKey = await generateDeviceKeypair()
-    const vitaliiKey = await generateDeviceKeypair() // «другий пристрій» — незалежний keypair, той самий патерн, що mandate-change.test.js: signAs
+    const vitaliiKey = await generateDeviceKeypair() // «другий пристрій» — незалежний keypair
 
     for (const { signerHandle, deviceKey } of [
       { signerHandle: 'olena', deviceKey: olenaKey },
       { signerHandle: 'vitalii', deviceKey: vitaliiKey }
     ]) {
-      // Проводимо квіз до кінця — правильна відповідь виводиться з файлу
-      // квізу самого підписанта (`### Відповідь` — quiz.js: parseQuizFile
-      // уже дає correctAnswer через options.indexOf, тут простіше прочитати
-      // сирий квіз-текст і знайти правильний варіант).
-      await quorumQuiz({
-        io,
-        decisionsDir: DECISIONS_DIR,
-        nnnn: '0001',
-        signerHandle,
-        chosenOption: 'A',
-        fetchImpl: REJECTING_FETCH
-      })
-      const quizText = io.store.get(`${DECISIONS_DIR}/0001-quiz-${signerHandle}.md`)
-      const correctAnswers = Array.from(quizText.matchAll(/### Відповідь\n(.+)/g), m => m[1])
-
-      let result = await quorumApprove({
+      await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle })
+      const result = await quorumApprove({
         io,
         decisionsDir: DECISIONS_DIR,
         runId: 'demo-5',
         nnnn: '0001',
         signerHandle,
         chosenOption: 'A',
-        answer: correctAnswers[0],
+        transcript: 'Обираю A: видаляємо базу постачальника без бекапу — незворотно, головний ризик втратити дані.',
         deviceKey,
-        fetchImpl: REJECTING_FETCH
-      })
-      expect(result.done).toBe(false) // одне з двох питань standard-квізу
-      result = await quorumApprove({
-        io,
-        decisionsDir: DECISIONS_DIR,
-        runId: 'demo-5',
-        nnnn: '0001',
-        signerHandle,
-        chosenOption: 'A',
-        answer: correctAnswers[1],
-        deviceKey,
-        fetchImpl: REJECTING_FETCH
+        fetchImpl: teachBackFetch({ understood: true })
       })
       expect(result.approved).toBe(true)
       expect(result.done).toBe(true)
       expect(result.approval.signer_handle).toBe(signerHandle)
       expect(result.approval.chosen_option).toBe('A')
-
       expect(await verifyApproval(result.approval)).toBe(true)
     }
 
-    // Обидва approval-файли незалежно записані під РІЗНИМИ pubkey.
     const olenaApproval = JSON.parse(io.store.get(`${DECISIONS_DIR}/0001-approval-olena.json`))
     const vitaliiApproval = JSON.parse(io.store.get(`${DECISIONS_DIR}/0001-approval-vitalii.json`))
     expect(olenaApproval.pubkey).not.toBe(vitaliiApproval.pubkey)
@@ -261,16 +217,7 @@ describe('submitQuorumAnswer / quorumApprove — повний цикл одно�
       { signerHandle: 'olena', deviceKey: olenaKey, chosenOption: 'A' },
       { signerHandle: 'vitalii', deviceKey: vitaliiKey, chosenOption: 'B' }
     ]) {
-      await quorumQuiz({
-        io,
-        decisionsDir: DECISIONS_DIR,
-        nnnn: '0001',
-        signerHandle,
-        chosenOption,
-        fetchImpl: REJECTING_FETCH
-      })
-      const quizText = io.store.get(`${DECISIONS_DIR}/0001-quiz-${signerHandle}.md`)
-      const correctAnswers = Array.from(quizText.matchAll(/### Відповідь\n(.+)/g), m => m[1])
+      await quorumQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', signerHandle })
       await quorumApprove({
         io,
         decisionsDir: DECISIONS_DIR,
@@ -278,21 +225,9 @@ describe('submitQuorumAnswer / quorumApprove — повний цикл одно�
         nnnn: '0001',
         signerHandle,
         chosenOption,
-        answer: correctAnswers[0],
+        transcript: `Обираю ${chosenOption}, головний наслідок і головний ризик враховано.`,
         deviceKey,
-        fetchImpl: REJECTING_FETCH
-      })
-
-      await quorumApprove({
-        io,
-        decisionsDir: DECISIONS_DIR,
-        runId: 'demo-5',
-        nnnn: '0001',
-        signerHandle,
-        chosenOption,
-        answer: correctAnswers[1],
-        deviceKey,
-        fetchImpl: REJECTING_FETCH
+        fetchImpl: teachBackFetch({ understood: true })
       })
     }
 

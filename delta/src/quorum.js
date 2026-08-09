@@ -3,11 +3,11 @@
 // підпис для незворотного: картка показує кворум і чиї квізи пройдені»).
 //
 // Одноосібні (не-irreversible) рішення й далі йдуть через `decision-flow.js`
-// незмінно — `depthForFacets` мапить `irreversible: true` на `teach-back`
-// (M5, не реалізовано), тож `loadSupportedDecisionRequest` там кидає ще ДО
-// того, як цей модуль узагалі викликається: жоден irreversible
-// decision-request фізично не може пройти через M1/M2-конвеєр — обидва
-// шляхи взаємовиключні за конструкцією, не за додатковою перевіркою.
+// — `requiresQuorum` (decisions.js) маршрутизує лише за `irreversible: true`,
+// не за глибиною: `decision-flow.js` МОЖЕ так само дійти до `teach-back`
+// (широкий `blast_radius` без `irreversible`), обидва модулі спільно
+// використовують один Q&A-незалежний механізм teach-back (`quiz.js`), кожен
+// зі своєю формою файлів (один computed_owner vs один файл на approver).
 //
 // **Кожен підписант — окремий фізичний ключ, окремі файли.** На відміну
 // від `decision-flow.js` (один computed_owner, один `NNNN-quiz.md`/
@@ -16,20 +16,23 @@
 // `NNNN-approval-{handle}.json` — `decisions.js: deriveQuorumStatus`
 // деривує загальний стан кворуму з усіх approval-файлів одразу.
 //
-// **Депа форсована на `standard`** (та сама причина, що
-// `change-proposal.js`, заголовок «Форс глибини квізу»): `teach-back` —
-// контрактно правильна глибина для irreversible (mandates.md), але
-// лишається M5; `standard` (2 незалежних питання про наслідки) — найвища
-// ДОСТУПНА зараз, СВОЯ для кожного підписанта окремо (не одна на всіх).
+// **Depth — `teach-back`, більше НЕ форсована на `standard`** (M5,
+// docs/specs/260809-delta-app.md, «Обсяг M5», п.1): `teach-back` —
+// контрактно правильна глибина для irreversible (mandates.md, «irreversible
+// + широкий blast_radius → teach-back»); M4 форсувала `standard`, бо
+// teach-back ще не існував — той форс задокументовано видалено тут.
+// КОЖЕН підписант пише ВЛАСНИЙ переказ (transcript) своїми словами, оцінює
+// ЛОКАЛЬНА модель ({@link import('./quiz.js').callLlmTeachBackEvaluator}) —
+// той самий механізм, що одноосібний шлях (`decision-flow.js`), per-signer
+// файли/квізи (заголовок вище).
 //
-// **Свідомо СПРОЩЕНО відносно M2 одноосібного шляху** (задокументований
-// обсяг M4, не забуте): (1) немає навчального режиму «право на глибину»
-// (`layeredExplain`) на фейлі — лише мікроурок; (2) немає spaced-repetition
-// підмішування; (3) завершений квіз НЕ дописує особисту базу знань
+// **Свідомо СПРОЩЕНО відносно одноосібного шляху** (задокументований обсяг
+// M4/M5, не забуте): завершений teach-back НЕ дописує особисту базу знань
 // (`knowledge.js`) — квізи кворуму атрибутовані до конкретного
-// irreversible-акту, не до особистого домену навчання. Розширення цього
-// обсягу — кандидат наступного мілстоуна, не потрібне для demo-критерію M4
-// («кворум 2/2 на irreversible-рішенні з двох пристроїв»).
+// irreversible-акту, не до особистого домену навчання (на відміну від
+// одноосібного `decision-flow.js: submitTeachBack`, який дописує). Розширення
+// цього обсягу — кандидат наступного мілстоуна, не потрібне для demo-критерію
+// M4/M5.
 //
 // **Схема підпису** — той самий канонікалізований payload-підхід, що
 // `approval.js: buildAndSignApproval` (`signing.js: signPayload`), З
@@ -40,10 +43,17 @@
 
 import { buildRequestId, formatApprovalFile } from './approval.js'
 import { deriveQuorumStatus, parseDecisionRequest, requiresQuorum, resolveApprovers } from './decisions.js'
-import { formatQuizFile, generateStandardQuiz, parseQuizFile, rephraseQuestion } from './quiz.js'
+import {
+  callLlmTeachBackEvaluator,
+  defaultLlmConfig,
+  formatTeachBackFile,
+  parseTeachBackFile,
+  teachBackPromptText,
+  TEACHBACK_UNAVAILABLE_MESSAGE
+} from './quiz.js'
 import { signPayload } from './signing.js'
 
-const FORCED_DEPTH = 'standard'
+const QUORUM_DEPTH = 'teach-back'
 
 /**
  * @param {string} decisionsDir абсолютний шлях до директорії `decisions/`
@@ -115,24 +125,6 @@ async function assertSignerOpen(io, decisionsDir, nnnn, handle) {
 }
 
 /**
- * @param {{question: string, options: string[], correctIndex: number, microlesson: string}} generated одне згенероване питання
- * @returns {{repetition: boolean, attempts: object[]}} стан питання квізу з першою спробою
- */
-function toQuestionState(generated) {
-  return {
-    repetition: false,
-    attempts: [
-      {
-        question: generated.question,
-        options: generated.options,
-        correctAnswer: generated.options[generated.correctIndex],
-        microlesson: generated.microlesson
-      }
-    ]
-  }
-}
-
-/**
  * Перевіряє, що `signerHandle` дійсно входить до `approvers` цього
  * рішення — самозванець не отримує квіз-файл.
  * @param {object} decisionRequest розібраний decision-request
@@ -150,21 +142,22 @@ function assertIsApprover(decisionRequest, signerHandle) {
 }
 
 /**
- * Генерує (перший виклик) або показує (повторний) активне питання
- * ВЛАСНОГО квізу одного підписанта — `quorum_quiz`, per-signer дзеркало
- * `decision-flow.js: decisionQuiz`, форсоване на {@link FORCED_DEPTH}.
+ * Генерує (перший виклик) або показує (повторний) підказку-промпт
+ * ВЛАСНОГО teach-back-квізу одного підписанта — `quorum_quiz`, per-signer
+ * дзеркало `decision-flow.js: decisionQuizTeachBack` (M5).
+ * `chosenOption`/`llmConfig`/`fetchImpl` — прийняті, але НЕ використані:
+ * teach-back не має питання для генерації (лише підказка-промпт), той самий
+ * контракт входу, що `quorum_approve`/`decision_quiz`, для інтерфейсної
+ * симетрії з Q&A-глибинами.
  * @param {object} params вхідні параметри
  * @param {{readFile: (path: string) => Promise<string|null>, writeFile: (path: string, content: string) => Promise<void>}} params.io fs-транспорт decisions/
  * @param {string} params.decisionsDir абсолютний шлях до директорії `decisions/`
  * @param {string} params.nnnn чотиризначний номер
  * @param {string} params.signerHandle handle цього підписанта (з `approvers`)
- * @param {string} params.chosenOption обраний варіант (label)
- * @param {{baseUrl: string, model: string}} [params.llmConfig] адреса й модель LLM-ендпоінта
- * @param {typeof fetch} [params.fetchImpl] ін'єкція fetch (тести)
  * @param {() => Date} [params.now] ін'єкція годинника (тести)
- * @returns {Promise<object>} активне питання квізу цього підписанта
+ * @returns {Promise<object>} підказка-промпт teach-back цього підписанта
  */
-export async function quorumQuiz({ io, decisionsDir, nnnn, signerHandle, chosenOption, llmConfig, fetchImpl, now }) {
+export async function quorumQuiz({ io, decisionsDir, nnnn, signerHandle, now }) {
   await assertSignerOpen(io, decisionsDir, nnnn, signerHandle)
   const decisionRequest = await loadQuorumDecisionRequest(io, decisionsDir, nnnn)
   assertIsApprover(decisionRequest, signerHandle)
@@ -172,179 +165,84 @@ export async function quorumQuiz({ io, decisionsDir, nnnn, signerHandle, chosenO
   const path = quizPath(decisionsDir, nnnn, signerHandle)
   const existingText = await io.readFile(path)
   if (existingText) {
-    const quiz = parseQuizFile(existingText)
-    const resolvedCount = quiz.resolvedCount ?? 0
-    const activeQuestion = quiz.questions[resolvedCount] ?? quiz.questions.at(-1)
-    const activeAttempt = activeQuestion.attempts.at(-1)
+    const state = parseTeachBackFile(existingText)
+    const lastAttempt = state.attempts.at(-1) ?? null
+    const failed = lastAttempt && lastAttempt.evaluation.understood === false
     return {
       quizPath: path,
-      question: activeAttempt.question,
-      options: activeAttempt.options,
-      depth: quiz.depth,
-      iterations: quiz.iterations,
-      generatedBy: quiz.generatedBy,
-      questionIndex: quiz.questions.indexOf(activeQuestion) + 1,
-      questionCount: quiz.questions.length,
-      signerHandle
+      depth: QUORUM_DEPTH,
+      prompt: teachBackPromptText(),
+      iterations: state.iterations ?? 0,
+      generatedBy: state.generatedBy,
+      signerHandle,
+      lastFeedback: failed ? lastAttempt.evaluation.feedback : null,
+      missingAspects: failed ? lastAttempt.evaluation.missingAspects : []
     }
   }
 
   const shownAt = (now ? now() : new Date()).toISOString()
-  const generated = await generateStandardQuiz({ decisionRequest, chosenOption, llmConfig, fetchImpl })
-  const questions = generated.questions.map(q => toQuestionState(q))
-  const draft = {
-    decisionRef: `${nnnn}-decision-request.md`,
-    depth: FORCED_DEPTH,
-    generatedBy: generated.generatedBy,
-    shownAt,
-    resolvedCount: 0,
-    iterations: questions.reduce((sum, q) => sum + q.attempts.length, 0),
-    questions
-  }
-  await io.writeFile(path, formatQuizFile(draft))
-  const activeAttempt = questions[0].attempts[0]
+  const draft = { decisionRef: `${nnnn}-decision-request.md`, generatedBy: 'teach-back-prompt', shownAt, iterations: 0, attempts: [] }
+  await io.writeFile(path, formatTeachBackFile(draft))
   return {
     quizPath: path,
-    question: activeAttempt.question,
-    options: activeAttempt.options,
-    depth: FORCED_DEPTH,
-    iterations: draft.iterations,
-    generatedBy: generated.generatedBy,
-    questionIndex: 1,
-    questionCount: questions.length,
-    signerHandle
+    depth: QUORUM_DEPTH,
+    prompt: teachBackPromptText(),
+    iterations: 0,
+    generatedBy: 'teach-back-prompt',
+    signerHandle,
+    lastFeedback: null,
+    missingAspects: []
   }
 }
 
 /**
- * Проводить квіз-відповідь на активне питання ВЛАСНОГО квізу одного
- * підписанта — per-signer дзеркало `decision-flow.js: submitQuizAnswer`,
- * без навчального режиму/spaced-repetition (задокументований обсяг M4,
- * заголовок модуля).
+ * Проводить teach-back-спробу ВЛАСНОГО квізу одного підписанта — per-signer
+ * дзеркало `decision-flow.js: submitTeachBack` (M5); та сама ЧЕСНА відмова
+ * (`available: false`, {@link TEACHBACK_UNAVAILABLE_MESSAGE}), коли локальна
+ * модель недоступна — нічого не пишеться, спроба не рахується.
  * @param {object} params вхідні параметри
  * @param {{readFile: (path: string) => Promise<string|null>, writeFile: (path: string, content: string) => Promise<void>}} params.io fs-транспорт decisions/
  * @param {string} params.decisionsDir абсолютний шлях до директорії `decisions/`
  * @param {string} params.nnnn чотиризначний номер
  * @param {string} params.signerHandle handle цього підписанта
- * @param {number|string} params.answer квіз-відповідь (індекс або текст)
- * @param {string} [params.chosenOption] обраний варіант (для перефразування на ретраї)
+ * @param {string} params.transcript переказ ЦЬОГО підписанта своїми словами
+ * @param {string} params.chosenOption обраний варіант (обов'язковий — оцінка звіряє переказ проти НЬОГО)
  * @param {{baseUrl: string, model: string}} [params.llmConfig] адреса й модель LLM-ендпоінта
  * @param {typeof fetch} [params.fetchImpl] ін'єкція fetch (тести)
  * @param {() => Date} [params.now] ін'єкція годинника (тести)
  * @returns {Promise<object>} результат спроби
  */
-export async function submitQuorumAnswer({
-  io,
-  decisionsDir,
-  nnnn,
-  signerHandle,
-  answer,
-  chosenOption,
-  llmConfig,
-  fetchImpl,
-  now
-}) {
+export async function submitQuorumAnswer({ io, decisionsDir, nnnn, signerHandle, transcript, chosenOption, llmConfig, fetchImpl, now }) {
   await assertSignerOpen(io, decisionsDir, nnnn, signerHandle)
   const path = quizPath(decisionsDir, nnnn, signerHandle)
   const existingText = await io.readFile(path)
   if (!existingText) throw new Error(`квіз для ${nnnn}/${signerHandle} ще не згенеровано — виклич quorum_quiz спершу`)
-
-  const quiz = parseQuizFile(existingText)
-  const decisionRequest = await loadQuorumDecisionRequest(io, decisionsDir, nnnn)
-
-  const resolvedCount = quiz.resolvedCount ?? 0
-  const questions = quiz.questions.map(q => ({ ...q, attempts: [...q.attempts] }))
-  const activeQuestion = questions[resolvedCount]
-  const lastAttempt = activeQuestion.attempts.at(-1)
-  const answerIndex = typeof answer === 'number' ? answer : lastAttempt.options.indexOf(answer)
-  const correctIndex = lastAttempt.options.indexOf(lastAttempt.correctAnswer)
-  const correct = answerIndex !== -1 && answerIndex === correctIndex
-  const totalAttemptsSoFar = questions.reduce((sum, q) => sum + q.attempts.length, 0)
-
-  if (!correct) {
-    let questionText = lastAttempt.question
-    if (chosenOption && (llmConfig || fetchImpl)) {
-      const rephrased = await rephraseQuestion({
-        llmConfig,
-        decisionRequest,
-        chosenOption,
-        previousQuestion: lastAttempt.question,
-        fetchImpl
-      })
-      if (rephrased) questionText = rephrased
-    }
-    activeQuestion.attempts.push({
-      question: questionText,
-      options: lastAttempt.options,
-      correctAnswer: lastAttempt.correctAnswer,
-      microlesson: lastAttempt.microlesson
-    })
-    const draft = {
-      decisionRef: quiz.decisionRef,
-      depth: quiz.depth,
-      generatedBy: quiz.generatedBy,
-      shownAt: quiz.shownAt,
-      resolvedCount,
-      iterations: totalAttemptsSoFar + 1,
-      questions
-    }
-    await io.writeFile(path, formatQuizFile(draft))
-    return {
-      correct: false,
-      done: false,
-      iterations: draft.iterations,
-      microlesson: lastAttempt.microlesson,
-      questionIndex: resolvedCount + 1,
-      questionCount: questions.length
-    }
+  if (typeof transcript !== 'string' || !transcript.trim()) {
+    throw new Error('teach-back: потрібен непорожній transcript (переказ своїми словами) — quorum_approve з полем transcript')
   }
 
-  const newResolvedCount = resolvedCount + 1
-  if (newResolvedCount < questions.length) {
-    const draft = {
-      decisionRef: quiz.decisionRef,
-      depth: quiz.depth,
-      generatedBy: quiz.generatedBy,
-      shownAt: quiz.shownAt,
-      resolvedCount: newResolvedCount,
-      iterations: totalAttemptsSoFar,
-      questions
-    }
-    await io.writeFile(path, formatQuizFile(draft))
-    const nextAttempt = questions[newResolvedCount].attempts.at(-1)
-    return {
-      correct: true,
-      done: false,
-      iterations: draft.iterations,
-      microlesson: lastAttempt.microlesson,
-      nextQuestion: {
-        question: nextAttempt.question,
-        options: nextAttempt.options,
-        questionIndex: newResolvedCount + 1,
-        questionCount: questions.length
-      }
-    }
+  const state = parseTeachBackFile(existingText)
+  const decisionRequest = await loadQuorumDecisionRequest(io, decisionsDir, nnnn)
+  const evaluation = await callLlmTeachBackEvaluator(llmConfig ?? defaultLlmConfig(), decisionRequest, chosenOption, transcript, fetchImpl)
+  if (!evaluation) {
+    return { correct: false, done: false, available: false, iterations: state.iterations ?? 0, message: TEACHBACK_UNAVAILABLE_MESSAGE }
+  }
+
+  const attempts = [...state.attempts, { transcript, evaluation }]
+  const iterations = attempts.length
+
+  if (!evaluation.understood) {
+    const draft = { decisionRef: state.decisionRef, generatedBy: evaluation.generatedBy, shownAt: state.shownAt, iterations, attempts }
+    await io.writeFile(path, formatTeachBackFile(draft))
+    return { correct: false, done: false, available: true, iterations, feedback: evaluation.feedback, missingAspects: evaluation.missingAspects }
   }
 
   const nowDate = now ? now() : new Date()
-  const shownAtMs = quiz.shownAt ? Date.parse(quiz.shownAt) : Date.now()
+  const shownAtMs = state.shownAt ? Date.parse(state.shownAt) : Date.now()
   const timeToUnderstandingSec = Math.max(0, Math.round((nowDate.getTime() - shownAtMs) / 1000))
-  const finalQuiz = {
-    decisionRef: quiz.decisionRef,
-    depth: quiz.depth,
-    generatedBy: quiz.generatedBy,
-    iterations: totalAttemptsSoFar,
-    timeToUnderstandingSec,
-    questions
-  }
-  await io.writeFile(path, formatQuizFile(finalQuiz))
-  return {
-    correct: true,
-    done: true,
-    iterations: finalQuiz.iterations,
-    quiz: finalQuiz,
-    microlesson: lastAttempt.microlesson
-  }
+  const finalState = { decisionRef: state.decisionRef, generatedBy: evaluation.generatedBy, iterations, timeToUnderstandingSec, attempts }
+  await io.writeFile(path, formatTeachBackFile(finalState))
+  return { correct: true, done: true, available: true, iterations, quiz: finalState, feedback: evaluation.feedback }
 }
 
 /**
@@ -396,12 +294,12 @@ async function buildAndSignQuorumApproval({
  * @param {string} params.nnnn чотиризначний номер
  * @param {string} params.signerHandle handle цього підписанта
  * @param {string} params.chosenOption обраний варіант (label)
- * @param {number|string} params.answer квіз-відповідь
+ * @param {string} params.transcript переказ ЦЬОГО підписанта своїми словами (`depth: teach-back`, M5)
  * @param {{privateKeyJwk: object, publicKeyBase64: string}} params.deviceKey ключ ЦЬОГО підписанта
  * @param {{baseUrl: string, model: string}} [params.llmConfig] адреса й модель LLM-ендпоінта
  * @param {typeof fetch} [params.fetchImpl] ін'єкція fetch (тести)
  * @param {() => Date} [params.now] ін'єкція годинника (тести)
- * @returns {Promise<object>} результат — `{approved, correct, done, iterations, ...}`
+ * @returns {Promise<object>} результат — `{approved, correct, done, iterations, ...}` (`available: false` — teach-back недоступний)
  */
 export async function quorumApprove({
   io,
@@ -410,7 +308,7 @@ export async function quorumApprove({
   nnnn,
   signerHandle,
   chosenOption,
-  answer,
+  transcript,
   deviceKey,
   llmConfig,
   fetchImpl,
@@ -421,31 +319,23 @@ export async function quorumApprove({
     decisionsDir,
     nnnn,
     signerHandle,
-    answer,
+    transcript,
     chosenOption,
     llmConfig,
     fetchImpl,
     now
   })
+  if (result.available === false) {
+    return { approved: false, correct: false, done: false, available: false, iterations: result.iterations, message: result.message }
+  }
   if (!result.correct) {
     return {
       approved: false,
       correct: false,
       done: false,
       iterations: result.iterations,
-      microlesson: result.microlesson,
-      questionIndex: result.questionIndex,
-      questionCount: result.questionCount
-    }
-  }
-  if (!result.done) {
-    return {
-      approved: false,
-      correct: true,
-      done: false,
-      iterations: result.iterations,
-      microlesson: result.microlesson,
-      nextQuestion: result.nextQuestion
+      feedback: result.feedback,
+      missingAspects: result.missingAspects
     }
   }
 
@@ -469,7 +359,7 @@ export async function quorumApprove({
     iterations: result.iterations,
     approval,
     approvalPath: approvalFilePath,
-    microlesson: result.microlesson
+    feedback: result.feedback
   }
 }
 

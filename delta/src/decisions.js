@@ -311,13 +311,34 @@ function isOpen(filesByName, nnnn) {
 }
 
 /**
- * Депа кворумних (irreversible) карток у черзі — форсовано на `standard`
- * (M4, той самий форс-патерн, що change-proposal.js: `teach-back` —
- * контрактно правильна глибина для irreversible, mandates.md, але лишається
- * M5; `standard` — найвища ДОСТУПНА зараз для КОЖНОГО підписанта окремо,
- * `quorum.js` реалізує лише цю глибину).
+ * `delegated_to` з сусіднього `NNNN-delegation.json`, якщо є (M5,
+ * `delegation.js`) — деривований сигнал маршрутизації черги: присутність
+ * файлу означає «розвилка переїхала до моделі», `computed_owner` у самому
+ * decision-request НЕ переписується (delegation.js, заголовок модуля).
+ * Битий/нечитабельний JSON — `null` (fail-safe, той самий інваріант, що
+ * `decisions.js: deriveQuorumStatus` на битому approval-файлі: не рахується).
+ * @param {Map<string, string>} filesByName карта імʼя файлу → вміст у директорії decisions
+ * @param {string} nnnn чотиризначний номер
+ * @returns {string|null} handle моделі, якій делеговано, або `null`
  */
-const QUORUM_DEPTH = 'standard'
+function delegatedToOrNull(filesByName, nnnn) {
+  const raw = filesByName.get(`${nnnn}-delegation.json`)
+  if (!raw) return null
+  try {
+    const record = JSON.parse(raw)
+    return typeof record.delegated_to === 'string' ? record.delegated_to : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Глибина кворумних (irreversible) карток у черзі — `teach-back` (M5,
+ * mandates.md: «irreversible + широкий blast_radius → teach-back»); M4
+ * форсувала `standard` — задокументовано замінено, `quorum.js` тепер
+ * реалізує teach-back per-approver.
+ */
+const QUORUM_DEPTH = 'teach-back'
 
 /**
  * Одна картка кворумного (irreversible) рішення для черги `handle` —
@@ -337,6 +358,32 @@ function quorumQueueItem(parsed, dir, filesByName, handle) {
   if (!quorum.approvers.includes(handle)) return null
   if (quorum.status === 'closed') return null
   return { ...parsed, dir, depth: QUORUM_DEPTH, open: true, quorum, awaitingMe: quorum.pending.includes(handle) }
+}
+
+/**
+ * Одна картка одноосібного (не-кворумного) ВІДКРИТОГО decision-request-а
+ * для черги `handle` — винесено з {@link deriveQueue} окремою функцією (той
+ * самий рефактор, що {@link quorumQueueItem}): `null`, коли `handle` не
+ * власник цієї картки. M5 (`delegation.js`): присутність сусіднього
+ * `NNNN-delegation.json` переносить картку в чергу `delegated_to` (моделі)
+ * ЗАМІСТЬ `computed_owner` — `computed_owner` decision-request НЕ
+ * переписується, лише маршрут деривується заново (заголовок `delegation.js`).
+ * @param {object} parsed розібраний decision-request
+ * @param {string} dir абсолютний шлях до decisions-директорії
+ * @param {Map<string, string>} filesByName карта імʼя файлу → вміст у директорії decisions
+ * @param {string} nnnn чотиризначний номер
+ * @param {string} handle власник, чий зріз деривувати
+ * @returns {object|null} картка черги, або null
+ */
+function soloQueueItem(parsed, dir, filesByName, nnnn, handle) {
+  const depth = depthForFacets(parsed.leverageFacets)
+  const delegatedTo = delegatedToOrNull(filesByName, nnnn)
+  if (delegatedTo) {
+    return delegatedTo === handle
+      ? { ...parsed, dir, depth, open: true, delegatedTo, delegatedBy: parsed.computedOwner }
+      : null
+  }
+  return parsed.computedOwner === handle ? { ...parsed, dir, depth, open: true } : null
 }
 
 /**
@@ -370,9 +417,9 @@ export function deriveQueue(decisionsDirs, handle) {
         continue
       }
 
-      if (parsed.computedOwner !== handle) continue
       if (!isOpen(filesByName, nnnn)) continue
-      items.push({ ...parsed, dir, depth: depthForFacets(parsed.leverageFacets), open: true })
+      const item = soloQueueItem(parsed, dir, filesByName, nnnn, handle)
+      if (item) items.push(item)
     }
   }
   return items.toSorted(byLeverageDesc)

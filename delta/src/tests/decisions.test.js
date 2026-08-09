@@ -317,9 +317,9 @@ describe('deriveQueue — irreversible/кворум (M4)', () => {
     expect(deriveQueue(dirs, 'fable-5')).toHaveLength(0)
   })
 
-  it('депа кворумної картки форсована на standard, awaitingMe true поки не підписав', () => {
+  it('депа кворумної картки — teach-back (M5), awaitingMe true поки не підписав', () => {
     const [item] = deriveQueue(dirs, 'olena')
-    expect(item.depth).toBe('standard')
+    expect(item.depth).toBe('teach-back')
     expect(item.awaitingMe).toBe(true)
     expect(item.quorum.status).toBe('pending')
   })
