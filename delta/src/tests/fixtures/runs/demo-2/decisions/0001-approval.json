@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "request_id": "demo-2/0001",
+  "approved": true,
+  "chosen_option": "B",
+  "quiz_ref": "decisions/0001-quiz.md",
+  "signed_at": "2026-08-01T09:12:00.000Z",
+  "pubkey": "fixture-pubkey-not-a-real-signature",
+  "signature": "fixture-signature-not-real"
+}
