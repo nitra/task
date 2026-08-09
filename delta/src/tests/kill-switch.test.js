@@ -19,8 +19,8 @@ function memoryIo(seed = {}) {
   const store = new Map(Object.entries(seed))
   return {
     store,
-    readFile: async path => (store.has(path) ? store.get(path) : null),
-    writeFile: async (path, content) => {
+    readFile: path => (store.has(path) ? store.get(path) : null),
+    writeFile: (path, content) => {
       store.set(path, content)
     }
   }
@@ -37,7 +37,7 @@ describe('isKillSwitchActive', () => {
   it('відсутній/порожній вміст — неактивний', () => {
     expect(isKillSwitchActive(null)).toBe(false)
     expect(isKillSwitchActive('')).toBe(false)
-    expect(isKillSwitchActive('   ')).toBe(false)
+    expect(isKillSwitchActive(' '.repeat(3))).toBe(false)
   })
 
   it('битий JSON — неактивний (fail-safe)', () => {
@@ -85,7 +85,8 @@ describe('killSwitchOn / killSwitchOff / killSwitchStatus', () => {
 
   it('status без жодної активації — неактивний', async () => {
     const io = memoryIo()
-    expect((await killSwitchStatus(io, '/root', 'olena')).active).toBe(false)
+    const status = await killSwitchStatus(io, '/root', 'olena')
+    expect(status.active).toBe(false)
   })
 })
 

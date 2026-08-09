@@ -837,7 +837,10 @@ async function handleReviewAgendaCli(input) {
     deviceRegistry: readDeviceRegistryCli(mandatesDir),
     killSwitchActiveHandles: activeHandles,
     loadModelDeviceKey: handle => loadOrCreateModelDeviceKeyCli(handle),
-    registerDevice: device => Promise.resolve(ensureRegisteredCli(mandatesDir, device)),
+    registerDevice: device => {
+      ensureRegisteredCli(mandatesDir, device)
+      return Promise.resolve()
+    },
     periodDays: input.periodDays ?? 7
   })
 }

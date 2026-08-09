@@ -41,12 +41,12 @@ describe('formatOrgConfig', () => {
 
 describe('loadOrgConfig', () => {
   it('читає через io, дефолт коли файл відсутній', async () => {
-    const io = { readFile: async () => null }
+    const io = { readFile: () => null }
     expect(await loadOrgConfig(io, '/root')).toEqual({ hourlyRateEur: 60 })
   })
 
   it('читає налаштоване значення', async () => {
-    const io = { readFile: async path => (path === '/root/.mt/org.json' ? '{"hourly_rate_eur": 45}' : null) }
+    const io = { readFile: path => (path === '/root/.mt/org.json' ? '{"hourly_rate_eur": 45}' : null) }
     expect(await loadOrgConfig(io, '/root')).toEqual({ hourlyRateEur: 45 })
   })
 })

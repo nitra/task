@@ -30,8 +30,8 @@ function memoryIo(seed = {}) {
   const store = new Map(Object.entries(seed))
   return {
     store,
-    readFile: async path => (store.has(path) ? store.get(path) : null),
-    writeFile: async (path, content) => {
+    readFile: path => (store.has(path) ? store.get(path) : null),
+    writeFile: (path, content) => {
       store.set(path, content)
     }
   }

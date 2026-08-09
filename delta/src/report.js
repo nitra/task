@@ -45,6 +45,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const DECISION_REQUEST_RE = /^(\d{4})-decision-request\.md$/
 const DELEGATION_FILE_RE = /^(\d{4})-delegation\.json$/
 const TIME_FIELD_RE = /^time_to_understanding_sec: ([\d.]+)$/m
+const NEWLINE_RE = /\r?\n/
 
 /**
  * @param {string} dir абсолютний шлях до `decisions/`-директорії
@@ -196,8 +197,12 @@ export function deriveDecisionsSummary({ decisionsDirs, mandates, periodStart, p
 function closedQuorumDecision(parsed, filesByName, nnnn) {
   const quorum = deriveQuorumStatus(parsed, filesByName)
   if (quorum.status !== 'closed') return null
-  const closedAt = quorum.signed.reduce((max, s) => (s.signedAt && (!max || s.signedAt > max) ? s.signedAt : max), null)
-  const timeSec = quorum.signed.reduce((sum, s) => sum + (quizTimeToUnderstandingSec(filesByName.get(`${nnnn}-quiz-${s.handle}.md`)) ?? 0), 0)
+  let closedAt = null
+  let timeSec = 0
+  for (const s of quorum.signed) {
+    if (s.signedAt && (!closedAt || s.signedAt > closedAt)) closedAt = s.signedAt
+    timeSec += quizTimeToUnderstandingSec(filesByName.get(`${nnnn}-quiz-${s.handle}.md`)) ?? 0
+  }
   return { classification: 'quorum', chosenOption: quorum.signed[0]?.chosenOption ?? null, closedAt, quizTimeToUnderstandingSec: timeSec }
 }
 
@@ -247,7 +252,7 @@ export function summarizeDecisions(closed) {
     bucket[d.classification] += 1
     bucket.total += 1
   }
-  return { total: closed.length, byClassification, byType: Array.from(byType.values()).toSorted((a, b) => b.total - a.total) }
+  return { total: closed.length, byClassification, byType: byType.values().toArray().toSorted((a, b) => b.total - a.total) }
 }
 
 /**
@@ -344,7 +349,7 @@ export async function candorDeliveredCount({ io, mandatesDir, mandates, periodSt
   for (const handle of recipients) {
     const text = await io.readFile(`${mandatesDir}/.mt/candor/${handle}.jsonl`)
     if (!text) continue
-    for (const line of text.split(/\r?\n/)) {
+    for (const line of text.split(NEWLINE_RE)) {
       const trimmed = line.trim()
       if (!trimmed) continue
       let record
@@ -373,7 +378,7 @@ export async function killSwitchActivationsCount({ io, mandatesDir, periodStart,
   const text = await io.readFile(killSwitchLogPath(mandatesDir))
   if (!text) return 0
   let count = 0
-  for (const line of text.split(/\r?\n/)) {
+  for (const line of text.split(NEWLINE_RE)) {
     const trimmed = line.trim()
     if (!trimmed) continue
     let record
@@ -462,9 +467,8 @@ export async function buildDeltaReport({ io, mandatesDir, mandatesFile, decision
  * @returns {string} markdown-текст звіту
  */
 export function formatDeltaReportMarkdown(report) {
-  const lines = [`# Дельта-звіт: ${report.periodStart.slice(0, 10)} — ${report.periodEnd.slice(0, 10)}`, '']
+  const lines = [`# Дельта-звіт: ${report.periodStart.slice(0, 10)} — ${report.periodEnd.slice(0, 10)}`, '', '## Рух межі', '']
 
-  lines.push('## Рух межі', '')
   if (report.boundaryMoves.length === 0) {
     lines.push('Жодного застосованого mandate-change за період.', '')
   } else {
@@ -475,8 +479,9 @@ export function formatDeltaReportMarkdown(report) {
     lines.push('')
   }
 
-  lines.push('## Рішення за період', '')
   lines.push(
+    '## Рішення за період',
+    '',
     `Усього закрито: **${report.decisions.total}** (людських: ${report.decisions.byClassification.human}, ` +
       `модельних: ${report.decisions.byClassification.model}, кворумних: ${report.decisions.byClassification.quorum}).`,
     ''
@@ -487,17 +492,23 @@ export function formatDeltaReportMarkdown(report) {
     lines.push('')
   }
 
-  lines.push('## Ціна гейта', '')
-  lines.push(`Σ час до розуміння × ставка (${report.hourlyRateEur} €/год): **${report.gateCostEur} €**.`)
-  lines.push(`Заблокованих розвилок з непорожнім deadline_cost (поточний знімок): **${report.blockedWithDeadlineCost}**.`, '')
-
-  lines.push('## Глибина делегування', '')
-  lines.push(`Класів рішень із model-власником у mandates.yaml: **${report.delegationDepth.modelOwnedDecisionTypes}**.`)
-  lines.push(`Делегувань одним квізом за період: **${report.delegationDepth.delegationsInPeriod}**.`, '')
-
-  lines.push('## Агреговано (без приватного)', '')
-  lines.push(`Кандор-заяв доставлено: **${report.candorDelivered}**.`)
-  lines.push(`Активацій kill-switch: **${report.killSwitchActivations}**.`, '')
+  lines.push(
+    '## Ціна гейта',
+    '',
+    `Σ час до розуміння × ставка (${report.hourlyRateEur} €/год): **${report.gateCostEur} €**.`,
+    `Заблокованих розвилок з непорожнім deadline_cost (поточний знімок): **${report.blockedWithDeadlineCost}**.`,
+    '',
+    '## Глибина делегування',
+    '',
+    `Класів рішень із model-власником у mandates.yaml: **${report.delegationDepth.modelOwnedDecisionTypes}**.`,
+    `Делегувань одним квізом за період: **${report.delegationDepth.delegationsInPeriod}**.`,
+    '',
+    '## Агреговано (без приватного)',
+    '',
+    `Кандор-заяв доставлено: **${report.candorDelivered}**.`,
+    `Активацій kill-switch: **${report.killSwitchActivations}**.`,
+    ''
+  )
 
   return `${lines.join('\n')}\n`
 }

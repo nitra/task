@@ -186,7 +186,8 @@ export async function buildKillSwitchRedirect({ io, mandatesDir, mandates }) {
     if (status.active) activeHandles.add(person.owner)
   }
   const redirect = new Map()
-  for (const model of mandates.filter(m => m.kind === 'model')) {
+  const models = mandates.filter(m => m.kind === 'model')
+  for (const model of models) {
     if (model.escalatesTo && activeHandles.has(model.escalatesTo)) redirect.set(model.owner, model.escalatesTo)
   }
   return { redirect, activeHandles }

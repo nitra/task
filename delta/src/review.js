@@ -198,13 +198,11 @@ export function openDisputes({ decisionsDirs, now, staleDays = DEFAULT_STALE_DAY
  * @param {{writeFile: (path: string, content: string) => Promise<void>}} params.io fs-транспорт
  * @param {string} params.mandatesDir абсолютний шлях до воркспейсу
  * @param {{generation: number, mandates: object[]}} params.mandatesFile поточний стан `.mt/mandates.yaml`
- * @param {{modelHandle: string, delegatorHandle: string|null, decisionsInPeriod: number, overrideFreeInPeriod: number}[]}
- *   params.candidates вихід {@link draftWidenCandidates}
+ * @param {object[]} params.candidates вихід {@link draftWidenCandidates} — `{modelHandle, delegatorHandle, decisionsInPeriod, overrideFreeInPeriod}[]`
  * @param {(handle: string) => Promise<{privateKeyJwk: object, publicKeyBase64: string}>} params.loadModelDeviceKey
  *   транспорт-специфічне завантаження (чи генерація) ключа моделі
  * @param {(device: {handle: string, role: 'model', pubkeyBase64: string}) => Promise<void>} [params.registerDevice]
  *   транспорт-специфічна реєстрація pubkey у `device-registry.json` (опційно — тести можуть пропустити)
- * @param {(params: object) => object} [params.trackRecordFor] override для трек-рекорду одного кандидата (тести)
  * @param {{dir: string, files: {name: string, content: string}[]}[]} [params.decisionsDirs] скановані `decisions/`-директорії (evidence)
  * @param {object[]} [params.deviceRegistry] записи реєстру пристроїв (evidence)
  * @param {() => Date} [params.now] ін'єкція годинника (тести)
@@ -255,6 +253,71 @@ export async function materializeWidenProposals({
 }
 
 /**
+ * @param {object[]} widenCandidates вихід {@link draftWidenCandidates}
+ * @param {object[]} materialized вихід {@link materializeWidenProposals}
+ * @returns {string[]} рядки секції «Draft-пропозиції розширення»
+ */
+function widenSectionLines(widenCandidates, materialized) {
+  if (widenCandidates.length === 0) return ['Жодна модель не набрала порогу без-override рішень за період.', '']
+  const lines = []
+  for (const c of widenCandidates) {
+    const draft = materialized.find(m => m.modelHandle === c.modelHandle)
+    const draftNote = draft ? ` — чернетка готова: \`${draft.changeId}\` (\`${draft.decisionRequestPath}\`)` : ''
+    lines.push(`- **${c.modelHandle}** → делегатор \`${c.delegatorHandle}\`: ${c.overrideFreeInPeriod}/${c.decisionsInPeriod} без override за період${draftNote}`)
+  }
+  lines.push('')
+  return lines
+}
+
+/**
+ * @param {object[]} narrow вихід {@link narrowCandidates}
+ * @returns {string[]} рядки секції «Кандидати на звуження»
+ */
+function narrowSectionLines(narrow) {
+  if (narrow.length === 0) return ['Жодного кандидата — override-ів немає, kill-switch не активний.', '']
+  const lines = []
+  for (const c of narrow) {
+    const reasons = []
+    if (c.overriddenInPeriod > 0) reasons.push(`${c.overriddenInPeriod} override(-и/ів) за період`)
+    if (c.delegatorKillSwitchActive) reasons.push(`делегатор \`${c.delegatorHandle}\` — активний kill-switch`)
+    lines.push(`- **${c.modelHandle}** → делегатор \`${c.delegatorHandle}\`: ${reasons.join('; ')}`)
+  }
+  lines.push('')
+  return lines
+}
+
+/**
+ * @param {{handle: string, chosenOption: string|null}[]} signed підписи кворуму (`deriveQuorumStatus().signed`)
+ * @returns {string} `"olena→A, vitalii→B"`
+ */
+function formatSignedOptions(signed) {
+  return signed.map(s => `${s.handle}→${s.chosenOption}`).join(', ')
+}
+
+/**
+ * @param {{diverged: object[], stale: object[]}} disputes вихід {@link openDisputes}
+ * @returns {string[]} рядки секції «Відкриті розбіжності й застарілі розвилки»
+ */
+function disputesSectionLines(disputes) {
+  const lines = []
+  if (disputes.diverged.length === 0) {
+    lines.push('Розбіжностей кворуму немає.', '')
+  } else {
+    lines.push('Розбіжності кворуму (усі підписали, chosen_option розійшовся):', '')
+    for (const d of disputes.diverged) lines.push(`- ${d.runId}/${d.nnnn} (${d.decisionType}): ${formatSignedOptions(d.signed)}`)
+    lines.push('')
+  }
+  if (disputes.stale.length === 0) {
+    lines.push('Застарілих розвилок немає.', '')
+  } else {
+    lines.push('Застарілі розвилки (відкриті, старші за поріг):', '')
+    for (const s of disputes.stale) lines.push(`- ${s.runId}/${s.nnnn} (${s.decisionType}), власник \`${s.computedOwner}\`, ${s.ageDays} дн.`)
+    lines.push('')
+  }
+  return lines
+}
+
+/**
  * Рендерить порядок денний у ДЕТЕРМІНОВАНИЙ markdown — жодного LLM.
  * @param {object} params вхідні параметри
  * @param {Date} params.periodStart початок вікна
@@ -268,48 +331,21 @@ export async function materializeWidenProposals({
 export function formatReviewAgendaMarkdown({ periodStart, periodEnd, widenCandidates, materialized, narrowCandidates: narrow, disputes }) {
   const title = `# Дельта-рев’ю: порядок денний — ${periodStart.slice(0, 10)} — ${periodEnd.slice(0, 10)}`
   const subtitle = '30 хв, єдина синхронна церемонія (README, «Ритуал дельта-рев’ю»).'
-  const lines = [title, '', subtitle, '']
-
-  lines.push('## Draft-пропозиції розширення', '')
-  if (widenCandidates.length === 0) {
-    lines.push('Жодна модель не набрала порогу без-override рішень за період.', '')
-  } else {
-    for (const c of widenCandidates) {
-      const draft = materialized.find(m => m.modelHandle === c.modelHandle)
-      const draftNote = draft ? ` — чернетка готова: \`${draft.changeId}\` (\`${draft.decisionRequestPath}\`)` : ''
-      lines.push(`- **${c.modelHandle}** → делегатор \`${c.delegatorHandle}\`: ${c.overrideFreeInPeriod}/${c.decisionsInPeriod} без override за період${draftNote}`)
-    }
-    lines.push('')
-  }
-
-  lines.push('## Кандидати на звуження', '')
-  if (narrow.length === 0) {
-    lines.push('Жодного кандидата — override-ів немає, kill-switch не активний.', '')
-  } else {
-    for (const c of narrow) {
-      const reasons = []
-      if (c.overriddenInPeriod > 0) reasons.push(`${c.overriddenInPeriod} override(-и/ів) за період`)
-      if (c.delegatorKillSwitchActive) reasons.push(`делегатор \`${c.delegatorHandle}\` — активний kill-switch`)
-      lines.push(`- **${c.modelHandle}** → делегатор \`${c.delegatorHandle}\`: ${reasons.join('; ')}`)
-    }
-    lines.push('')
-  }
-
-  lines.push('## Відкриті розбіжності й застарілі розвилки', '')
-  if (disputes.diverged.length === 0) {
-    lines.push('Розбіжностей кворуму немає.', '')
-  } else {
-    lines.push('Розбіжності кворуму (усі підписали, chosen_option розійшовся):', '')
-    for (const d of disputes.diverged) lines.push(`- ${d.runId}/${d.nnnn} (${d.decisionType}): ${d.signed.map(s => `${s.handle}→${s.chosenOption}`).join(', ')}`)
-    lines.push('')
-  }
-  if (disputes.stale.length === 0) {
-    lines.push('Застарілих розвилок немає.', '')
-  } else {
-    lines.push('Застарілі розвилки (відкриті, старші за поріг):', '')
-    for (const s of disputes.stale) lines.push(`- ${s.runId}/${s.nnnn} (${s.decisionType}), власник \`${s.computedOwner}\`, ${s.ageDays} дн.`)
-    lines.push('')
-  }
+  const lines = [
+    title,
+    '',
+    subtitle,
+    '',
+    '## Draft-пропозиції розширення',
+    '',
+    ...widenSectionLines(widenCandidates, materialized),
+    '## Кандидати на звуження',
+    '',
+    ...narrowSectionLines(narrow),
+    '## Відкриті розбіжності й застарілі розвилки',
+    '',
+    ...disputesSectionLines(disputes)
+  ]
 
   return `${lines.join('\n')}\n`
 }

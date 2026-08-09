@@ -29,8 +29,8 @@ function memoryIo(seed = {}) {
   const store = new Map(Object.entries(seed))
   return {
     store,
-    readFile: async path => (store.has(path) ? store.get(path) : null),
-    writeFile: async (path, content) => {
+    readFile: path => (store.has(path) ? store.get(path) : null),
+    writeFile: (path, content) => {
       store.set(path, content)
     }
   }
@@ -198,8 +198,8 @@ describe('materializeWidenProposals', () => {
       mandatesDir: '/root',
       mandatesFile,
       candidates,
-      loadModelDeviceKey: async () => modelKey,
-      registerDevice: async device => registered.push(device),
+      loadModelDeviceKey: () => modelKey,
+      registerDevice: device => { registered.push(device) },
       decisionsDirs: [],
       deviceRegistry: [],
       now: NOW
@@ -223,7 +223,7 @@ describe('materializeWidenProposals', () => {
       mandatesDir: '/root',
       mandatesFile,
       candidates,
-      loadModelDeviceKey: async () => ({}),
+      loadModelDeviceKey: () => ({}),
       decisionsDirs: [],
       deviceRegistry: [],
       now: NOW
@@ -270,8 +270,8 @@ describe('reviewAgenda — повний потік', () => {
       decisionsDirs,
       deviceRegistry,
       killSwitchActiveHandles: new Set(),
-      loadModelDeviceKey: async () => modelKey,
-      registerDevice: async device => registered.push(device),
+      loadModelDeviceKey: () => modelKey,
+      registerDevice: device => { registered.push(device) },
       periodDays: 14,
       now: NOW
     })
@@ -281,5 +281,6 @@ describe('reviewAgenda — повний потік', () => {
     expect(io.store.has(result.path)).toBe(true)
     expect(result.markdown).toContain('fable-5')
     expect(result.markdown).toContain('чернетка готова')
+    expect(registered).toEqual([{ handle: 'fable-5', role: 'model', pubkeyBase64: modelKey.publicKeyBase64 }])
   })
 })
