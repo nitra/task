@@ -156,6 +156,53 @@ describe('submitQuizAnswer', () => {
   })
 })
 
+describe('decision вже закрита approval.json — квіз не мутується (M1-баг, знайдено на рев\'ю)', () => {
+  const CLOSED_ERROR_RE = /вже закрите/
+
+  it('decisionQuiz на закритому decision кидає, не пише/не читає квіз-файл', async () => {
+    const io = memoryIo({
+      [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_TEXT,
+      [`${DECISIONS_DIR}/0001-approval.json`]: '{"approved":true}'
+    })
+    await expect(
+      decisionQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', chosenOption: 'B', fetchImpl: REJECTING_FETCH })
+    ).rejects.toThrow(CLOSED_ERROR_RE)
+    expect(io.store.has(`${DECISIONS_DIR}/0001-quiz.md`)).toBe(false)
+  })
+
+  it('submitQuizAnswer на закритому decision кидає, iterations квіз-файлу не змінюється', async () => {
+    const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_TEXT })
+    await decisionQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', chosenOption: 'B', fetchImpl: REJECTING_FETCH })
+    const quizBefore = io.store.get(`${DECISIONS_DIR}/0001-quiz.md`)
+    io.store.set(`${DECISIONS_DIR}/0001-approval.json`, '{"approved":true}')
+
+    await expect(
+      submitQuizAnswer({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', answer: 0 })
+    ).rejects.toThrow(CLOSED_ERROR_RE)
+    expect(io.store.get(`${DECISIONS_DIR}/0001-quiz.md`)).toBe(quizBefore)
+  })
+
+  it('decisionApprove на закритому decision кидає, approval.json не перезаписується', async () => {
+    const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_TEXT })
+    const { publicKeyBase64, privateKeyJwk } = await generateDeviceKeypair()
+    await decisionQuiz({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', chosenOption: 'B', fetchImpl: REJECTING_FETCH })
+    io.store.set(`${DECISIONS_DIR}/0001-approval.json`, '{"approved":true,"marker":"original"}')
+
+    await expect(
+      decisionApprove({
+        io,
+        decisionsDir: DECISIONS_DIR,
+        runId: 'demo-1',
+        nnnn: '0001',
+        chosenOption: 'B',
+        answer: 0,
+        deviceKey: { publicKeyBase64, privateKeyJwk }
+      })
+    ).rejects.toThrow(CLOSED_ERROR_RE)
+    expect(io.store.get(`${DECISIONS_DIR}/0001-approval.json`)).toBe('{"approved":true,"marker":"original"}')
+  })
+})
+
 describe('decisionApprove — інваріант «без квізу підпис неможливий»', () => {
   it('неправильна відповідь — approved: false, approval.json не пишеться', async () => {
     const io = memoryIo({ [`${DECISIONS_DIR}/0001-decision-request.md`]: DR_TEXT })

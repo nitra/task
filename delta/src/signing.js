@@ -49,13 +49,25 @@ function sortKeysDeep(value) {
   return value
 }
 
+// `Uint8Array.prototype.toBase64`/`Uint8Array.fromBase64` — Node 24+ API
+// (M1-баг знайдено на рев'ю: ризик несумісності з WKWebView у Tauri GUI,
+// де рушій може відставати від найновішого V8/Node). Feature-detect тут —
+// одна спільна утиліта для обох поверхонь (CLI/GUI), а не два окремі шляхи:
+// пріоритет — нативний метод (найшвидший, коли є); далі `Buffer` (завжди є
+// в CLI/Bun, у GUI відсутній); останній шлях — `btoa`/`atob` через
+// побайтовий рядок (стандартний браузерний глобал, завжди є у WKWebView).
+
 /**
  * @param {Uint8Array|ArrayBuffer} bytes сирі байти
  * @returns {string} base64
  */
 function base64FromBytes(bytes) {
   const arr = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes
-  return arr.toBase64()
+  if (typeof arr.toBase64 === 'function') return arr.toBase64()
+  if (typeof Buffer !== 'undefined') return Buffer.from(arr).toString('base64')
+  let binary = ''
+  for (const byte of arr) binary += String.fromCodePoint(byte)
+  return btoa(binary)
 }
 
 /**
@@ -63,7 +75,12 @@ function base64FromBytes(bytes) {
  * @returns {Uint8Array} сирі байти
  */
 function bytesFromBase64(base64) {
-  return Uint8Array.fromBase64(base64)
+  if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(base64)
+  if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(base64, 'base64'))
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.codePointAt(i)
+  return bytes
 }
 
 /**

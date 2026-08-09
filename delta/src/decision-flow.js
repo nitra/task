@@ -37,6 +37,36 @@ function quizPath(decisionsDir, nnnn) {
 }
 
 /**
+ * @param {string} decisionsDir абсолютний шлях до директорії `decisions/`
+ * @param {string} nnnn чотиризначний номер
+ * @returns {string} абсолютний шлях до `NNNN-approval.json`
+ */
+function approvalPath(decisionsDir, nnnn) {
+  return `${decisionsDir}/${nnnn}-approval.json`
+}
+
+/**
+ * Кидає, якщо `NNNN` уже закритий підписаним `NNNN-approval.json` — M1-баг,
+ * знайдений на рев'ю: без цього гейту `decision_quiz`/`decision_approve` на
+ * вже підписаному рішенні продовжували мутувати квіз-файл (`iterations`
+ * росло і після підпису). Підписаний `ApprovalResponse` — термінальний акт
+ * (mandates.md): жодна дія над цим `NNNN` після нього не пише файли.
+ * @param {{readFile: (path: string) => Promise<string|null>}} io fs-транспорт
+ * @param {string} decisionsDir абсолютний шлях до директорії `decisions/`
+ * @param {string} nnnn чотиризначний номер
+ * @returns {Promise<void>}
+ */
+async function assertDecisionOpen(io, decisionsDir, nnnn) {
+  const existingApproval = await io.readFile(approvalPath(decisionsDir, nnnn))
+  if (existingApproval) {
+    throw new Error(
+      `decision ${nnnn}: рішення вже закрите підписаним approval — квіз більше не мутується ` +
+        '(mandates.md: підписаний ApprovalResponse — термінальний акт)'
+    )
+  }
+}
+
+/**
  * Читає й розбирає decision-request за `NNNN`, перевіряючи, що глибина
  * квіз-гейта — `one-tap` (М1 не реалізує standard/teach-back).
  * @param {{readFile: (path: string) => Promise<string|null>}} io fs-транспорт
@@ -73,6 +103,7 @@ async function loadOneTapDecisionRequest(io, decisionsDir, nnnn) {
  *   поточне (останнє) питання квізу — без розкриття правильної відповіді
  */
 export async function decisionQuiz({ io, decisionsDir, nnnn, chosenOption, llmConfig, fetchImpl, now }) {
+  await assertDecisionOpen(io, decisionsDir, nnnn)
   const decisionRequest = await loadOneTapDecisionRequest(io, decisionsDir, nnnn)
   const path = quizPath(decisionsDir, nnnn)
   const existingText = await io.readFile(path)
@@ -132,6 +163,7 @@ export async function decisionQuiz({ io, decisionsDir, nnnn, chosenOption, llmCo
  * @returns {Promise<{correct: boolean, iterations: number, microlesson?: string, quiz?: object}>} результат спроби
  */
 export async function submitQuizAnswer({ io, decisionsDir, nnnn, answer, now }) {
+  await assertDecisionOpen(io, decisionsDir, nnnn)
   const path = quizPath(decisionsDir, nnnn)
   const existingText = await io.readFile(path)
   if (!existingText) throw new Error(`квіз для ${nnnn} ще не згенеровано — виклич decision_quiz спершу`)

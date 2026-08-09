@@ -64,6 +64,48 @@ describe('generateDeviceKeypair / signPayload / verifyPayload', () => {
   })
 })
 
+describe('base64 round-trip — фолбек без Uint8Array.toBase64/fromBase64 (Node 24+ API, WKWebView-ризик)', () => {
+  it('підпис/перевірка round-trip з вимкненим нативним Uint8Array.toBase64/fromBase64 (Buffer-шлях)', async () => {
+    const originalToBase64 = Uint8Array.prototype.toBase64
+    const originalFromBase64 = Uint8Array.fromBase64
+    // eslint-disable-next-line no-undefined -- навмисно знімаємо нативний метод, щоб перевірити фолбек-гілку
+    Uint8Array.prototype.toBase64 = undefined
+    // eslint-disable-next-line no-undefined
+    Uint8Array.fromBase64 = undefined
+    try {
+      const { privateKeyJwk, publicKeyJwk, publicKeyBase64 } = await generateDeviceKeypair()
+      expect(typeof publicKeyBase64).toBe('string')
+      expect(publicKeyBase64.length).toBeGreaterThan(0)
+      const payload = { a: 1, b: 'фолбек' }
+      const signature = await signPayload(privateKeyJwk, payload)
+      expect(await verifyPayload(publicKeyJwk, payload, signature)).toBe(true)
+      expect(await verifyPayload(publicKeyBase64, payload, signature)).toBe(true)
+    } finally {
+      Uint8Array.prototype.toBase64 = originalToBase64
+      Uint8Array.fromBase64 = originalFromBase64
+    }
+  })
+
+  it('той самий keypair дає той самий publicKeyBase64 нативним і фолбек-шляхом (побайтова еквівалентність)', async () => {
+    const { publicKeyJwk } = await generateDeviceKeypair()
+    const nativeKey = await crypto.subtle.importKey('jwk', publicKeyJwk, { name: 'Ed25519' }, true, ['verify'])
+    const raw = await crypto.subtle.exportKey('raw', nativeKey)
+    const nativeBase64 = new Uint8Array(raw).toBase64()
+
+    const originalToBase64 = Uint8Array.prototype.toBase64
+    // eslint-disable-next-line no-undefined
+    Uint8Array.prototype.toBase64 = undefined
+    let fallbackBase64
+    try {
+      // Buffer лишається доступним у vitest (Node) — вправляє саме Buffer-гілку фолбеку.
+      fallbackBase64 = Buffer.from(new Uint8Array(raw)).toString('base64')
+    } finally {
+      Uint8Array.prototype.toBase64 = originalToBase64
+    }
+    expect(fallbackBase64).toBe(nativeBase64)
+  })
+})
+
 describe('loadOrCreateDeviceKey', () => {
   it('відсутній/порожній текст — генерує новий ключ, created: true', async () => {
     const key = await loadOrCreateDeviceKey('')
