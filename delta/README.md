@@ -157,6 +157,96 @@ cat /tmp/delta-demo-m2/knowledge.json
 decision-request того самого домену (`decision_type`) і виклич `decision_quiz` — друге питання підмішається
 автоматично, файл покаже `## Питання 2 (повторення)`.
 
+## M3 — ШІ-мандати: трек-рекорд, «Довіряю», ШІ-петиція, «остання константа» конструктивно
+
+Демо-критерій: модель подає петицію на розширення власного мандата; єдиний шлях застосувати зміну —
+людський підпис делегатора через звичайний квіз-гейт (форсовано на найвищу ДОСТУПНУ глибину — `standard`);
+спроба підписати саму мутацію мандата модельним ключем відхиляється безумовно
+(докладніше — `docs/specs/260809-delta-app.md`, «Обсяг M3»).
+
+- **`validate_mandate_change` — мок за `mt-rust/crates/mt-mandates/src/change.rs`** (`src/mandate-change.js`):
+  `generation` мусить зрости РІВНО на 1; зміна одного owner-мандата класифікується по осях
+  (`scope.refs`/`scope.decision_types`/`thresholds.budget_eur`/`risk`/`irreversible`/`audacity`) на
+  `added`/`removed`/`kind-changed`/`escalates-to-changed`/`widened`/`narrowed`/`unchanged` — змішаний diff
+  (одна вісь звужується, інша розширюється) трактується як РОЗШИРЕННЯ, видалення мандата — звуження «до
+  нуля». Розширення/додавання вимагає підпису делегатора рівня вище (старого `escalates_to`); звуження/
+  видалення — самопідпис owner; зміна `escalates_to` — ПОДВІЙНИЙ підпис (новий адресат + старий делегатор).
+  **«Остання константа»:** розширення `kind: model` мандата (включно з `audacity` вгору) підписує ЛИШЕ
+  людський ключ — модельний підпис на такому дифі відхиляється безумовно, навіть від правильного делегатора.
+  Крипто-шар — власний вибір, не порт байт-у-байт crate (підписує ПОВНИЙ канонікалізований payload через
+  `signing.js`, той самий шлях, що `ApprovalResponse`, замість domain-separated хешу change.rs) —
+  задокументована різниця в заголовку модуля.
+- **`device-registry.json`** (`src/device-registry.js`) — публічний реєстр `handle → {role, pubkeyBase64}`,
+  живе В `mandatesDir` (комітиться в git, на відміну від приватного `device_key.json` поза git) — мок
+  «pubkey-кешу», проти якого `validate_mandate_change` звіряє заявлену роль підписанта. Свій pubkey
+  реєструється при першому підписі мандат-зміни (той самий інваріант, що M1 `device_key.json`).
+- **Трек-рекорд** (`src/track-record.js`) — «активність і послідовність», НЕ success rate (немає ще
+  audit-механіки/аналізатора ескалацій — чесно назване обмеження): кількість підписаних рішень моделі за
+  `decision_type`, останні N з розгорткою, частка без override. Override — **задокументоване спрощення**:
+  пізніший (за `signed_at`) людський `ApprovalResponse` у ТОМУ САМОМУ run-і з протилежним `chosen_option`
+  (не обов'язково та сама розвилка — справжня семантика потребує графової прив'язки, якої мок не має).
+- **«Довіряю»** (`src/trust.js` + `TrustView.vue`/`use-trust.js`) — мої ШІ-мандати (`escalates_to === я`) з
+  трек-рекордом, порогами, audacity-описом наслідків (`low`: агент питає перед відмовою постачальнику;
+  `medium`: відмовляє сам у reversible; `high`: жорсткі переговори сам, обмежено інваріантом reversible —
+  статичні тексти UI). Кнопки MVP-скоуп однієї осі (audacity ± один щабель, `budget_eur` фолбек на межах —
+  повний багатовісний майстер делегування лишається пізнішому мілстоуну): «звузити» — самопідпис, миттєво,
+  без квізу; «розширити» — ЛИШЕ через change-proposal, немає прямого шляху редагувати `kind: model` мандат.
+- **Change-proposal** (`src/change-proposal.js`) — розширення НІКОЛИ не пише `.mt/mandates.yaml` напряму:
+  матеріалізується як звичайний decision-request у черзі делегатора
+  (`runs/mandate-change-{changeId}/decisions/0001-decision-request.md` — плоский run-id, не вкладений
+  сегмент з задачі, щоб не чіпати однорівневий `scan_decisions`-сканер CLI/GUI; сусідній `0001-change.json`
+  несе машинописний `{old, new}`), `leverage_facets` форсовані (`irreversible: false`, `blast_radius:
+  subtree`) на найвищу глибину, яку M2 реалізує (`standard`) — `teach-back` лишається M5, форс
+  задокументовано в заголовку модуля. Людина проходить ЗВИЧАЙНИЙ `decision_quiz`/`decision_approve`
+  (варіант A застосувати / B відхилити); `mandate_change_apply` — міст між двома незалежними підписами
+  цього застосунку: той самий фізичний ключ, що підписав `ApprovalResponse` квіз-гейта, підписує ОКРЕМИЙ
+  акт `validate_mandate_change` (одна людська дія, два криптографічно незалежні підтвердження).
+- **ШІ-петиція** (`src/ai-petition.js`, tool `ai_petition`) — headless, симулює модель: формує draft-
+  розширення власного мандата з evidence з трек-рекорду, підписує ЛИШЕ петицію (не зміну) модельним ключем,
+  кладе ту саму change-proposal у чергу делегатора. Модель НЕ має окремого фізичного пристрою в цьому
+  моку — застосунок локально утримує її ключ (той самий каталог, що людський `device_key.json`), окреме
+  задокументоване рішення M3.
+
+### Demo-послідовність (петиція → чергу людини → квіз найвищої глибини → підпис → відмова модельного підпису)
+
+```bash
+cd delta
+export DELTA_CONFIG_PATH=/tmp/delta-demo-m3/config.json
+mkdir -p /tmp/delta-demo-m3/.mt
+cp src/tests/fixtures/mandates.yaml /tmp/delta-demo-m3/.mt/mandates.yaml   # generation відсутнє → дефолт 1
+
+bun bin/delta.mjs set_identity '{"handle":"olena"}'
+bun bin/delta.mjs set_mandates_dir '{"dir":"/tmp/delta-demo-m3"}'
+
+# 1. fable-5 подає петицію на розширення власного мандата (audacity medium → high)
+bun bin/delta.mjs ai_petition '{"modelHandle":"fable-5","changeId":"demo-1"}'
+
+# 2. Change-proposal тепер у черзі olena (decision_type: mandate-change, depth: standard — форсовано)
+bun bin/delta.mjs decisions_show '{}'
+
+# 3-4. olena проходить ЗВИЧАЙНИЙ квіз-гейт (2 питання, chosenOption "A" = застосувати)
+bun bin/delta.mjs decision_quiz '{"runId":"mandate-change-demo-1","nnnn":"0001","chosenOption":"A"}'
+bun bin/delta.mjs decision_approve '{"runId":"mandate-change-demo-1","nnnn":"0001","chosenOption":"A","answer":<індекс з кроку 3>}'
+bun bin/delta.mjs decision_approve '{"runId":"mandate-change-demo-1","nnnn":"0001","chosenOption":"A","answer":<індекс питання 2>}'
+# => approved: true, підписаний 0001-approval.json (той самий М1/M2-конвеєр, без винятків)
+
+# 5. СПРОБА застосувати мутацію МОДЕЛЬНИМ підписом — «остання константа», безумовна відмова
+bun bin/delta.mjs mandate_change_apply '{"changeId":"demo-1","handle":"olena","role":"model"}'
+# => {"valid":false,"reason":"owner 'fable-5': розширення ШІ-мандата (kind: model) підписує лише
+#     людський ключ — модельний підпис відхиляється безумовно"}
+
+# 6. ЛЮДСЬКИЙ підпис (той самий фізичний ключ, що щойно пройшов квіз) — застосовується
+bun bin/delta.mjs mandate_change_apply '{"changeId":"demo-1","handle":"olena","role":"human"}'
+# => {"valid":true}; .mt/mandates.yaml: generation 1 → 2, fable-5.thresholds.audacity: medium → high
+
+cat /tmp/delta-demo-m3/.mt/mandates.yaml
+bun bin/delta.mjs trust_show '{}'                                  # оновлений трек-рекорд/audacity
+bun bin/delta.mjs mandate_narrow '{"ownerHandle":"fable-5"}'       # звуження — самопідпис моделі, миттєво, без квізу
+```
+
+Реальний прогін цієї послідовності (агентом, що писав M3) підтвердив точно цей вивід — включно з
+відмовою на кроці 5 і успіхом на кроці 6.
+
 ## Розробка
 
 ```bash

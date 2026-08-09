@@ -3,13 +3,26 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { createDispatch, listTools, toolManifest } from '@7n/tauri-components'
+import { aiPetition } from '../src/ai-petition.js'
+import {
+  applyMandateChangeProposal,
+  applyMandateNarrow,
+  changeProposalDecisionsDir,
+  changeProposalRunId,
+  readChangeProposal,
+  writeChangeProposal
+} from '../src/change-proposal.js'
 import { decisionApprove, decisionQuiz } from '../src/decision-flow.js'
 import { deriveQueue } from '../src/decisions.js'
+import { formatDeviceRegistry, parseDeviceRegistry, upsertDevice } from '../src/device-registry.js'
 import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../src/knowledge.js'
+import { parseMandatesFile } from '../src/mandate-change.js'
 import { deriveMandatesView } from '../src/mandates.js'
 import { defaultLlmConfig } from '../src/quiz.js'
 import { loadOrCreateDeviceKey } from '../src/signing.js'
 import { TOOLS } from '../src/tool/catalog.js'
+import { deriveTrackRecord } from '../src/track-record.js'
+import { deriveTrustView, narrowMandateOneStep, widenMandateOneStep, withMandateReplaced } from '../src/trust.js'
 
 // Headless-вхід delta-поверхні (n-tool-surface): `delta <tool> '<json>'`,
 // `delta list`, `delta schema`. Каталог той самий, що в GUI (src/tool/catalog.js).
@@ -145,12 +158,227 @@ function knowledgeIoCli() {
 }
 
 /**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @returns {string} абсолютний шлях до `.mt/mandates.yaml`
+ */
+function mandatesYamlPath(mandatesDir) {
+  return join(mandatesDir, '.mt', 'mandates.yaml')
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @returns {{generation: number, mandates: object[]}} розібраний `.mt/mandates.yaml` (M3-верхньорівнева форма — `mandate-change.js`)
+ */
+function readMandatesFileCli(mandatesDir) {
+  const path = mandatesYamlPath(mandatesDir)
+  return parseMandatesFile(existsSync(path) ? readFileSync(path, 'utf8') : '')
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @returns {string} абсолютний шлях до `device-registry.json` (публічний реєстр, У `mandatesDir`, комітиться в git — `device-registry.js`)
+ */
+function deviceRegistryPath(mandatesDir) {
+  return join(mandatesDir, 'device-registry.json')
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @returns {object[]} записи реєстру пристроїв
+ */
+function readDeviceRegistryCli(mandatesDir) {
+  const path = deviceRegistryPath(mandatesDir)
+  return parseDeviceRegistry(existsSync(path) ? readFileSync(path, 'utf8') : null)
+}
+
+/**
+ * Реєструє (чи оновлює) publicKey підписанта в `device-registry.json`
+ * ПЕРЕД першим підписом мандат-зміни цим ключем — «свій pubkey
+ * реєструється при першому підписі» (той самий інваріант, що M1 `device_key.json`).
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @param {{handle: string, role: 'human'|'model', pubkeyBase64: string}} device підписант для реєстрації
+ * @returns {void}
+ */
+function ensureRegisteredCli(mandatesDir, device) {
+  const entries = readDeviceRegistryCli(mandatesDir)
+  const updated = upsertDevice(entries, device)
+  writeFileSync(deviceRegistryPath(mandatesDir), formatDeviceRegistry(updated))
+}
+
+/**
+ * @param {string} handle handle моделі (owner мандата `kind: model`)
+ * @returns {string} абсолютний шлях до локально утримуваного ключа моделі
+ *   (той самий каталог, що `device_key.json` людини, поза git — див. `ai-petition.js`:
+ *   мок M3 не має окремого фізичного пристрою моделі, ключ тримає застосунок)
+ */
+function modelKeyPath(handle) {
+  return join(dirname(configPath()), 'model_keys', `${handle}.json`)
+}
+
+/**
+ * Завантажує (чи генерує) локально утримуваний ключ моделі — той самий
+ * `loadOrCreateDeviceKey`, що людський ключ, окремий файл на handle моделі.
+ * @param {string} handle handle моделі
+ * @returns {Promise<{privateKeyJwk: object, publicKeyJwk: object, publicKeyBase64: string}>} ключ моделі
+ */
+async function loadOrCreateModelDeviceKeyCli(handle) {
+  const path = modelKeyPath(handle)
+  const existing = existsSync(path) ? readFileSync(path, 'utf8') : null
+  const key = await loadOrCreateDeviceKey(existing)
+  if (key.created) {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, JSON.stringify(key))
+  }
+  return key
+}
+
+/**
  * @returns {{baseUrl: string, model: string}} конфіг LLM-ендпоінта з `config.json`, дефолт — `quiz.js`
  */
 function readLlmConfig() {
   const config = readConfig()
   const fallback = defaultLlmConfig()
   return { baseUrl: config.llm_base_url ?? fallback.baseUrl, model: config.llm_model ?? fallback.model }
+}
+
+/**
+ * Тіло case `trust_show` — винесено окремою функцією (той самий підхід, що
+ * решта `handle*Cli`-хелперів нижче): switch `cliTransport` лишається
+ * плоским диспетчером, а не носієм вкладеної логіки — знижує cognitive
+ * complexity диспетчера.
+ * @param {object} input вхід тула
+ * @returns {object} зріз «Довіряю»
+ */
+function handleTrustShowCli(input) {
+  const mandatesFile = readMandatesFileCli(input.mandatesDir)
+  const deviceRegistry = readDeviceRegistryCli(input.mandatesDir)
+  const decisionsDirs = scanDecisionsDirs(input.mandatesDir)
+  return deriveTrustView({ mandatesFile, deviceRegistry, decisionsDirs, handle: input.handle ?? null })
+}
+
+/**
+ * Тіло case `mandate_narrow`.
+ * @param {object} input вхід тула
+ * @returns {Promise<{valid: true}|{valid: false, reason: string}>} вердикт застосування
+ */
+async function handleMandateNarrowCli(input) {
+  const mandatesDir = input.mandatesDir
+  const old = readMandatesFileCli(mandatesDir)
+  const mandate = old.mandates.find(m => m.owner === input.ownerHandle)
+  if (!mandate) throw new Error(`mandate_narrow: owner '${input.ownerHandle}' не знайдено в mandates.yaml`)
+  const newFile = withMandateReplaced(old, input.ownerHandle, narrowMandateOneStep)
+  // Звуження — самопідпис owner (mandates.md); для kind: model це МОДЕЛЬНИЙ
+  // ключ (мок утримує його локально — ai-petition.js), не делегатор.
+  const role = mandate.kind === 'model' ? 'model' : 'human'
+  const deviceKey = role === 'model' ? await loadOrCreateModelDeviceKeyCli(input.ownerHandle) : await loadDeviceKeyCli()
+  ensureRegisteredCli(mandatesDir, { handle: input.ownerHandle, role, pubkeyBase64: deviceKey.publicKeyBase64 })
+  return applyMandateNarrow({
+    io: fsIo(),
+    mandatesYamlPath: mandatesYamlPath(mandatesDir),
+    old,
+    new: newFile,
+    handle: input.ownerHandle,
+    role,
+    deviceKey
+  })
+}
+
+/**
+ * Тіло case `mandate_widen_propose`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{changeId, delegatorHandle, decisionRequestPath, changeJsonPath}`
+ */
+async function handleMandateWidenProposeCli(input) {
+  const mandatesDir = input.mandatesDir
+  const old = readMandatesFileCli(mandatesDir)
+  const mandate = old.mandates.find(m => m.owner === input.ownerHandle)
+  if (!mandate) throw new Error(`mandate_widen_propose: owner '${input.ownerHandle}' не знайдено в mandates.yaml`)
+  if (!mandate.escalatesTo) {
+    throw new Error(`mandate_widen_propose: '${input.ownerHandle}' — кореневий мандат, немає делегатора для підпису`)
+  }
+  const newFile = withMandateReplaced(old, input.ownerHandle, widenMandateOneStep)
+  const changeId = input.changeId ?? `mc-${Date.now()}`
+  const written = await writeChangeProposal({
+    io: fsIo(),
+    mandatesDir,
+    changeId,
+    old,
+    new: newFile,
+    ownerHandle: input.ownerHandle,
+    delegatorHandle: mandate.escalatesTo,
+    initiatedBy: input.initiatedByHandle,
+    reasonText: `${input.initiatedByHandle} пропонує розширити мандат '${input.ownerHandle}' на один щабель (audacity/budget_eur).`
+  })
+  return { changeId, delegatorHandle: mandate.escalatesTo, ...written }
+}
+
+/**
+ * Тіло case `ai_petition`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{changeId, delegatorHandle, petitionPath, decisionRequestPath, ...}`
+ */
+async function handleAiPetitionCli(input) {
+  const mandatesDir = input.mandatesDir
+  const old = readMandatesFileCli(mandatesDir)
+  const mandate = old.mandates.find(m => m.owner === input.modelHandle)
+  if (!mandate) throw new Error(`ai_petition: model '${input.modelHandle}' не знайдено в mandates.yaml`)
+  if (mandate.kind !== 'model') throw new Error(`ai_petition: owner '${input.modelHandle}' не kind: model`)
+  if (!mandate.escalatesTo) {
+    throw new Error(`ai_petition: '${input.modelHandle}' — кореневий мандат, немає делегатора для петиції`)
+  }
+  const newFile = withMandateReplaced(old, input.modelHandle, widenMandateOneStep)
+  const decisionsDirs = scanDecisionsDirs(mandatesDir)
+  const deviceRegistry = readDeviceRegistryCli(mandatesDir)
+  const trackRecord = deriveTrackRecord({ decisionsDirs, deviceRegistry, handle: input.modelHandle })
+  const modelDeviceKey = await loadOrCreateModelDeviceKeyCli(input.modelHandle)
+  ensureRegisteredCli(mandatesDir, { handle: input.modelHandle, role: 'model', pubkeyBase64: modelDeviceKey.publicKeyBase64 })
+  const changeId = input.changeId ?? `mc-${Date.now()}`
+  const result = await aiPetition({
+    io: fsIo(),
+    mandatesDir,
+    changeId,
+    old,
+    new: newFile,
+    modelHandle: input.modelHandle,
+    delegatorHandle: mandate.escalatesTo,
+    trackRecord,
+    modelDeviceKey
+  })
+  return { changeId, delegatorHandle: mandate.escalatesTo, ...result }
+}
+
+/**
+ * Тіло case `mandate_change_apply`.
+ * @param {object} input вхід тула
+ * @returns {Promise<{valid: true}|{valid: false, reason: string}>} вердикт застосування
+ */
+async function handleMandateChangeApplyCli(input) {
+  const mandatesDir = input.mandatesDir
+  const changeId = input.changeId
+  const proposal = await readChangeProposal(fsIo(), mandatesDir, changeId)
+  if (!proposal) throw new Error(`mandate_change_apply: change-proposal '${changeId}' не знайдено`)
+  const approvalPath = `${changeProposalDecisionsDir(mandatesDir, changeId)}/0001-approval.json`
+  if (!existsSync(approvalPath)) {
+    throw new Error(
+      `mandate_change_apply: decision-request change-proposal '${changeId}' ще не підписано ` +
+        '(немає 0001-approval.json) — спершу пройди decision_quiz/decision_approve з runId ' +
+        `'${changeProposalRunId(changeId)}'`
+    )
+  }
+  const approval = JSON.parse(readFileSync(approvalPath, 'utf8'))
+  const role = input.role ?? 'human'
+  const deviceKey = role === 'model' ? await loadOrCreateModelDeviceKeyCli(input.handle) : await loadDeviceKeyCli()
+  ensureRegisteredCli(mandatesDir, { handle: input.handle, role, pubkeyBase64: deviceKey.publicKeyBase64 })
+  return applyMandateChangeProposal({
+    io: fsIo(),
+    mandatesYamlPath: mandatesYamlPath(mandatesDir),
+    old: proposal.old,
+    new: proposal.new,
+    approval,
+    handle: input.handle,
+    role,
+    deviceKey
+  })
 }
 
 /**
@@ -225,6 +453,21 @@ async function cliTransport(tool, input) {
       const entries = await loadKnowledgeEntries(knowledgeIoCli())
       return { digest: domainDigest(entries), trend: timeToUnderstandingTrend(entries), entryCount: entries.length }
     }
+    case 'trust_show': {
+      return handleTrustShowCli(input)
+    }
+    case 'mandate_narrow': {
+      return handleMandateNarrowCli(input)
+    }
+    case 'mandate_widen_propose': {
+      return handleMandateWidenProposeCli(input)
+    }
+    case 'ai_petition': {
+      return handleAiPetitionCli(input)
+    }
+    case 'mandate_change_apply': {
+      return handleMandateChangeApplyCli(input)
+    }
     default: {
       throw new Error(`tool "${tool.name}" has no CLI transport`)
     }
@@ -257,14 +500,24 @@ async function main() {
       return 2
     }
   }
-  // mandates_show/decisions_show/decision_quiz/decision_approve без явного
-  // mandatesDir/handle падають на конфіг — зручність для інтерактивного
-  // CLI-використання (GUI завжди передає явно).
-  const MANDATES_DIR_DEFAULT_TOOLS = ['mandates_show', 'decisions_show', 'decision_quiz', 'decision_approve']
+  // mandates_show/decisions_show/decision_quiz/decision_approve/trust_show
+  // без явного mandatesDir/handle падають на конфіг — зручність для
+  // інтерактивного CLI-використання (GUI завжди передає явно).
+  const MANDATES_DIR_DEFAULT_TOOLS = [
+    'mandates_show',
+    'decisions_show',
+    'decision_quiz',
+    'decision_approve',
+    'trust_show',
+    'mandate_narrow',
+    'mandate_widen_propose',
+    'ai_petition',
+    'mandate_change_apply'
+  ]
   if (MANDATES_DIR_DEFAULT_TOOLS.includes(cmd) && input.mandatesDir === undefined) {
     input.mandatesDir = readConfig().mandates_dir
   }
-  if ((cmd === 'mandates_show' || cmd === 'decisions_show') && input.handle === undefined) {
+  if ((cmd === 'mandates_show' || cmd === 'decisions_show' || cmd === 'trust_show') && input.handle === undefined) {
     input.handle = readConfig().identity ?? null
   }
 

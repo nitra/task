@@ -174,5 +174,76 @@ export const TOOLS = [
     input: {},
     tauri: 'knowledge_show', // немає прямої Rust-команди — GUI-транспорт оркеструє через src/knowledge.js
     cli: true
+  },
+  {
+    tier: 'read',
+    name: 'trust_show',
+    summary:
+      'Derive the "Довіряю" screen: my AI mandates (escalates_to === handle) with track record ("activity and ' +
+      'consistency", not a success rate — track-record.js), audacity level + static consequence examples (M3).',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      handle: { type: 'string', required: false, description: 'Owner handle to slice — omitted returns an empty item list.' }
+    },
+    tauri: 'trust_show', // немає прямої Rust-команди — оркеструє src/trust.js + src/track-record.js
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'mandate_narrow',
+    summary:
+      'Narrow one AI mandate one step (audacity down, or budget_eur ÷2 fallback at the audacity floor) — self-signed ' +
+      'by the model\'s own device key, applied immediately, no quiz-gate (mandates.md: narrowing never needs ' +
+      'delegator sign-off).',
+    input: { mandatesDir: MANDATES_DIR, ownerHandle: { type: 'string', required: true, description: 'Owner handle of the model mandate to narrow.' } },
+    tauri: 'mandate_narrow', // оркеструє src/trust.js + src/change-proposal.js: applyMandateNarrow
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'mandate_widen_propose',
+    summary:
+      'Draft a one-step widen (audacity up, or budget_eur ×1.5 fallback at the audacity ceiling) for one AI mandate ' +
+      'and file it as a change-proposal decision-request in the delegator\'s "Вирішую" queue (M1/M2 quiz-gate at ' +
+      'forced depth: standard — "last constant", mandates.md).',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      ownerHandle: { type: 'string', required: true, description: 'Owner handle of the model mandate to widen.' },
+      initiatedByHandle: { type: 'string', required: true, description: 'Handle of the human who drafted this widen (recommended_by).' },
+      changeId: { type: 'string', required: false, description: 'Change-proposal id — omitted generates one from the current timestamp.' }
+    },
+    tauri: 'mandate_widen_propose',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'ai_petition',
+    summary:
+      'Headless tool simulating a model: drafts a widen of its OWN mandate with evidence from its track record, ' +
+      'signs ONLY the petition with the model\'s device key (never the mandate mutation itself), and files the same ' +
+      'change-proposal decision-request as mandate_widen_propose (M3, "ШІ-петиція").',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      modelHandle: { type: 'string', required: true, description: 'Handle of the model petitioning for its own mandate widen.' },
+      changeId: { type: 'string', required: false, description: 'Change-proposal id — omitted generates one from the current timestamp.' }
+    },
+    tauri: 'ai_petition',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'mandate_change_apply',
+    summary:
+      'Finalize a change-proposal AFTER the delegator signed its decision-request via the normal quiz-gate ' +
+      '(decision_approve): re-signs the underlying mandate mutation with the SAME device key and applies ' +
+      'validate_mandate_change — chosen_option ≠ A (reject), or a non-human signer role, leaves mandates.yaml untouched.',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      changeId: { type: 'string', required: true, description: 'Change-proposal id (runs/mandate-change-{changeId}/decisions/0001-*).' },
+      handle: { type: 'string', required: true, description: 'Handle of the delegator who signed the decision-request.' },
+      role: { type: 'string', required: false, description: 'Signer role for the mandate-change act — "human" (default) or "model" (demo of unconditional rejection).' }
+    },
+    tauri: 'mandate_change_apply',
+    cli: true
   }
 ]
