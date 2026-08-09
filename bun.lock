@@ -5,7 +5,7 @@
     "": {
       "name": "task",
       "devDependencies": {
-        "@7n/rules": "^1.64.0",
+        "@7n/rules": "^1.89.2",
         "@7n/rules-ci-github": "^2.2.1",
         "@7n/rules-lang-js": "^0.25.3",
         "@7n/rules-lang-rust": "^0.15.3",
@@ -49,6 +49,31 @@
         "vue-macros": "^3.1.4",
       },
     },
+    "delta": {
+      "name": "delta",
+      "version": "0.1.0",
+      "dependencies": {
+        "@7n/tauri-components": "^0.12.0",
+        "@quasar/extras": "^2.0.2",
+        "@tauri-apps/api": "^2.11.1",
+        "quasar": "^2.21.4",
+        "vue": "^3.5.40",
+        "yaml": "^2.8.1",
+      },
+      "devDependencies": {
+        "@quasar/vite-plugin": "^1.12.0",
+        "@stryker-mutator/core": "^9.6.1",
+        "@tauri-apps/cli": "^2.11.4",
+        "@vitejs/plugin-vue": "^6.0.8",
+        "@vue/test-utils": "^2.4.11",
+        "happy-dom": "^20.11.0",
+        "sass": "^1.101.0",
+        "unplugin-auto-import": "^21.0.0",
+        "vite": "^8.1.4",
+        "vite-plugin-vue-layouts-next": "^2.1.0",
+        "vue-macros": "^3.1.4",
+      },
+    },
     "owner": {
       "name": "owner",
       "version": "0.18.1",
@@ -80,23 +105,25 @@
     },
   },
   "packages": {
-    "@7n/llm-lib": ["@7n/llm-lib@2.13.10", "", { "optionalDependencies": { "@7n/llm-lib-darwin-arm64": "2.13.10", "@7n/llm-lib-linux-x64": "2.13.10" }, "peerDependencies": { "@earendil-works/pi-ai": "~0.80.10", "@earendil-works/pi-coding-agent": "~0.80.10" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"], "bin": { "n-llm-chains-report": "bin/chains-report.mjs" } }, "sha512-NSS3gtGS2lza2uDBZxG25gvDqDgzTVfnu3Tkz10HFhMdbe+TMylbXyKvJI4ppi1e6osuLc0jNcVWflfAJHE+Qw=="],
+    "@7n/llm-lib": ["@7n/llm-lib@3.1.0", "", { "optionalDependencies": { "@7n/llm-lib-darwin-arm64": "3.0.3", "@7n/llm-lib-linux-x64": "3.0.3" }, "peerDependencies": { "@earendil-works/pi-ai": "~0.80.10", "@earendil-works/pi-coding-agent": "~0.80.10" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"], "bin": { "n-llm-chains-report": "bin/chains-report.mjs" } }, "sha512-xSolbQqJYJ3FJWP3MnI587hyDNF3Ol2TnAikLgW8smTqrQYZoP+SYT2qphwrBudWp4glrdK6TdTg7+b61RKsoQ=="],
 
-    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.10", "", { "os": "darwin", "cpu": "arm64" }, "sha512-WU5Axc7+oouP3XjoIFzLYmsYw0OjGqSVS+ohKtMlZi/EXusT1ya8WcaYxTYZ7OtI0HmmmrGUko14vSETNW93ag=="],
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@3.0.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-BBE1MfO0JffMSgoidiF0Z189uU3LEQ4lawxyneRJu0aX3Gbt/VoX3dKgSW28+1lYmIOe63qk4q/CsKE92oL6QQ=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.10", "", { "os": "linux", "cpu": "x64" }, "sha512-nofpoV3RAEQwv4rCOXRTT4NB9sYbDW7wkwb/PiZ4Gf5rRHKDICxwWrUvPTfa76AuQIhkz3eMHYJF1bp3MoLsDw=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@3.0.3", "", { "os": "linux", "cpu": "x64" }, "sha512-xgMImy4HO0mn98Vh7fB1C/Q1ik1phfGM8gp8vVp4f7YRQR3HQCm2nc7k4y7y9f1ObKtG4osaRfMm9IZhOOi13w=="],
 
-    "@7n/rules": ["@7n/rules@1.64.0", "", { "dependencies": { "@7n/llm-lib": "2.13.10", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "graphql": "^16.14.2", "ignore": "^7.0.5", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "oxfmt": "^0.61.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@7n/rules-darwin-arm64": "1.64.0", "@7n/rules-linux-x64": "1.64.0", "@earendil-works/pi-ai": "0.80.10", "@earendil-works/pi-coding-agent": "0.80.10" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-X68vy6LPNjCy9bVfaRy6L0sHwLcIQSL4ONtvoWRuJddq07SYL9uvdVoMuwZ/Tw8Y4EYjEuSysjVnkvqlTu09KQ=="],
+    "@7n/rules": ["@7n/rules@1.89.2", "", { "dependencies": { "@7n/llm-lib": "3.1.0", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "graphql": "^16.14.2", "ignore": "^7.0.5", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "oxfmt": "^0.61.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@7n/rules-darwin-arm64": "1.89.2", "@7n/rules-linux-x64": "1.89.2", "@7n/rules-win32-x64": "1.89.2", "@earendil-works/pi-ai": "0.80.10", "@earendil-works/pi-coding-agent": "0.80.10" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-pQs+s1TYQYNr7P2FNaheqXb02Wrx4wZnMc2XnEqDWYf6cN52F7dM52Z+83T0qZTbch1u4TFgP7l2sMIWywZzyw=="],
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@2.2.1", "", { "dependencies": { "yaml": "^2.9.0" }, "peerDependencies": { "@7n/rules": ">=1.52.0" } }, "sha512-s8f5xpyJwr/pd9mi79t+TSU6O0APArsUSGBRaqugPS4SFdVRWsk/RDm5huMjA5cbYoKdpm+d8eBZtID1q2RKvg=="],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.64.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-iEP11WOdwEt0ZdLmq4jqnUFRWtrM9SrDkM87WFYVzv0Iz1DGmKtD8VoYvkshUHAwVkN4KUN+DHyDs4vNiZNUcQ=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.89.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-/54N1/Fc619xunp/WOzodzDy//cspMV3Bja3C3TM0aFU8BrmdqZy4B21SZyzHb61RI3iifxGja2cvW1YHs2xTw=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@0.25.3", "", { "dependencies": { "@vue/compiler-dom": "^3.0.0", "@vue/compiler-sfc": "^3.0.0", "eslint": "^10.4.1", "globby": "^16.0.0", "jscpd": "^5.0.11", "knip": "^6.22.0", "oxc-parser": "^0.137.0", "stylelint": "^17.6.0" }, "peerDependencies": { "@7n/llm-lib": ">=2.8.0", "@7n/rules": ">=1.52.0", "vue": "^3.0.0" }, "optionalPeers": ["@7n/llm-lib", "vue"] }, "sha512-LGSs1TlUU8nlTdwiVUR0av9oc5pOkB0rbXDls9j2OpR7wj4ow9wkSqxuNNm2zF6mXrS44oS3u7YjDsJvGKm7Zw=="],
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@0.15.3", "", { "dependencies": { "globby": "^16.0.0", "smol-toml": "^1.7.0", "tree-sitter-rust": "^0.24.0", "web-tree-sitter": "^0.26.11" }, "peerDependencies": { "@7n/llm-lib": ">=1.2.0", "@7n/rules": ">=1.52.0" }, "optionalPeers": ["@7n/llm-lib"] }, "sha512-nlaRHIKCET0aX/G403vwxDUR4fWrP5km9b/OW7+6ugIl12kjRSMp9iZE2vnyQ2zRpcq+kz/HVjFdOmuB8P7USw=="],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.64.0", "", { "os": "linux", "cpu": "x64" }, "sha512-WGZPLOMwTxark31cafRCOcL7copOSsRTB9c6AEsPXNdiC+eOA9xKJQ7LS4piiCIq3TtRd9n48fqTx1pMzEln9w=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.89.2", "", { "os": "linux", "cpu": "x64" }, "sha512-aDF1g7qQpFe/iSaIfTzTOC2EGNlrcVy7+pnj+yRpK3OQ/6n+02h1dnbhADgGb1kKxU0wbomCYvhSWWnknsFocw=="],
+
+    "@7n/rules-win32-x64": ["@7n/rules-win32-x64@1.89.2", "", { "os": "win32", "cpu": "x64" }, "sha512-OamoTN1vuvNY+D0IZU9zSgXEtWUQK/i8ZCcqo2OMkqopfteppwAPiNKTt0A6xFRRFWbcgw2IeSSPPU1uFmYcdg=="],
 
     "@7n/tauri-components": ["@7n/tauri-components@0.16.2", "", { "dependencies": { "marked": "^18.0.7" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "@tauri-apps/plugin-process": "^2.0.0", "@tauri-apps/plugin-updater": "^2.0.0", "@vue/test-utils": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "quasar"] }, "sha512-U+prUgIP05vryat+nw1E617SURjRLQWqHVMZMF/rcY9Rjowvce+nQdvvhS/mzz4vmMchpAgLNAASk2P+H9AF7w=="],
 
@@ -1245,6 +1272,8 @@
     "define-properties": ["define-properties@1.2.1", "", { "dependencies": { "define-data-property": "^1.0.1", "has-property-descriptors": "^1.0.0", "object-keys": "^1.1.1" } }, "sha512-8QmQKqEASLd5nx0U1B1okLElbUuuttJ/AnYmRXbbbGDWh6uS208EjD4Xqq/I9wK7u0v6O08XhTWnt5XtEbR6Dg=="],
 
     "defu": ["defu@6.1.7", "", {}, "sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ=="],
+
+    "delta": ["delta@workspace:delta"],
 
     "depd": ["depd@2.0.0", "", {}, "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw=="],
 
@@ -2647,6 +2676,8 @@
     "cosmiconfig/js-yaml": ["js-yaml@4.2.0", "", { "dependencies": { "argparse": "^2.0.1" }, "bin": { "js-yaml": "bin/js-yaml.js" } }, "sha512-ePWsvanv0DWuDRsW8dnt+R4jQ31SCRCQ7hhNcPXZPsoBZiemuZNYGf7adZdqX2D86j6rvKp3RpCxVTSb8WQlOw=="],
 
     "cross-spawn/path-key": ["path-key@3.1.1", "", {}, "sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q=="],
+
+    "delta/@7n/tauri-components": ["@7n/tauri-components@0.12.0", "", { "dependencies": { "marked": "^18.0.5" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "@tauri-apps/plugin-process": "^2.0.0", "@tauri-apps/plugin-updater": "^2.0.0", "@vue/test-utils": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "quasar"] }, "sha512-2q2Xu/fF+2/rBmAl1GFD5R6OvFHkxT9dRORPV93h29k2E9hyReJ3XpaR3roSd+EqBydHDDJU5pC026RxQLOBrA=="],
 
     "dom-serializer/entities": ["entities@4.5.0", "", {}, "sha512-V0hjH4dGPh9Ao5p0MoRY6BVqtwCjhz6vI5LT8AJ55H+4g9/4vbHx1I54fS0XuclLhDHArPQCiMjDxjaL8fPxhw=="],
 

@@ -10,10 +10,12 @@ export default [
       'app/dist/**',
       'owner/src-tauri/**',
       'owner/dist/**',
+      'delta/src-tauri/**',
+      'delta/dist/**',
       'docs/**'
     ]
   },
   ...getConfig({
-    vue: ['app', 'owner']
+    vue: ['app', 'owner', 'delta']
   })
 ]

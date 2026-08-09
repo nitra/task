@@ -48,6 +48,9 @@
     },
     "owner": {
       "entry": ["src/**/*.test.js", "bin/owner.mjs"]
+    },
+    "delta": {
+      "entry": ["src/**/*.test.js", "bin/delta.mjs"]
     }
   }
 }

@@ -4,12 +4,14 @@
   "private": true,
   "workspaces": [
     "app",
-    "owner"
+    "owner",
+    "delta"
   ],
   "type": "module",
   "scripts": {
     "start": "bun --cwd=app run tauri dev --config src-tauri/tauri.conf.dev.json",
     "owner": "bun --cwd=owner run tauri dev --config src-tauri/tauri.conf.dev.json",
+    "delta": "bun --cwd=delta run tauri dev --config src-tauri/tauri.conf.dev.json",
     "android": "bun --cwd=app run tauri android dev",
     "tauri": "bun --cwd=app run tauri",
     "coverage": "npx @7n/rules lint test --no-fix",
