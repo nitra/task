@@ -2,7 +2,8 @@
   <div class="mandate-card" :class="{ mine, model: mandate.kind === 'model' }">
     <div class="row-top">
       <q-icon :name="mandate.kind === 'model' ? 'sym_o_smart_toy' : 'sym_o_person'" size="18px" />
-      <span class="owner">{{ mandate.owner }}</span>
+      <span class="owner">{{ displayName ?? mandate.owner }}</span>
+      <span v-if="displayName && displayName !== mandate.owner" class="owner-handle">({{ mandate.owner }})</span>
       <q-badge v-if="mandate.kind === 'model'" color="secondary" label="модель" class="kind-badge" />
       <q-badge v-if="mine" color="primary" label="мій мандат" class="mine-badge" />
       <q-space />
@@ -35,7 +36,10 @@ import { computed } from 'vue'
 
 const props = defineProps({
   mandate: { type: Object, required: true },
-  mine: { type: Boolean, default: false }
+  mine: { type: Boolean, default: false },
+  // Display-імʼя з `.mt/directory.json` (М4, PII поза git) — `null`/
+  // збігається з `mandate.owner` показує лише handle (фолбек «на handle»).
+  displayName: { type: String, default: null }
 })
 
 const isRoot = computed(() => props.mandate.escalatesTo === null)
@@ -79,6 +83,12 @@ const thresholdChips = computed(() => {
 .owner {
   font-weight: 650;
   font-size: 13.5px;
+}
+
+.owner-handle {
+  font-size: 11px;
+  opacity: 0.55;
+  font-family: 'SF Mono', ui-monospace, monospace;
 }
 
 .kind-badge,

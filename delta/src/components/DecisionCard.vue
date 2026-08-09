@@ -10,10 +10,32 @@
       <span v-if="decision.deadlineCost" class="deadline">{{ decision.deadlineCost }}</span>
     </div>
 
+    <!-- Кворум (M4): irreversible-рішення вимагає підписів УСІХ approvers,
+         кожен ВЛАСНИМ квізом — картка показує, хто підписав/лишився і статус
+         (pending/diverged), «не вигадуй авторезолюцію» (mandates.md). -->
+    <div v-if="isQuorum" class="quorum-panel">
+      <div class="section-label">Кворум — {{ decision.quorum.signed.length }}/{{ decision.quorum.approvers.length }}</div>
+      <div class="quorum-signers">
+        <q-badge
+          v-for="handle in decision.quorum.approvers"
+          :key="handle"
+          :color="decision.quorum.signed.some(s => s.handle === handle) ? 'positive' : 'grey-6'"
+          :label="`${handle}${decision.quorum.signed.some(s => s.handle === handle) ? ' ✓' : ' …'}`"
+          class="facet-badge" />
+      </div>
+      <p v-if="decision.quorum.status === 'diverged'" class="quorum-diverged">
+        Розбіжність кворуму — підписанти обрали РІЗНІ варіанти, рішення лишається відкритим (без авторезолюції).
+      </p>
+      <p v-else-if="!decision.awaitingMe" class="quorum-hint">
+        Ти вже підписав(ла) свою частину — очікуємо: {{ decision.quorum.pending.join(', ') || '—' }}.
+      </p>
+    </div>
+
     <p class="context">{{ decision.context }}</p>
 
-    <!-- Крок 1: обрати варіант decision-request-а. -->
-    <div v-if="!chosenOption" class="options">
+    <!-- Крок 1: обрати варіант decision-request-а (недоступно, якщо кворум
+         очікує вже не мене — я свою частину підписав(ла)). -->
+    <div v-if="!chosenOption && (!isQuorum || decision.awaitingMe)" class="options">
       <div class="section-label">Варіанти</div>
       <div v-for="option in decision.options" :key="option.label" class="option">
         <div class="option-head">
@@ -113,9 +135,20 @@ import { dispatch } from '../tool/index.js'
 
 const props = defineProps({
   decision: { type: Object, required: true },
-  mandatesDir: { type: String, required: true }
+  mandatesDir: { type: String, required: true },
+  // Мій handle — потрібен лише для кворумних (irreversible) карток: кожен
+  // approver проходить ВЛАСНИЙ квіз (`quorum_quiz`/`quorum_approve`,
+  // signerHandle), на відміну від одноосібного `decision_quiz`/`decision_approve`.
+  identity: { type: String, default: null }
 })
-const emit = defineEmits(['approved'])
+// `approved` — одноосібне рішення закрилося МОЇМ підписом (M1/M2, як і
+// раніше); `quorum-signed` — Я підписав(ла) СВОЮ частину кворуму, але
+// рішення могло лишитися відкритим для інших/розбіжним — батько (`DecisionsQueue.vue`)
+// перечитує чергу (`rescan`), а не видаляє картку локально (той самий
+// інваріант, що quorumApprove: закриває ЛИШЕ коли ВСІ підписали однаково).
+const emit = defineEmits(['approved', 'quorum-signed'])
+
+const isQuorum = computed(() => Boolean(props.decision.quorum))
 
 const chosenOption = ref(null)
 const quiz = ref(null)
@@ -145,12 +178,20 @@ async function chooseOption(label) {
   chosenOption.value = label
   quizLoading.value = true
   error.value = null
-  const res = await dispatch('decision_quiz', {
-    mandatesDir: props.mandatesDir,
-    runId: props.decision.runId,
-    nnnn: props.decision.nnnn,
-    chosenOption: label
-  })
+  const res = isQuorum.value
+    ? await dispatch('quorum_quiz', {
+        mandatesDir: props.mandatesDir,
+        runId: props.decision.runId,
+        nnnn: props.decision.nnnn,
+        signerHandle: props.identity,
+        chosenOption: label
+      })
+    : await dispatch('decision_quiz', {
+        mandatesDir: props.mandatesDir,
+        runId: props.decision.runId,
+        nnnn: props.decision.nnnn,
+        chosenOption: label
+      })
   quizLoading.value = false
   if (!res.ok) {
     error.value = res.error.message
@@ -192,13 +233,22 @@ function reset() {
 async function answer(index) {
   answering.value = true
   error.value = null
-  const res = await dispatch('decision_approve', {
-    mandatesDir: props.mandatesDir,
-    runId: props.decision.runId,
-    nnnn: props.decision.nnnn,
-    chosenOption: chosenOption.value,
-    answer: index
-  })
+  const res = isQuorum.value
+    ? await dispatch('quorum_approve', {
+        mandatesDir: props.mandatesDir,
+        runId: props.decision.runId,
+        nnnn: props.decision.nnnn,
+        signerHandle: props.identity,
+        chosenOption: chosenOption.value,
+        answer: index
+      })
+    : await dispatch('decision_approve', {
+        mandatesDir: props.mandatesDir,
+        runId: props.decision.runId,
+        nnnn: props.decision.nnnn,
+        chosenOption: chosenOption.value,
+        answer: index
+      })
   answering.value = false
   if (!res.ok) {
     error.value = res.error.message
@@ -206,6 +256,18 @@ async function answer(index) {
   }
   microlesson.value = res.output.microlesson ?? null
   iterations.value = res.output.iterations
+
+  if (res.output.approved && isQuorum.value) {
+    // Я підписав(ла) СВОЮ частину кворуму — рішення могло лишитись
+    // відкритим (інші approvers ще не підписали) чи розбіжним: батько
+    // перечитує чергу, не видаляє картку локально (deriveQueue сам вирішує,
+    // чи картка лишається видимою — quorumQueueItem).
+    explain.value = null
+    approved.value = true
+    approvalResult.value = res.output
+    emit('quorum-signed', { runId: props.decision.runId, nnnn: props.decision.nnnn, approval: res.output.approval })
+    return
+  }
 
   if (res.output.approved) {
     explain.value = null
@@ -316,6 +378,33 @@ async function answer(index) {
   align-items: flex-start;
   gap: 6px;
   margin: 4px 0 0;
+}
+
+.quorum-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: color-mix(in srgb, currentcolor 5%, transparent);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.quorum-signers {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.quorum-diverged {
+  font-size: 12px;
+  color: #ff453a;
+  margin: 0;
+}
+
+.quorum-hint {
+  font-size: 12px;
+  opacity: 0.7;
+  margin: 0;
 }
 
 .quiz {

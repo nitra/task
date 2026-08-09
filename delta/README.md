@@ -247,6 +247,127 @@ bun bin/delta.mjs mandate_narrow '{"ownerHandle":"fable-5"}'       # звуже�
 Реальний прогін цієї послідовності (агентом, що писав M3) підтвердив точно цей вивід — включно з
 відмовою на кроці 5 і успіхом на кроці 6.
 
+## M4 — мультиюзер: directory, кворум для irreversible, watcher, тиха година, профспілковий режим
+
+Демо-критерій: кворум 2/2 на irreversible-рішенні з двох пристроїв; watcher пінгує виконавця раніше за
+власника (докладніше — `docs/specs/260809-delta-app.md`, «Обсяг M4»; контракт — `mt: docs/architecture/mandates.md`,
+«Process watcher»/«Маршрутизатор ескалацій»).
+
+- **Directory** (`src/directory.js`) — `<mandatesDir>/.mt/directory.json` (handle → `{name, email, lang}`), PII ПОЗА
+  git (конституція п.8: «Ідентичність = handle, PII поза git»; спека 260714, п.1) — корінь репо ігнорує
+  `**/.mt/directory.json`; приклад формату — `src/tests/fixtures/directory.example.json`, не сам файл. Display-імена
+  підставляються з фолбеком на handle (`displayName`) на карті мандатів, у «Довіряю» й у черзі — UI-композабл
+  `src/composables/use-directory.js`; адмін-секція (список handle-ів з редагованим display-імʼям) — розкривна панель
+  на вкладці «Карта мандатів». CLI/tools: `directory_show`, `directory_set`.
+- **Мультипартійний підпис (кворум) для irreversible** (`src/quorum.js`) — decision-request з
+  `leverage_facets.irreversible: true` вимагає підписів УСІХ handle-ів фронтматер-поля `approvers: [...]` (нове поле —
+  розширення мока; відсутнє → фолбек `[computed_owner]`, `decisions.js: resolveApprovers`). Кожен підписант проходить
+  ВЛАСНИЙ квіз (`NNNN-quiz-{handle}.md`, депа форсована на `standard` — найвищу зараз доступну, `teach-back` лишається
+  M5, задокументовано в заголовку `quorum.js`) і пише СВІЙ `NNNN-approval-{handle}.json` (та сама схема
+  `ApprovalResponse`, що M1, плюс поле `signer_handle`). `decisions.js: deriveQuorumStatus` деривує стан із самих
+  approval-файлів: `'closed'` — усі підписали ОДНАКОВИЙ `chosen_option`; `'diverged'` — усі підписали, але
+  розійшлися (рішення лишається ВІДКРИТИМ з видимим статусом, жодної авторезолюції); `'pending'` — не всі підписали.
+  Черга (`deriveQueue`) показує кворумну картку УСІМ approvers, поки статус не `'closed'` — навіть тим, хто вже
+  підписав (`awaitingMe: false`) — транспарентність «хто лишився». Одноосібні (`irreversible: false`) рішення йдуть
+  через `decision-flow.js` БЕЗ ЖОДНОЇ зміни (M1/M2-формат `NNNN-approval.json` незмінний, зворотна сумісність —
+  `depthForFacets` мапить `irreversible: true` на `teach-back`, який `decision-flow.js` не підтримує, тож обидва
+  шляхи взаємовиключні за конструкцією). CLI/tools: `quorum_quiz`, `quorum_approve`, `quorum_status`.
+- **Watcher** (`src/watcher.js` + tool `watcher_scan`, headless-вхід `bin/delta-watcher.mjs`) — сканує
+  `runs/*/decisions/`: відкриті decision-request-и старші за `sla_hours` (дефолт 24) → СПЕРШУ пінг
+  виконавцю/підписанту («у тебе висить X — допомогти?», mandates.md: порядок сигналізації), без руху ще
+  `grace_hours` (дефолт 24) → ескалація власнику вище по `escalation_chain`, у форматі «X застрягло, {handle} в
+  курсі з {дата}», ЗАВЖДИ з прозорою копією в лозі самого виконавця. Час відкриття — власне розширення `opened_at`
+  (ISO, той самий дефакто-підхід, що `decision_type`); відсутнє поле → вік невідомий, watcher свідомо НЕ пінгує
+  (fail-safe). Нотифікації — файловий лог `<mandatesDir>/.mt/notifications/{handle}.jsonl` (append-only, read-append-
+  write через ГЕНЕРИЧНИЙ `read_text_file`/`write_text_file` — жодних нових Tauri-команд; relay для живого пушу
+  прийде пізніше — задокументована деградація «полінг файлів замість пушу»). UI: вкладка «Стежу» (список
+  нотифікацій + кнопка ручного прогону), CLI: `notifications_show`.
+- **Тиха година** (`quiet_hours`/`set_quiet_hours`, конфіг пристрою `{start, end}` — `"HH:MM"`, підтримує нічне
+  вікно через північ) — некритичні нотифікації, згенеровані watcher-ом у тиху годину, і далі пишуться в лог одразу
+  (headless-актор не чекає кінця вікна), але з `deliverAt` = момент кінця вікна й `batched: true` — споживач
+  (`notifications_show`/UI) фільтрує «видимі зараз» за `deliverAt <= now`. Irreversible-рішення З дедлайном
+  (`deadline_cost` заповнено) — ВИНЯТОК, `critical: true`, доставляється негайно навіть у тиху годину. Годинник
+  ін'єктований (`now`) — той самий підхід, що M2.
+- **Профспілковий режим** (`src/what-system-knows.js`, tool `what_system_knows`, конституція п.9) — чистий
+  агрегатор БЕЗ нових зборів даних: моя база знань (`knowledge.js` — записи/тренд), мої нотифікації від watcher-а
+  (пінги мені + що з них пішло вгору, `escalatedFromMe`), мій pubkey/роль з `device-registry.js`. UI: секція на
+  вкладці «Стежу».
+
+### Demo-послідовність (реально прогнана: кворум 2/2 з двох конфігів-«пристроїв» + watcher-послідовність)
+
+```bash
+cd delta
+mkdir -p /tmp/delta-demo-m4/.mt /tmp/delta-demo-m4/runs/demo-1/decisions
+cp src/tests/fixtures/mandates.yaml /tmp/delta-demo-m4/.mt/mandates.yaml
+cp src/tests/fixtures/runs/demo-5/decisions/0001-decision-request.md /tmp/delta-demo-m4/runs/demo-1/decisions/
+# irreversible, approvers: [olena, vitalii], opened_at у минулому — фікстура M4
+
+# Два "пристрої" — окремі DELTA_CONFIG_PATH, кожен зі своїм Ed25519-ключем.
+export OLENA_CFG=/tmp/delta-demo-m4-olena/config.json
+export VITALII_CFG=/tmp/delta-demo-m4-vitalii/config.json
+DELTA_CONFIG_PATH=$OLENA_CFG   bun bin/delta.mjs set_identity '{"handle":"olena"}'
+DELTA_CONFIG_PATH=$OLENA_CFG   bun bin/delta.mjs set_mandates_dir '{"dir":"/tmp/delta-demo-m4"}'
+DELTA_CONFIG_PATH=$VITALII_CFG bun bin/delta.mjs set_identity '{"handle":"vitalii"}'
+DELTA_CONFIG_PATH=$VITALII_CFG bun bin/delta.mjs set_mandates_dir '{"dir":"/tmp/delta-demo-m4"}'
+
+# 1. Адмінка — display-імена (PII поза git, .mt/directory.json)
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs directory_set '{"handle":"olena","name":"Олена Коваль"}'
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs directory_set '{"handle":"vitalii","name":"Віталій Ткаченко"}'
+
+# 2. decisions_show olena — картка з quorum.status: "pending", awaitingMe: true
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs decisions_show '{}'
+
+# 3-4. olena проходить ВЛАСНИЙ квіз (2 питання standard, форсовано) і підписує
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs quorum_quiz '{"runId":"demo-1","nnnn":"0001","signerHandle":"olena","chosenOption":"A"}'
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs quorum_approve '{"runId":"demo-1","nnnn":"0001","signerHandle":"olena","chosenOption":"A","answer":<індекс Q1>}'
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs quorum_approve '{"runId":"demo-1","nnnn":"0001","signerHandle":"olena","chosenOption":"A","answer":<індекс Q2>}'
+# => approved: true, NNNN-approval-olena.json з полем signer_handle
+
+# 5. quorum_status — 1/2, pending
+DELTA_CONFIG_PATH=$VITALII_CFG bun bin/delta.mjs quorum_status '{"runId":"demo-1","nnnn":"0001"}'
+
+# 6-7. vitalii — ВЛАСНИЙ квіз (окремий фізичний ключ), ВЛАСНИЙ підпис
+DELTA_CONFIG_PATH=$VITALII_CFG bun bin/delta.mjs quorum_quiz '{"runId":"demo-1","nnnn":"0001","signerHandle":"vitalii","chosenOption":"A"}'
+DELTA_CONFIG_PATH=$VITALII_CFG bun bin/delta.mjs quorum_approve '{"runId":"demo-1","nnnn":"0001","signerHandle":"vitalii","chosenOption":"A","answer":<...>}'
+DELTA_CONFIG_PATH=$VITALII_CFG bun bin/delta.mjs quorum_approve '{"runId":"demo-1","nnnn":"0001","signerHandle":"vitalii","chosenOption":"A","answer":<...>}'
+
+# 8. quorum_status — 2/2, ОДНАКОВИЙ chosen_option "A" → closed
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs quorum_status '{"runId":"demo-1","nnnn":"0001"}'
+# => {"status":"closed","pending":[],"signed":[{"handle":"olena",...},{"handle":"vitalii",...}]}
+
+# 9. Картка зникає з черги ОБОХ (кворум 2/2 закрито)
+DELTA_CONFIG_PATH=$OLENA_CFG   bun bin/delta.mjs decisions_show '{}'   # => []
+DELTA_CONFIG_PATH=$VITALII_CFG bun bin/delta.mjs decisions_show '{}'   # => []
+
+# 10. Watcher — окрема застаріла (не-irreversible) розвилка demo-2, computed_owner: olena,
+#     escalation_chain: [olena, vitalii], opened_at понад SLA(24h)+grace(24h) тому
+mkdir -p /tmp/delta-demo-m4/runs/demo-2/decisions
+# ...(скопіювати/написати decision-request з opened_at у минулому)...
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs watcher_scan '{}'
+# => notifications: [sla-ping-executor → olena, sla-escalate-owner → vitalii, sla-escalated-notice → olena]
+#    ПОРЯДОК масиву — виконавець ЗАВЖДИ раніше за власника (mandates.md, «Process watcher»)
+
+# 11. Кожен бачить лише СВІЙ лог
+DELTA_CONFIG_PATH=$OLENA_CFG   bun bin/delta.mjs notifications_show '{}'  # ping + escalated-notice (прозоро)
+DELTA_CONFIG_PATH=$VITALII_CFG bun bin/delta.mjs notifications_show '{}'  # лише escalate-owner
+
+# 12. Тиха година — некритичне батчиться, повторний скан
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs set_quiet_hours '{"start":"00:00","end":"23:59"}'
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs watcher_scan '{}'
+# => notifications[].batched: true, deliverAt — кінець вікна (не зараз)
+
+# 13. Профспілковий режим — усе, що система знає про olena, одним агрегатом
+DELTA_CONFIG_PATH=$OLENA_CFG bun bin/delta.mjs what_system_knows '{}'
+
+# Headless-вхід (крон/вручну), без tool-каталогу:
+bun bin/delta-watcher.mjs /tmp/delta-demo-m4
+```
+
+Реальний прогін цієї послідовності (агентом, що писав M4) підтвердив точно цей вивід: кворум `1/2 → 2/2` з
+двома НЕЗАЛЕЖНИМИ Ed25519-ключами (два `DELTA_CONFIG_PATH`), закрита картка зникає з черги обох підписантів,
+watcher-нотифікації в порядку виконавець-спершу-потім-власник, і тиха година, що батчить некритичне (`batched:
+true`) та пропускає критичне (irreversible+дедлайн) без затримки.
+
 ## Розробка
 
 ```bash

@@ -31,8 +31,10 @@
         v-for="item in queue"
         :key="`${item.runId}/${item.nnnn}`"
         @approved="onApproved"
+        @quorum-signed="rescan"
         :decision="item"
-        :mandates-dir="mandatesDir" />
+        :mandates-dir="mandatesDir"
+        :identity="identity" />
     </template>
   </div>
 </template>

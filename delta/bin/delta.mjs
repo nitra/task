@@ -15,14 +15,18 @@ import {
 import { decisionApprove, decisionQuiz } from '../src/decision-flow.js'
 import { deriveQueue } from '../src/decisions.js'
 import { formatDeviceRegistry, parseDeviceRegistry, upsertDevice } from '../src/device-registry.js'
+import { formatDirectory, parseDirectory, setDirectoryEntry } from '../src/directory.js'
 import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../src/knowledge.js'
 import { parseMandatesFile } from '../src/mandate-change.js'
 import { deriveMandatesView } from '../src/mandates.js'
+import { loadQuorumStatus, quorumApprove, quorumQuiz } from '../src/quorum.js'
 import { defaultLlmConfig } from '../src/quiz.js'
 import { loadOrCreateDeviceKey } from '../src/signing.js'
 import { TOOLS } from '../src/tool/catalog.js'
 import { deriveTrackRecord } from '../src/track-record.js'
 import { deriveTrustView, narrowMandateOneStep, widenMandateOneStep, withMandateReplaced } from '../src/trust.js'
+import { buildWhatSystemKnows } from '../src/what-system-knows.js'
+import { notificationsLogPath, parseNotificationsLog, runWatcherScan } from '../src/watcher.js'
 
 // Headless-вхід delta-поверхні (n-tool-surface): `delta <tool> '<json>'`,
 // `delta list`, `delta schema`. Каталог той самий, що в GUI (src/tool/catalog.js).
@@ -242,6 +246,123 @@ function readLlmConfig() {
 }
 
 /**
+ * @returns {{start: string, end: string}|null} конфіг тихої години пристрою — `null` не налаштовано (watcher/UI ніколи не притлумлюють)
+ */
+function readQuietHours() {
+  const config = readConfig()
+  return config.quiet_hours_start && config.quiet_hours_end
+    ? { start: config.quiet_hours_start, end: config.quiet_hours_end }
+    : null
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @returns {string} абсолютний шлях до `.mt/directory.json` (PII, поза git — `directory.js`)
+ */
+function directoryPath(mandatesDir) {
+  return join(mandatesDir, '.mt', 'directory.json')
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @returns {object} довідник handle → {name, email, lang}
+ */
+function readDirectoryCli(mandatesDir) {
+  const path = directoryPath(mandatesDir)
+  return parseDirectory(existsSync(path) ? readFileSync(path, 'utf8') : null)
+}
+
+/**
+ * Тіло case `directory_set`.
+ * @param {object} input вхід тула
+ * @returns {object} новий запис handle
+ */
+function handleDirectorySetCli(input) {
+  const path = directoryPath(input.mandatesDir)
+  const entries = readDirectoryCli(input.mandatesDir)
+  const updated = setDirectoryEntry(entries, input.handle, {
+    ...(input.name !== undefined && { name: input.name }),
+    ...(input.email !== undefined && { email: input.email }),
+    ...(input.lang !== undefined && { lang: input.lang })
+  })
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, formatDirectory(updated))
+  return updated[input.handle]
+}
+
+/**
+ * Тіло case `quorum_quiz`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} активне питання власного квізу підписанта
+ */
+function handleQuorumQuizCli(input) {
+  return quorumQuiz({
+    io: fsIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    nnnn: input.nnnn,
+    signerHandle: input.signerHandle,
+    chosenOption: input.chosenOption,
+    llmConfig: readLlmConfig()
+  })
+}
+
+/**
+ * Тіло case `quorum_approve`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} результат спроби/підпису цього підписанта
+ */
+async function handleQuorumApproveCli(input) {
+  return quorumApprove({
+    io: fsIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    runId: input.runId,
+    nnnn: input.nnnn,
+    signerHandle: input.signerHandle,
+    chosenOption: input.chosenOption,
+    answer: input.answer,
+    deviceKey: await loadDeviceKeyCli(),
+    llmConfig: readLlmConfig()
+  })
+}
+
+/**
+ * Тіло case `watcher_scan`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{notifications, delivered, batched}`
+ */
+function handleWatcherScanCli(input) {
+  return runWatcherScan({
+    io: fsIo(),
+    mandatesDir: input.mandatesDir,
+    decisionsDirs: scanDecisionsDirs(input.mandatesDir),
+    config: input.config,
+    quietHours: readQuietHours()
+  })
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @param {string} handle власник логу
+ * @returns {object[]} розібрані нотифікації цього handle
+ */
+function readNotificationsCli(mandatesDir, handle) {
+  const path = notificationsLogPath(mandatesDir, handle)
+  return parseNotificationsLog(existsSync(path) ? readFileSync(path, 'utf8') : null)
+}
+
+/**
+ * Тіло case `what_system_knows`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} агрегований профспілковий зріз
+ */
+async function handleWhatSystemKnowsCli(input) {
+  const knowledgeEntries = await loadKnowledgeEntries(knowledgeIoCli())
+  const notifications = readNotificationsCli(input.mandatesDir, input.handle)
+  const deviceRegistry = readDeviceRegistryCli(input.mandatesDir)
+  return buildWhatSystemKnows({ handle: input.handle, knowledgeEntries, notifications, deviceRegistry })
+}
+
+/**
  * Тіло case `trust_show` — винесено окремою функцією (той самий підхід, що
  * решта `handle*Cli`-хелперів нижче): switch `cliTransport` лишається
  * плоским диспетчером, а не носієм вкладеної логіки — знижує cognitive
@@ -331,7 +452,11 @@ async function handleAiPetitionCli(input) {
   const deviceRegistry = readDeviceRegistryCli(mandatesDir)
   const trackRecord = deriveTrackRecord({ decisionsDirs, deviceRegistry, handle: input.modelHandle })
   const modelDeviceKey = await loadOrCreateModelDeviceKeyCli(input.modelHandle)
-  ensureRegisteredCli(mandatesDir, { handle: input.modelHandle, role: 'model', pubkeyBase64: modelDeviceKey.publicKeyBase64 })
+  ensureRegisteredCli(mandatesDir, {
+    handle: input.modelHandle,
+    role: 'model',
+    pubkeyBase64: modelDeviceKey.publicKeyBase64
+  })
   const changeId = input.changeId ?? `mc-${Date.now()}`
   const result = await aiPetition({
     io: fsIo(),
@@ -468,6 +593,41 @@ async function cliTransport(tool, input) {
     case 'mandate_change_apply': {
       return handleMandateChangeApplyCli(input)
     }
+    case 'directory_show': {
+      return readDirectoryCli(input.mandatesDir)
+    }
+    case 'directory_set': {
+      return handleDirectorySetCli(input)
+    }
+    case 'quorum_quiz': {
+      return handleQuorumQuizCli(input)
+    }
+    case 'quorum_approve': {
+      return handleQuorumApproveCli(input)
+    }
+    case 'quorum_status': {
+      return loadQuorumStatus({
+        io: fsIo(),
+        decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+        nnnn: input.nnnn
+      })
+    }
+    case 'watcher_scan': {
+      return handleWatcherScanCli(input)
+    }
+    case 'notifications_show': {
+      return readNotificationsCli(input.mandatesDir, input.handle)
+    }
+    case 'quiet_hours': {
+      return readQuietHours()
+    }
+    case 'set_quiet_hours': {
+      writeConfig({ quiet_hours_start: input.start.trim(), quiet_hours_end: input.end.trim() })
+      return null
+    }
+    case 'what_system_knows': {
+      return handleWhatSystemKnowsCli(input)
+    }
     default: {
       throw new Error(`tool "${tool.name}" has no CLI transport`)
     }
@@ -512,12 +672,27 @@ async function main() {
     'mandate_narrow',
     'mandate_widen_propose',
     'ai_petition',
-    'mandate_change_apply'
+    'mandate_change_apply',
+    'directory_show',
+    'directory_set',
+    'quorum_quiz',
+    'quorum_approve',
+    'quorum_status',
+    'watcher_scan',
+    'notifications_show',
+    'what_system_knows'
+  ]
+  const HANDLE_DEFAULT_TOOLS = [
+    'mandates_show',
+    'decisions_show',
+    'trust_show',
+    'notifications_show',
+    'what_system_knows'
   ]
   if (MANDATES_DIR_DEFAULT_TOOLS.includes(cmd) && input.mandatesDir === undefined) {
     input.mandatesDir = readConfig().mandates_dir
   }
-  if ((cmd === 'mandates_show' || cmd === 'decisions_show' || cmd === 'trust_show') && input.handle === undefined) {
+  if (HANDLE_DEFAULT_TOOLS.includes(cmd) && input.handle === undefined) {
     input.handle = readConfig().identity ?? null
   }
 

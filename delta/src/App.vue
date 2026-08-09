@@ -10,6 +10,7 @@
           <q-tab name="decisions" label="Вирішую" />
           <q-tab name="trust" label="Довіряю" />
           <q-tab name="knowledge" label="Знання" />
+          <q-tab name="watcher" label="Стежу" />
         </q-tabs>
       </q-toolbar>
     </q-header>
@@ -28,6 +29,9 @@
           <q-tab-panel name="knowledge" class="delta-panel">
             <KnowledgeView />
           </q-tab-panel>
+          <q-tab-panel name="watcher" class="delta-panel">
+            <WatcherView />
+          </q-tab-panel>
         </q-tab-panels>
       </q-page>
     </q-page-container>
@@ -40,12 +44,15 @@ import DecisionsQueue from './components/DecisionsQueue.vue'
 import KnowledgeView from './components/KnowledgeView.vue'
 import MandatesMap from './components/MandatesMap.vue'
 import TrustView from './components/TrustView.vue'
+import WatcherView from './components/WatcherView.vue'
 
-// Три площини конституції (docs/specs/260809-delta-app.md, п.1): «Карта
-// мандатів» (M0, read-only), «Вирішую» (M1, черга + квіз-гейт), «Довіряю»
+// Пʼять площин конституції (docs/specs/260809-delta-app.md, п.1): «Карта
+// мандатів» (M0, read-only, + M4 директорія display-імен), «Вирішую» (M1,
+// черга + квіз-гейт, + M4 мультипартійний кворум для irreversible), «Довіряю»
 // (M3 — мої ШІ-мандати: трек-рекорд, audacity, звузити/розширити), «Знання»
 // (M2 — особиста база знань: конспект по доменах + приватний тренд «час до
-// розуміння»). «Стежу» лишається M4.
+// розуміння»), «Стежу» (M4 — watcher-нотифікації, тиха година, профспілковий
+// режим «що про мене знає система»).
 const tab = ref('mandates')
 </script>
 

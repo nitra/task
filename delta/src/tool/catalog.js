@@ -121,7 +121,7 @@ export const TOOLS = [
     tier: 'write',
     name: 'decision_approve',
     summary:
-      'Submit an answer for the quiz\'s active question. Wrong: returns the microlesson and layered decision-request ' +
+      "Submit an answer for the quiz's active question. Wrong: returns the microlesson and layered decision-request " +
       'context ("right to depth", M2), iterations++, no approval written. Right on a non-last question: returns the ' +
       'next question (done: false), still no approval. Right on the last question: finalizes the quiz, records a ' +
       'personal-knowledge-base entry, and writes a signed NNNN-approval.json.',
@@ -183,7 +183,11 @@ export const TOOLS = [
       'consistency", not a success rate — track-record.js), audacity level + static consequence examples (M3).',
     input: {
       mandatesDir: MANDATES_DIR,
-      handle: { type: 'string', required: false, description: 'Owner handle to slice — omitted returns an empty item list.' }
+      handle: {
+        type: 'string',
+        required: false,
+        description: 'Owner handle to slice — omitted returns an empty item list.'
+      }
     },
     tauri: 'trust_show', // немає прямої Rust-команди — оркеструє src/trust.js + src/track-record.js
     cli: true
@@ -193,9 +197,12 @@ export const TOOLS = [
     name: 'mandate_narrow',
     summary:
       'Narrow one AI mandate one step (audacity down, or budget_eur ÷2 fallback at the audacity floor) — self-signed ' +
-      'by the model\'s own device key, applied immediately, no quiz-gate (mandates.md: narrowing never needs ' +
+      "by the model's own device key, applied immediately, no quiz-gate (mandates.md: narrowing never needs " +
       'delegator sign-off).',
-    input: { mandatesDir: MANDATES_DIR, ownerHandle: { type: 'string', required: true, description: 'Owner handle of the model mandate to narrow.' } },
+    input: {
+      mandatesDir: MANDATES_DIR,
+      ownerHandle: { type: 'string', required: true, description: 'Owner handle of the model mandate to narrow.' }
+    },
     tauri: 'mandate_narrow', // оркеструє src/trust.js + src/change-proposal.js: applyMandateNarrow
     cli: true
   },
@@ -209,8 +216,16 @@ export const TOOLS = [
     input: {
       mandatesDir: MANDATES_DIR,
       ownerHandle: { type: 'string', required: true, description: 'Owner handle of the model mandate to widen.' },
-      initiatedByHandle: { type: 'string', required: true, description: 'Handle of the human who drafted this widen (recommended_by).' },
-      changeId: { type: 'string', required: false, description: 'Change-proposal id — omitted generates one from the current timestamp.' }
+      initiatedByHandle: {
+        type: 'string',
+        required: true,
+        description: 'Handle of the human who drafted this widen (recommended_by).'
+      },
+      changeId: {
+        type: 'string',
+        required: false,
+        description: 'Change-proposal id — omitted generates one from the current timestamp.'
+      }
     },
     tauri: 'mandate_widen_propose',
     cli: true
@@ -220,14 +235,138 @@ export const TOOLS = [
     name: 'ai_petition',
     summary:
       'Headless tool simulating a model: drafts a widen of its OWN mandate with evidence from its track record, ' +
-      'signs ONLY the petition with the model\'s device key (never the mandate mutation itself), and files the same ' +
+      "signs ONLY the petition with the model's device key (never the mandate mutation itself), and files the same " +
       'change-proposal decision-request as mandate_widen_propose (M3, "ШІ-петиція").',
     input: {
       mandatesDir: MANDATES_DIR,
-      modelHandle: { type: 'string', required: true, description: 'Handle of the model petitioning for its own mandate widen.' },
-      changeId: { type: 'string', required: false, description: 'Change-proposal id — omitted generates one from the current timestamp.' }
+      modelHandle: {
+        type: 'string',
+        required: true,
+        description: 'Handle of the model petitioning for its own mandate widen.'
+      },
+      changeId: {
+        type: 'string',
+        required: false,
+        description: 'Change-proposal id — omitted generates one from the current timestamp.'
+      }
     },
     tauri: 'ai_petition',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'directory_show',
+    summary:
+      'Read .mt/directory.json (handle -> {name, email, lang}, PII outside git, M4) — the full admin table for the workspace.',
+    input: { mandatesDir: MANDATES_DIR },
+    tauri: 'directory_show', // немає прямої Rust-команди — оркеструє src/directory.js над read_text_file
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'directory_set',
+    summary:
+      "Persist (or update) one handle's display entry in .mt/directory.json — admin-only edit, PII stays out of git.",
+    input: {
+      mandatesDir: MANDATES_DIR,
+      handle: HANDLE,
+      name: { type: 'string', required: false, description: 'Display name — omitted leaves the current value.' },
+      email: { type: 'string', required: false, description: 'Email — omitted leaves the current value.' },
+      lang: {
+        type: 'string',
+        required: false,
+        description: 'Preferred render language (BCP-47-ish tag) — omitted leaves the current value.'
+      }
+    },
+    tauri: 'directory_set',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'quorum_quiz',
+    summary:
+      'Multi-signer quorum (M4): generate/show the OWN quiz question for one approver of an irreversible decision-request ' +
+      '(leverage_facets.irreversible: true) — depth forced to standard (teach-back is M5), one quiz file per signer handle.',
+    input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN, signerHandle: HANDLE, chosenOption: CHOSEN_OPTION },
+    tauri: 'quorum_quiz',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'quorum_approve',
+    summary:
+      "Multi-signer quorum (M4): submit an answer for one approver's own quiz. Right on the last question writes THIS " +
+      "signer's own NNNN-approval-{handle}.json — the decision closes only once every approver signed the SAME " +
+      'chosen_option (quorum_status shows pending/closed/diverged).',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      runId: RUN_ID,
+      nnnn: NNNN,
+      signerHandle: HANDLE,
+      chosenOption: CHOSEN_OPTION,
+      answer: { required: true, description: '0-based quiz option index (number), or the exact option text (string).' }
+    },
+    tauri: 'quorum_approve',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'quorum_status',
+    summary:
+      'Read the quorum state of one irreversible decision-request — who signed, who is pending, closed/diverged.',
+    input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN },
+    tauri: 'quorum_status',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'watcher_scan',
+    summary:
+      'Process watcher (M4): scan open decision-requests for SLA/grace breaches, ping the executor first, escalate to ' +
+      "the owner above only after grace (transparent copy stays in the executor's own log), respecting quiet hours " +
+      '(irreversible decisions with a deadline are the exception — always delivered).',
+    input: { mandatesDir: MANDATES_DIR },
+    tauri: 'watcher_scan', // оркеструє src/watcher.js над scan_decisions + read/write_text_file
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'notifications_show',
+    summary:
+      'Read my own notifications log (.mt/notifications/{handle}.jsonl) — watcher pings and transparent escalation copies addressed to me.',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'notifications_show',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'quiet_hours',
+    summary:
+      'Read the configured device quiet-hours window ({start, end}, "HH:MM") — null when not configured (watcher/UI never suppress).',
+    input: {},
+    tauri: 'get_quiet_hours',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'set_quiet_hours',
+    summary:
+      'Persist the device quiet-hours window ({start, end}, "HH:MM") — non-critical notifications batch until the window ends.',
+    input: {
+      start: { type: 'string', required: true, description: 'Window start, "HH:MM".' },
+      end: { type: 'string', required: true, description: 'Window end, "HH:MM".' }
+    },
+    tauri: 'set_quiet_hours',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'what_system_knows',
+    summary:
+      'Union-shop screen (M4, constitution p.9): everything the system stores about MY handle — knowledge-base ' +
+      'entries/trend, my notifications and watcher pings (and which escalated), registry pubkey. Pure aggregator, no new data collection.',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'what_system_knows',
     cli: true
   },
   {
@@ -239,9 +378,22 @@ export const TOOLS = [
       'validate_mandate_change — chosen_option ≠ A (reject), or a non-human signer role, leaves mandates.yaml untouched.',
     input: {
       mandatesDir: MANDATES_DIR,
-      changeId: { type: 'string', required: true, description: 'Change-proposal id (runs/mandate-change-{changeId}/decisions/0001-*).' },
-      handle: { type: 'string', required: true, description: 'Handle of the delegator who signed the decision-request.' },
-      role: { type: 'string', required: false, description: 'Signer role for the mandate-change act — "human" (default) or "model" (demo of unconditional rejection).' }
+      changeId: {
+        type: 'string',
+        required: true,
+        description: 'Change-proposal id (runs/mandate-change-{changeId}/decisions/0001-*).'
+      },
+      handle: {
+        type: 'string',
+        required: true,
+        description: 'Handle of the delegator who signed the decision-request.'
+      },
+      role: {
+        type: 'string',
+        required: false,
+        description:
+          'Signer role for the mandate-change act — "human" (default) or "model" (demo of unconditional rejection).'
+      }
     },
     tauri: 'mandate_change_apply',
     cli: true

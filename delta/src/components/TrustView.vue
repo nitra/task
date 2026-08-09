@@ -30,7 +30,7 @@
       <div v-for="item in items" :key="item.mandate.owner" class="trust-card">
         <div class="row-top">
           <q-icon name="sym_o_smart_toy" size="18px" />
-          <span class="owner">{{ item.mandate.owner }}</span>
+          <span class="owner">{{ directory.displayName(item.mandate.owner) }}</span>
           <q-badge color="secondary" :label="`зухвалість: ${item.audacity}`" class="audacity-badge" />
           <q-space />
           <span v-if="generation !== null" class="generation-tag">generation {{ generation }}</span>
@@ -102,7 +102,8 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
+import { useDirectory } from '../composables/use-directory.js'
 import { useTrust } from '../composables/use-trust.js'
 
 // «Довіряю» (спека docs/specs/260809-delta-app.md, «Обсяг M3», п.3) — третя
@@ -110,9 +111,13 @@ import { useTrust } from '../composables/use-trust.js'
 // наслідків і кнопками звузити (миттєво)/розширити (→ change-proposal у
 // звичайну чергу «Вирішую», квіз найвищої доступної глибини). Самодостатній
 // компонент — той самий патерн, що DecisionsQueue.vue/KnowledgeView.vue.
+// M4: display-імена (`directory.js`) підставляються замість голого owner-handle.
 
-const { items, generation, loading, error, actionError, lastWidenProposal, rescan, narrow, proposeWiden } = useTrust()
+const { mandatesDir, items, generation, loading, error, actionError, lastWidenProposal, rescan, narrow, proposeWiden } =
+  useTrust()
+const directory = useDirectory()
 
+watch(mandatesDir, dir => directory.load(dir))
 onMounted(rescan)
 
 /**

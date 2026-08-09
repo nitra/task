@@ -13,13 +13,17 @@ import {
 import { decisionApprove, decisionQuiz } from '../decision-flow.js'
 import { deriveQueue } from '../decisions.js'
 import { formatDeviceRegistry, parseDeviceRegistry, upsertDevice } from '../device-registry.js'
+import { formatDirectory, parseDirectory, setDirectoryEntry } from '../directory.js'
 import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../knowledge.js'
 import { parseMandatesFile } from '../mandate-change.js'
 import { deriveMandatesView } from '../mandates.js'
+import { loadQuorumStatus, quorumApprove, quorumQuiz } from '../quorum.js'
 import { defaultLlmConfig } from '../quiz.js'
 import { loadOrCreateDeviceKey } from '../signing.js'
 import { deriveTrackRecord } from '../track-record.js'
 import { deriveTrustView, narrowMandateOneStep, widenMandateOneStep, withMandateReplaced } from '../trust.js'
+import { buildWhatSystemKnows } from '../what-system-knows.js'
+import { notificationsLogPath, parseNotificationsLog, runWatcherScan } from '../watcher.js'
 import { TOOLS } from './catalog.js'
 
 // In-app вхід у tool-поверхню для прямих (не-агентних) викликів UI:
@@ -65,6 +69,122 @@ async function loadLlmConfigGui() {
   const config = await invoke('get_llm_config')
   const fallback = defaultLlmConfig()
   return { baseUrl: config.baseUrl ?? fallback.baseUrl, model: config.model ?? fallback.model }
+}
+
+/**
+ * `config.json` над generic `read_text_file`/`write_text_file` — той самий
+ * шлях (`appLocalDataDir`), що `modelKeyPathGui` уже конструює для
+ * model-ключів M3; уникає нової Rust-команди для `quiet_hours` (M4): весь
+ * файл читається/мерджиться/пишеться JS-шаром, той самий read-merge-write,
+ * що `bin/delta.mjs: writeConfig`.
+ * @returns {Promise<string>} абсолютний шлях до `config.json`
+ */
+async function appConfigPathGui() {
+  const dir = await appLocalDataDir()
+  return joinPath(dir, 'config.json')
+}
+
+/**
+ * @returns {Promise<object>} весь конфіг (відсутній/битий файл — порожній обʼєкт)
+ */
+async function readAppConfigGui() {
+  const path = await appConfigPathGui()
+  const text = await invoke('read_text_file', { path })
+  try {
+    return text ? JSON.parse(text) : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * @param {object} patch поля для оновлення (read-merge-write)
+ * @returns {Promise<void>}
+ */
+async function writeAppConfigGui(patch) {
+  const path = await appConfigPathGui()
+  const current = await readAppConfigGui()
+  await invoke('write_text_file', { path, content: JSON.stringify({ ...current, ...patch }, null, 2) })
+}
+
+/**
+ * @returns {Promise<{start: string, end: string}|null>} конфіг тихої години пристрою — `null` не налаштовано
+ */
+async function loadQuietHoursGui() {
+  const config = await readAppConfigGui()
+  return config.quiet_hours_start && config.quiet_hours_end
+    ? { start: config.quiet_hours_start, end: config.quiet_hours_end }
+    : null
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @returns {string} абсолютний шлях до `.mt/directory.json` (PII, поза git — `directory.js`)
+ */
+function directoryPathGui(mandatesDir) {
+  return `${mandatesDir}/.mt/directory.json`
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @returns {Promise<object>} довідник handle → {name, email, lang}
+ */
+async function readDirectoryGui(mandatesDir) {
+  const text = await invoke('read_text_file', { path: directoryPathGui(mandatesDir) })
+  return parseDirectory(text)
+}
+
+/**
+ * Тіло tool `directory_set`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} новий запис handle
+ */
+async function handleDirectorySetGui(input) {
+  const entries = await readDirectoryGui(input.mandatesDir)
+  const updated = setDirectoryEntry(entries, input.handle, {
+    ...(input.name !== undefined && { name: input.name }),
+    ...(input.email !== undefined && { email: input.email }),
+    ...(input.lang !== undefined && { lang: input.lang })
+  })
+  await invoke('write_text_file', { path: directoryPathGui(input.mandatesDir), content: formatDirectory(updated) })
+  return updated[input.handle]
+}
+
+/**
+ * Тіло tool `watcher_scan`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{notifications, delivered, batched}`
+ */
+async function handleWatcherScanGui(input) {
+  const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
+  return runWatcherScan({
+    io: tauriIo(),
+    mandatesDir: input.mandatesDir,
+    decisionsDirs,
+    quietHours: await loadQuietHoursGui()
+  })
+}
+
+/**
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @param {string} handle власник логу
+ * @returns {Promise<object[]>} розібрані нотифікації цього handle
+ */
+async function readNotificationsGui(mandatesDir, handle) {
+  const text = await invoke('read_text_file', { path: notificationsLogPath(mandatesDir, handle) })
+  return parseNotificationsLog(text)
+}
+
+/**
+ * Тіло tool `what_system_knows`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} агрегований профспілковий зріз
+ */
+async function handleWhatSystemKnowsGui(input) {
+  const knowledgeEntries = await loadKnowledgeEntries(knowledgeIoGui())
+  const notifications = await readNotificationsGui(input.mandatesDir, input.handle)
+  const deviceRegistry = await readDeviceRegistryGui(input.mandatesDir)
+  return buildWhatSystemKnows({ handle: input.handle, knowledgeEntries, notifications, deviceRegistry })
 }
 
 /**
@@ -189,7 +309,11 @@ async function handleMandateNarrowGui(input) {
   // утримує його локально), не делегатор (той самий вибір, що CLI).
   const role = mandate.kind === 'model' ? 'model' : 'human'
   const deviceKey = role === 'model' ? await loadOrCreateModelDeviceKeyGui(input.ownerHandle) : await loadDeviceKeyGui()
-  await ensureRegisteredGui(input.mandatesDir, { handle: input.ownerHandle, role, pubkeyBase64: deviceKey.publicKeyBase64 })
+  await ensureRegisteredGui(input.mandatesDir, {
+    handle: input.ownerHandle,
+    role,
+    pubkeyBase64: deviceKey.publicKeyBase64
+  })
   return applyMandateNarrow({
     io: tauriIo(),
     mandatesYamlPath: mandatesYamlPathGui(input.mandatesDir),
@@ -247,7 +371,11 @@ async function handleAiPetitionGui(input) {
   const deviceRegistry = await readDeviceRegistryGui(input.mandatesDir)
   const trackRecord = deriveTrackRecord({ decisionsDirs, deviceRegistry, handle: input.modelHandle })
   const modelDeviceKey = await loadOrCreateModelDeviceKeyGui(input.modelHandle)
-  await ensureRegisteredGui(input.mandatesDir, { handle: input.modelHandle, role: 'model', pubkeyBase64: modelDeviceKey.publicKeyBase64 })
+  await ensureRegisteredGui(input.mandatesDir, {
+    handle: input.modelHandle,
+    role: 'model',
+    pubkeyBase64: modelDeviceKey.publicKeyBase64
+  })
   const changeId = input.changeId ?? `mc-${Date.now()}`
   const result = await aiPetition({
     io: tauriIo(),
@@ -296,56 +424,175 @@ async function handleMandateChangeApplyGui(input) {
 }
 
 /**
+ * Тіло tool `quorum_quiz`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} активне питання власного квізу підписанта
+ */
+async function handleQuorumQuizGui(input) {
+  return quorumQuiz({
+    io: tauriIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    nnnn: input.nnnn,
+    signerHandle: input.signerHandle,
+    chosenOption: input.chosenOption,
+    llmConfig: await loadLlmConfigGui()
+  })
+}
+
+/**
+ * Тіло tool `quorum_approve`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} результат спроби/підпису цього підписанта
+ */
+async function handleQuorumApproveGui(input) {
+  return quorumApprove({
+    io: tauriIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    runId: input.runId,
+    nnnn: input.nnnn,
+    signerHandle: input.signerHandle,
+    chosenOption: input.chosenOption,
+    answer: input.answer,
+    deviceKey: await loadDeviceKeyGui(),
+    llmConfig: await loadLlmConfigGui()
+  })
+}
+
+/**
+ * Тіло tool `quorum_status` — винесено окремою функцією (той самий підхід,
+ * що решта `handle*Gui`-хелперів): знижує cognitive complexity диспетчера
+ * `transport`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{nnnn, approvers, signed, pending, status}`
+ */
+function handleQuorumStatusGui(input) {
+  return loadQuorumStatus({
+    io: tauriIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    nnnn: input.nnnn
+  })
+}
+
+/**
+ * Тіло tool `set_quiet_hours`.
+ * @param {object} input вхід тула
+ * @returns {Promise<null>} завжди `null` (write-tool)
+ */
+async function handleSetQuietHoursGui(input) {
+  await writeAppConfigGui({ quiet_hours_start: input.start.trim(), quiet_hours_end: input.end.trim() })
+  return null
+}
+
+/**
+ * Тіло tool `mandates_show`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} дериваційний зріз карти мандатів
+ */
+async function handleMandatesShowGui(input) {
+  const yamlText = await invoke('read_mandates_yaml', { mandatesDir: input.mandatesDir })
+  return deriveMandatesView(yamlText, input.handle ?? null)
+}
+
+/**
+ * Тіло tool `decisions_show`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object[]>} черга «Вирішую»
+ */
+async function handleDecisionsShowGui(input) {
+  const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
+  return deriveQueue(decisionsDirs, input.handle ?? null)
+}
+
+/**
+ * Тіло tool `decision_quiz`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} активне питання квізу
+ */
+async function handleDecisionQuizGui(input) {
+  return decisionQuiz({
+    io: tauriIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    nnnn: input.nnnn,
+    chosenOption: input.chosenOption,
+    llmConfig: await loadLlmConfigGui(),
+    knowledgeIo: knowledgeIoGui()
+  })
+}
+
+/**
+ * Тіло tool `decision_approve`.
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} результат спроби/підпису
+ */
+async function handleDecisionApproveGui(input) {
+  return decisionApprove({
+    io: tauriIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    runId: input.runId,
+    nnnn: input.nnnn,
+    chosenOption: input.chosenOption,
+    answer: input.answer,
+    deviceKey: await loadDeviceKeyGui(),
+    llmConfig: await loadLlmConfigGui(),
+    knowledgeIo: knowledgeIoGui()
+  })
+}
+
+/**
+ * Тіло tool `device_pubkey`.
+ * @returns {Promise<{publicKeyBase64: string}>} публічний ключ пристрою
+ */
+async function handleDevicePubkeyGui() {
+  const key = await loadDeviceKeyGui()
+  return { publicKeyBase64: key.publicKeyBase64 }
+}
+
+/**
+ * Тіло tool `knowledge_show`.
+ * @returns {Promise<object>} конспект/тренд особистої бази знань
+ */
+async function handleKnowledgeShowGui() {
+  const entries = await loadKnowledgeEntries(knowledgeIoGui())
+  return { digest: domainDigest(entries), trend: timeToUnderstandingTrend(entries), entryCount: entries.length }
+}
+
+// Диспетчерська таблиця замість довгого `if`-ланцюга (знижує cognitive
+// complexity `transport` — той самий рефактор-намір, що `handle*Gui`-
+// хелпери вище, доведений до кінця: КОЖЕН tool — один запис, `transport`
+// лишається чистим lookup+виклик). Пропущені tools (без запису тут)
+// падають на generic `tauriTransport` (той самий фолбек, що раніше).
+const HANDLERS_GUI = {
+  mandates_show: handleMandatesShowGui,
+  decisions_show: handleDecisionsShowGui,
+  decision_quiz: handleDecisionQuizGui,
+  decision_approve: handleDecisionApproveGui,
+  device_pubkey: handleDevicePubkeyGui,
+  knowledge_show: handleKnowledgeShowGui,
+  trust_show: handleTrustShowGui,
+  mandate_narrow: handleMandateNarrowGui,
+  mandate_widen_propose: handleMandateWidenProposeGui,
+  ai_petition: handleAiPetitionGui,
+  mandate_change_apply: handleMandateChangeApplyGui,
+  directory_show: input => readDirectoryGui(input.mandatesDir),
+  directory_set: handleDirectorySetGui,
+  quorum_quiz: handleQuorumQuizGui,
+  quorum_approve: handleQuorumApproveGui,
+  quorum_status: handleQuorumStatusGui,
+  watcher_scan: handleWatcherScanGui,
+  notifications_show: input => readNotificationsGui(input.mandatesDir, input.handle),
+  quiet_hours: loadQuietHoursGui,
+  set_quiet_hours: handleSetQuietHoursGui,
+  what_system_knows: handleWhatSystemKnowsGui
+}
+
+/**
  * @param {object} tool визначення тула
  * @param {object} input вхід тула
  * @returns {Promise<unknown>} результат виклику
  */
-async function transport(tool, input) {
-  if (tool.name === 'mandates_show') {
-    const yamlText = await invoke('read_mandates_yaml', { mandatesDir: input.mandatesDir })
-    return deriveMandatesView(yamlText, input.handle ?? null)
-  }
-  if (tool.name === 'decisions_show') {
-    const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
-    return deriveQueue(decisionsDirs, input.handle ?? null)
-  }
-  if (tool.name === 'decision_quiz') {
-    return decisionQuiz({
-      io: tauriIo(),
-      decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-      nnnn: input.nnnn,
-      chosenOption: input.chosenOption,
-      llmConfig: await loadLlmConfigGui(),
-      knowledgeIo: knowledgeIoGui()
-    })
-  }
-  if (tool.name === 'decision_approve') {
-    return decisionApprove({
-      io: tauriIo(),
-      decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-      runId: input.runId,
-      nnnn: input.nnnn,
-      chosenOption: input.chosenOption,
-      answer: input.answer,
-      deviceKey: await loadDeviceKeyGui(),
-      llmConfig: await loadLlmConfigGui(),
-      knowledgeIo: knowledgeIoGui()
-    })
-  }
-  if (tool.name === 'device_pubkey') {
-    const key = await loadDeviceKeyGui()
-    return { publicKeyBase64: key.publicKeyBase64 }
-  }
-  if (tool.name === 'knowledge_show') {
-    const entries = await loadKnowledgeEntries(knowledgeIoGui())
-    return { digest: domainDigest(entries), trend: timeToUnderstandingTrend(entries), entryCount: entries.length }
-  }
-  if (tool.name === 'trust_show') return handleTrustShowGui(input)
-  if (tool.name === 'mandate_narrow') return handleMandateNarrowGui(input)
-  if (tool.name === 'mandate_widen_propose') return handleMandateWidenProposeGui(input)
-  if (tool.name === 'ai_petition') return handleAiPetitionGui(input)
-  if (tool.name === 'mandate_change_apply') return handleMandateChangeApplyGui(input)
-  return tauriTransport(tool, input)
+function transport(tool, input) {
+  const handler = HANDLERS_GUI[tool.name]
+  return handler ? handler(input) : tauriTransport(tool, input)
 }
 
 export const dispatch = createDispatch(TOOLS, transport)
