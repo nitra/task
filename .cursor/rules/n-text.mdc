@@ -23,6 +23,7 @@ Rego-пакети, що перевіряються через conftest (auto-dis
   "[html]": { "editor.defaultFormatter": "oxc.oxc-vscode" }
 }
 ```
+
 - `.oxfmtrc.json`:
 
 ```json
@@ -37,6 +38,7 @@ Rego-пакети, що перевіряються через conftest (auto-dis
   "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql", "**/auto-imports.d.ts"]
 }
 ```
+
 - `.markdownlint-cli2.jsonc`:
 
 ```
@@ -52,6 +54,7 @@ Rego-пакети, що перевіряються через conftest (auto-dis
   }
 }
 ```
+
 - `.cspell.json`:
 
 ```json
@@ -71,6 +74,7 @@ Rego-пакети, що перевіряються через conftest (auto-dis
   ]
 }
 ```
+
 - `.cspell.json`:
 
 ```json
@@ -80,6 +84,7 @@ Rego-пакети, що перевіряються через conftest (auto-dis
   }
 }
 ```
+
 - `.cspell.json`:
 
 ```json
@@ -87,6 +92,7 @@ Rego-пакети, що перевіряються через conftest (auto-dis
   "import": ["@nitra/cspell-dict"]
 }
 ```
+
 - `extensions.json`:
 
 ```json
@@ -94,6 +100,7 @@ Rego-пакети, що перевіряються через conftest (auto-dis
   "recommendations": ["DavidAnson.vscode-markdownlint", "oxc.oxc-vscode", "timonwong.shellcheck"]
 }
 ```
+
 - `package.json`:
 
 ```json

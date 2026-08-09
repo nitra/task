@@ -24,6 +24,7 @@ Rego-пакети — запускаються `npx @7n/rules lint js` або `c
   "ignore": [".claude/worktrees/**", "**/dist/**", "**/CHANGELOG.md"]
 }
 ```
+
 - `extensions.json`:
 
 ```json
@@ -34,6 +35,7 @@ Rego-пакети — запускаються `npx @7n/rules lint js` або `c
   ]
 }
 ```
+
 - `package.json`:
 
 ```json

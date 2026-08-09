@@ -5,7 +5,7 @@
     "": {
       "name": "task",
       "devDependencies": {
-        "@7n/rules": "^1.63.0",
+        "@7n/rules": "^1.64.0",
         "@7n/rules-ci-github": "^2.2.1",
         "@7n/rules-lang-js": "^0.25.3",
         "@7n/rules-lang-rust": "^0.15.3",
@@ -80,23 +80,23 @@
     },
   },
   "packages": {
-    "@7n/llm-lib": ["@7n/llm-lib@2.13.9", "", { "optionalDependencies": { "@7n/llm-lib-darwin-arm64": "2.13.8", "@7n/llm-lib-linux-x64": "2.13.8" }, "peerDependencies": { "@earendil-works/pi-ai": "~0.80.10", "@earendil-works/pi-coding-agent": "~0.80.10" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"], "bin": { "n-llm-chains-report": "bin/chains-report.mjs" } }, "sha512-rn/XoZs5mPnu0xrcVVT24dqX+chwi9ZudagyJ6N1bO30Q4ylSBNOMgojukYG5Bb+KqhLVXQlKdqv9Q3EFpnD7w=="],
+    "@7n/llm-lib": ["@7n/llm-lib@2.13.10", "", { "optionalDependencies": { "@7n/llm-lib-darwin-arm64": "2.13.10", "@7n/llm-lib-linux-x64": "2.13.10" }, "peerDependencies": { "@earendil-works/pi-ai": "~0.80.10", "@earendil-works/pi-coding-agent": "~0.80.10" }, "optionalPeers": ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent"], "bin": { "n-llm-chains-report": "bin/chains-report.mjs" } }, "sha512-NSS3gtGS2lza2uDBZxG25gvDqDgzTVfnu3Tkz10HFhMdbe+TMylbXyKvJI4ppi1e6osuLc0jNcVWflfAJHE+Qw=="],
 
-    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.8", "", { "os": "darwin", "cpu": "arm64" }, "sha512-2O4/e1qXsM0q7yvKVzjzB0IMTndGfuHJOs+x8RWBl3cmFiUslfy+7a++IxnoeIdKG+TlTPnYueAR6iygQsQ5Ag=="],
+    "@7n/llm-lib-darwin-arm64": ["@7n/llm-lib-darwin-arm64@2.13.10", "", { "os": "darwin", "cpu": "arm64" }, "sha512-WU5Axc7+oouP3XjoIFzLYmsYw0OjGqSVS+ohKtMlZi/EXusT1ya8WcaYxTYZ7OtI0HmmmrGUko14vSETNW93ag=="],
 
-    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.8", "", { "os": "linux", "cpu": "x64" }, "sha512-F72t3no6ZCD6LLisRYmriEkmQmOiA8m7JCkM3MQh59s0MgMc9wBnQ7TV8Z+SP9YDgJMINBZTegRBGR/kLyfh1Q=="],
+    "@7n/llm-lib-linux-x64": ["@7n/llm-lib-linux-x64@2.13.10", "", { "os": "linux", "cpu": "x64" }, "sha512-nofpoV3RAEQwv4rCOXRTT4NB9sYbDW7wkwb/PiZ4Gf5rRHKDICxwWrUvPTfa76AuQIhkz3eMHYJF1bp3MoLsDw=="],
 
-    "@7n/rules": ["@7n/rules@1.63.0", "", { "dependencies": { "@7n/llm-lib": "2.13.9", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "graphql": "^16.14.2", "ignore": "^7.0.5", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "oxfmt": "^0.61.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@7n/rules-darwin-arm64": "1.63.0", "@7n/rules-linux-x64": "1.63.0", "@earendil-works/pi-ai": "0.80.10", "@earendil-works/pi-coding-agent": "0.80.10" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-EB2EVp+oAAu8At4NCSos7YC1ULakaByITwilm1x5aUIMSQZKKwBFId9vcbahyvMUWMM4LH4I0TVHkVtiXbxqHw=="],
+    "@7n/rules": ["@7n/rules@1.64.0", "", { "dependencies": { "@7n/llm-lib": "2.13.10", "ajv": "^8.20.0", "cli-progress": "^3.12.0", "github-actionlint": "^1.7.12", "globby": "^16.0.0", "graphql": "^16.14.2", "ignore": "^7.0.5", "markdownlint-cli2": "^0.22.1", "oxc-parser": "^0.137.0", "oxfmt": "^0.61.0", "picomatch": "^4.0.4", "smol-toml": "^1.7.0", "v8r": "^6.1.0", "yaml": "^2.9.0", "zod": "^4.4.3" }, "optionalDependencies": { "@7n/rules-darwin-arm64": "1.64.0", "@7n/rules-linux-x64": "1.64.0", "@earendil-works/pi-ai": "0.80.10", "@earendil-works/pi-coding-agent": "0.80.10" }, "bin": { "n-rules": "bin/n-rules.js", "n-cursor": "bin/n-rules.js" } }, "sha512-X68vy6LPNjCy9bVfaRy6L0sHwLcIQSL4ONtvoWRuJddq07SYL9uvdVoMuwZ/Tw8Y4EYjEuSysjVnkvqlTu09KQ=="],
 
     "@7n/rules-ci-github": ["@7n/rules-ci-github@2.2.1", "", { "dependencies": { "yaml": "^2.9.0" }, "peerDependencies": { "@7n/rules": ">=1.52.0" } }, "sha512-s8f5xpyJwr/pd9mi79t+TSU6O0APArsUSGBRaqugPS4SFdVRWsk/RDm5huMjA5cbYoKdpm+d8eBZtID1q2RKvg=="],
 
-    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.63.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-syflo8vYdVG/BceDSO/k/kP1pAVKqiRK+rkGQzVhJRr05PJgesOSXjYEC6mVpc6Q+3GbBtj7tsyn3oCyV0yPVw=="],
+    "@7n/rules-darwin-arm64": ["@7n/rules-darwin-arm64@1.64.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-iEP11WOdwEt0ZdLmq4jqnUFRWtrM9SrDkM87WFYVzv0Iz1DGmKtD8VoYvkshUHAwVkN4KUN+DHyDs4vNiZNUcQ=="],
 
     "@7n/rules-lang-js": ["@7n/rules-lang-js@0.25.3", "", { "dependencies": { "@vue/compiler-dom": "^3.0.0", "@vue/compiler-sfc": "^3.0.0", "eslint": "^10.4.1", "globby": "^16.0.0", "jscpd": "^5.0.11", "knip": "^6.22.0", "oxc-parser": "^0.137.0", "stylelint": "^17.6.0" }, "peerDependencies": { "@7n/llm-lib": ">=2.8.0", "@7n/rules": ">=1.52.0", "vue": "^3.0.0" }, "optionalPeers": ["@7n/llm-lib", "vue"] }, "sha512-LGSs1TlUU8nlTdwiVUR0av9oc5pOkB0rbXDls9j2OpR7wj4ow9wkSqxuNNm2zF6mXrS44oS3u7YjDsJvGKm7Zw=="],
 
     "@7n/rules-lang-rust": ["@7n/rules-lang-rust@0.15.3", "", { "dependencies": { "globby": "^16.0.0", "smol-toml": "^1.7.0", "tree-sitter-rust": "^0.24.0", "web-tree-sitter": "^0.26.11" }, "peerDependencies": { "@7n/llm-lib": ">=1.2.0", "@7n/rules": ">=1.52.0" }, "optionalPeers": ["@7n/llm-lib"] }, "sha512-nlaRHIKCET0aX/G403vwxDUR4fWrP5km9b/OW7+6ugIl12kjRSMp9iZE2vnyQ2zRpcq+kz/HVjFdOmuB8P7USw=="],
 
-    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.63.0", "", { "os": "linux", "cpu": "x64" }, "sha512-S+kc371nyY6u6PDcFJhJvDEhJb2mlPx8ZlmuVJcJOJGaHWbABDzvUhb7DkM4/pHhA6/sCp5mQqF+KmOrXZr66w=="],
+    "@7n/rules-linux-x64": ["@7n/rules-linux-x64@1.64.0", "", { "os": "linux", "cpu": "x64" }, "sha512-WGZPLOMwTxark31cafRCOcL7copOSsRTB9c6AEsPXNdiC+eOA9xKJQ7LS4piiCIq3TtRd9n48fqTx1pMzEln9w=="],
 
     "@7n/tauri-components": ["@7n/tauri-components@0.16.2", "", { "dependencies": { "marked": "^18.0.7" }, "peerDependencies": { "@tauri-apps/api": "^2.0.0", "@tauri-apps/plugin-http": "^2.0.0", "@tauri-apps/plugin-process": "^2.0.0", "@tauri-apps/plugin-updater": "^2.0.0", "@vue/test-utils": "^2.0.0", "quasar": "^2.0.0", "vue": "^3.0.0" }, "optionalPeers": ["@tauri-apps/api", "@tauri-apps/plugin-http", "quasar"] }, "sha512-U+prUgIP05vryat+nw1E617SURjRLQWqHVMZMF/rcY9Rjowvce+nQdvvhS/mzz4vmMchpAgLNAASk2P+H9AF7w=="],
 
