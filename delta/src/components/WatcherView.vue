@@ -65,11 +65,71 @@
         </div>
       </div>
     </section>
+
+    <section class="drift-section">
+      <div class="toolbar">
+        <div class="section-label" style="margin-bottom: 0">
+          Дрейф — приватне дзеркало «мета vs комфорт» (конституція п.6, лише мені)
+        </div>
+        <q-space />
+        <q-btn @click="runDriftScan" flat dense no-caps size="sm" icon="sym_o_query_stats" label="прогнати скан" :loading="driftScanning" />
+      </div>
+      <div v-if="driftError" class="banner banner-error">{{ driftError }}</div>
+      <div v-if="!driftHasCards" class="empty-state">
+        <q-icon name="sym_o_trending_flat" size="28px" class="empty-icon" />
+        <p class="empty-hint">Немає класів рішень, які ти системно відкладаєш — жодної картки.</p>
+      </div>
+      <div v-else class="drift-cards">
+        <div v-for="card in driftCards" :key="card.decisionType" class="drift-card">
+          <div class="drift-card-head">
+            <span class="drift-type">{{ card.decisionType }}</span>
+            <q-badge color="grey-6" :label="`${card.count} шт`" dense />
+            <span class="drift-age">найстаріше — {{ card.oldestAgeDays }} дн.</span>
+          </div>
+          <div v-for="item in card.items" :key="`${item.runId}/${item.nnnn}`" class="drift-item">
+            <span class="drift-item-ref">{{ item.runId }}/{{ item.nnnn }}</span>
+            <q-badge :color="item.signal === 'both' ? 'negative' : 'warning'" :label="signalLabel(item.signal)" dense outline />
+            <q-space />
+            <template v-if="delegateState[`${item.runId}/${item.nnnn}`]?.delegated">
+              <q-badge color="positive" label="делеговано" dense />
+            </template>
+            <template v-else-if="delegateState[`${item.runId}/${item.nnnn}`]">
+              <div class="delegate-quiz">
+                <span class="delegate-question">{{ delegateState[`${item.runId}/${item.nnnn}`].question }}</span>
+                <q-btn
+                  v-for="(option, i) in delegateState[`${item.runId}/${item.nnnn}`].options"
+                  :key="i"
+                  @click="onSubmitDelegate(item, i)"
+                  outline
+                  dense
+                  no-caps
+                  size="sm"
+                  :label="option"
+                  class="delegate-option"
+                />
+              </div>
+            </template>
+            <q-btn
+              v-else-if="eligibleModel(card.decisionType)"
+              @click="onStartDelegate(item, card.decisionType)"
+              flat
+              dense
+              no-caps
+              size="sm"
+              icon="sym_o_smart_toy"
+              :label="`делегувати ${eligibleModel(card.decisionType).owner}`"
+            />
+            <span v-else class="no-model-hint">немає моделі під мій мандат для «{{ card.decisionType }}»</span>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useDrift } from '../composables/use-drift.js'
 import { useWatcher } from '../composables/use-watcher.js'
 
 // «Стежу» (docs/specs/260809-delta-app.md, «Обсяг M4», п.3/4/5) — четверта
@@ -82,8 +142,51 @@ import { useWatcher } from '../composables/use-watcher.js'
 const { identity, mandatesDir, notifications, quietHours, whatSystemKnows, loading, scanning, error, refreshConfig, rescan, runScan, saveQuietHours } =
   useWatcher()
 
+const {
+  cards: driftCards,
+  hasCards: driftHasCards,
+  scanning: driftScanning,
+  error: driftError,
+  delegateState,
+  refreshConfig: refreshDriftConfig,
+  rescan: rescanDrift,
+  runScan: runDriftScan,
+  eligibleModel,
+  startDelegate,
+  submitDelegate
+} = useDrift()
+
 const quietStart = ref('')
 const quietEnd = ref('')
+
+/**
+ * @param {'stale'|'repeated-iterations'|'both'} signal сигнал дрейф-item-а
+ * @returns {string} людиночитабельна мітка
+ */
+function signalLabel(signal) {
+  if (signal === 'stale') return 'застаріле'
+  if (signal === 'repeated-iterations') return 'повторні спроби'
+  return 'застаріле + повторні спроби'
+}
+
+/**
+ * @param {object} item item дрейф-картки
+ * @param {string} decisionType клас рішень картки
+ * @returns {Promise<void>}
+ */
+async function onStartDelegate(item, decisionType) {
+  const model = eligibleModel(decisionType)
+  if (model) await startDelegate(item, model.owner)
+}
+
+/**
+ * @param {object} item item дрейф-картки
+ * @param {number} answerIndex обраний варіант
+ * @returns {Promise<void>}
+ */
+async function onSubmitDelegate(item, answerIndex) {
+  await submitDelegate(item, answerIndex)
+}
 
 const shortPubkey = computed(() => {
   const key = whatSystemKnows.value?.registry?.pubkeyBase64 ?? ''
@@ -112,9 +215,11 @@ async function onSaveQuietHours() {
 onMounted(async () => {
   await refreshConfig()
   if (mandatesDir.value && identity.value) await rescan()
+  await refreshDriftConfig()
+  if (mandatesDir.value && identity.value) await rescanDrift()
 })
 
-defineExpose({ rescan })
+defineExpose({ rescan, rescanDrift })
 </script>
 
 <style scoped>
@@ -264,5 +369,79 @@ defineExpose({ rescan })
   font-family: 'SF Mono', ui-monospace, monospace;
   font-size: 11px;
   font-weight: 500;
+}
+
+.drift-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drift-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drift-card {
+  border: 1px solid color-mix(in srgb, currentcolor 10%, transparent);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drift-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.drift-type {
+  font-weight: 650;
+}
+
+.drift-age {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.drift-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.drift-item-ref {
+  font-family: 'SF Mono', ui-monospace, monospace;
+  opacity: 0.75;
+}
+
+.no-model-hint {
+  font-size: 11px;
+  opacity: 0.55;
+}
+
+.delegate-quiz {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.delegate-question {
+  font-size: 11.5px;
+  opacity: 0.8;
+  text-align: right;
+  max-width: 360px;
+}
+
+.delegate-option {
+  width: 100%;
+  max-width: 360px;
 }
 </style>
