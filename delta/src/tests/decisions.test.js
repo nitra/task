@@ -1,13 +1,22 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { deriveQueue, depthForFacets, parseDecisionRequest, splitFrontmatter } from '../decisions.js'
+import {
+  deriveQueue,
+  deriveQuorumStatus,
+  depthForFacets,
+  parseDecisionRequest,
+  requiresQuorum,
+  resolveApprovers,
+  splitFrontmatter
+} from '../decisions.js'
 
 const FIXTURES_ROOT = join(import.meta.dirname, 'fixtures/runs')
 const DR_0001 = readFileSync(join(FIXTURES_ROOT, 'demo-1/decisions/0001-decision-request.md'), 'utf8')
 const DR_0002 = readFileSync(join(FIXTURES_ROOT, 'demo-1/decisions/0002-decision-request.md'), 'utf8')
 const DR_CLOSED = readFileSync(join(FIXTURES_ROOT, 'demo-2/decisions/0001-decision-request.md'), 'utf8')
 const APPROVAL_CLOSED = readFileSync(join(FIXTURES_ROOT, 'demo-2/decisions/0001-approval.json'), 'utf8')
+const DR_IRREVERSIBLE = readFileSync(join(FIXTURES_ROOT, 'demo-5/decisions/0001-decision-request.md'), 'utf8')
 
 const INVALID_FRONTMATTER_ERROR_RE = /decision-request/
 const DEADLINE_COST_RE = /design-review/
@@ -129,9 +138,9 @@ describe('depthForFacets', () => {
   })
 
   it('irreversible домінує над «середніми» фасетами — завжди teach-back', () => {
-    expect(
-      depthForFacets({ irreversible: true, blastRadius: 'subtree', divergence: 'medium', estCostEur: 300 })
-    ).toBe('teach-back')
+    expect(depthForFacets({ irreversible: true, blastRadius: 'subtree', divergence: 'medium', estCostEur: 300 })).toBe(
+      'teach-back'
+    )
   })
 })
 
@@ -201,5 +210,185 @@ describe('deriveQueue', () => {
     const queue = deriveQueue(dirs, 'olena')
     expect(queue[0].leverageFacets.irreversible).toBe(true)
     expect(queue[0].nnnn).toBe('0002')
+  })
+})
+
+describe('parseDecisionRequest — approvers/opened_at (M4)', () => {
+  it('фікстура demo-5 (irreversible) — approvers і opened_at розібрані', () => {
+    const dr = parseDecisionRequest(DR_IRREVERSIBLE, { path: 'x', runId: 'demo-5', nnnn: '0001' })
+    expect(dr.approvers).toEqual(['olena', 'vitalii'])
+    expect(dr.openedAt).toBe('2026-08-01T09:00:00.000Z')
+    expect(dr.leverageFacets.irreversible).toBe(true)
+  })
+
+  it('відсутні approvers/opened_at — null, не помилка', () => {
+    const dr = parseDecisionRequest(DR_0001)
+    expect(dr.approvers).toBeNull()
+    expect(dr.openedAt).toBeNull()
+  })
+})
+
+describe('requiresQuorum', () => {
+  it('irreversible: true — вимагає кворуму', () => {
+    expect(requiresQuorum({ irreversible: true })).toBe(true)
+  })
+
+  it('irreversible: false — одноосібний шлях', () => {
+    expect(requiresQuorum({ irreversible: false })).toBe(false)
+  })
+})
+
+describe('resolveApprovers', () => {
+  it('явний frontmatter approvers — повертається як є', () => {
+    const dr = parseDecisionRequest(DR_IRREVERSIBLE, { nnnn: '0001' })
+    expect(resolveApprovers(dr)).toEqual(['olena', 'vitalii'])
+  })
+
+  it('немає approvers у фронтматері — фолбек [computedOwner]', () => {
+    const dr = parseDecisionRequest(DR_0001)
+    expect(resolveApprovers(dr)).toEqual(['olena'])
+  })
+
+  it('немає ні approvers, ні computedOwner — порожній список', () => {
+    expect(resolveApprovers({ approvers: null, computedOwner: null })).toEqual([])
+  })
+})
+
+describe('deriveQuorumStatus', () => {
+  const dr = parseDecisionRequest(DR_IRREVERSIBLE, { nnnn: '0001' })
+
+  it('жоден approval-файл — status pending, усі approvers в pending', () => {
+    const status = deriveQuorumStatus(dr, new Map())
+    expect(status).toEqual({
+      approvers: ['olena', 'vitalii'],
+      signed: [],
+      pending: ['olena', 'vitalii'],
+      status: 'pending'
+    })
+  })
+
+  it('один із двох підписав — усе одно pending', () => {
+    const filesByName = new Map([
+      ['0001-approval-olena.json', JSON.stringify({ chosen_option: 'A', signed_at: '2026-08-02T00:00:00.000Z' })]
+    ])
+    const status = deriveQuorumStatus(dr, filesByName)
+    expect(status.status).toBe('pending')
+    expect(status.pending).toEqual(['vitalii'])
+    expect(status.signed).toEqual([{ handle: 'olena', chosenOption: 'A', signedAt: '2026-08-02T00:00:00.000Z' }])
+  })
+
+  it('обидва підписали ОДНАКОВИЙ chosen_option — closed (2/2)', () => {
+    const filesByName = new Map([
+      ['0001-approval-olena.json', JSON.stringify({ chosen_option: 'A', signed_at: '2026-08-02T00:00:00.000Z' })],
+      ['0001-approval-vitalii.json', JSON.stringify({ chosen_option: 'A', signed_at: '2026-08-03T00:00:00.000Z' })]
+    ])
+    const status = deriveQuorumStatus(dr, filesByName)
+    expect(status.status).toBe('closed')
+    expect(status.pending).toEqual([])
+  })
+
+  it('обидва підписали РІЗНИЙ chosen_option — diverged, не автовирішено', () => {
+    const filesByName = new Map([
+      ['0001-approval-olena.json', JSON.stringify({ chosen_option: 'A', signed_at: '2026-08-02T00:00:00.000Z' })],
+      ['0001-approval-vitalii.json', JSON.stringify({ chosen_option: 'B', signed_at: '2026-08-03T00:00:00.000Z' })]
+    ])
+    const status = deriveQuorumStatus(dr, filesByName)
+    expect(status.status).toBe('diverged')
+  })
+
+  it('битий approval-файл — той підписант лишається pending (fail-closed)', () => {
+    const filesByName = new Map([['0001-approval-olena.json', '{not json']])
+    const status = deriveQuorumStatus(dr, filesByName)
+    expect(status.pending).toContain('olena')
+  })
+})
+
+describe('deriveQueue — irreversible/кворум (M4)', () => {
+  const dirs = [
+    { dir: '/root/runs/demo-5/decisions', files: [{ name: '0001-decision-request.md', content: DR_IRREVERSIBLE }] }
+  ]
+
+  it('обидва approvers бачать картку у своїй черзі, поки кворум pending', () => {
+    expect(deriveQueue(dirs, 'olena')).toHaveLength(1)
+    expect(deriveQueue(dirs, 'vitalii')).toHaveLength(1)
+  })
+
+  it('хтось поза approvers не бачить картку', () => {
+    expect(deriveQueue(dirs, 'fable-5')).toHaveLength(0)
+  })
+
+  it('депа кворумної картки форсована на standard, awaitingMe true поки не підписав', () => {
+    const [item] = deriveQueue(dirs, 'olena')
+    expect(item.depth).toBe('standard')
+    expect(item.awaitingMe).toBe(true)
+    expect(item.quorum.status).toBe('pending')
+  })
+
+  it('один approval (olena) — картка лишається видимою ОБОМ (транспарентність «хто лишився»), awaitingMe розрізняє їх', () => {
+    const dirsWithOneSigned = [
+      {
+        dir: '/root/runs/demo-5/decisions',
+        files: [
+          { name: '0001-decision-request.md', content: DR_IRREVERSIBLE },
+          {
+            name: '0001-approval-olena.json',
+            content: JSON.stringify({ chosen_option: 'A', signed_at: '2026-08-02T00:00:00.000Z' })
+          }
+        ]
+      }
+    ]
+    const [olenaItem] = deriveQueue(dirsWithOneSigned, 'olena')
+    expect(olenaItem.awaitingMe).toBe(false) // уже підписала свою частину
+    expect(olenaItem.quorum.status).toBe('pending')
+    const [vitaliiItem] = deriveQueue(dirsWithOneSigned, 'vitalii')
+    expect(vitaliiItem.awaitingMe).toBe(true)
+    expect(vitaliiItem.quorum.status).toBe('pending')
+  })
+
+  it('2/2 однаковий chosen_option — картка зникає з черги ОБОХ (закрита)', () => {
+    const closedDirs = [
+      {
+        dir: '/root/runs/demo-5/decisions',
+        files: [
+          { name: '0001-decision-request.md', content: DR_IRREVERSIBLE },
+          {
+            name: '0001-approval-olena.json',
+            content: JSON.stringify({ chosen_option: 'A', signed_at: '2026-08-02T00:00:00.000Z' })
+          },
+          {
+            name: '0001-approval-vitalii.json',
+            content: JSON.stringify({ chosen_option: 'A', signed_at: '2026-08-03T00:00:00.000Z' })
+          }
+        ]
+      }
+    ]
+    expect(deriveQueue(closedDirs, 'olena')).toHaveLength(0)
+    expect(deriveQueue(closedDirs, 'vitalii')).toHaveLength(0)
+  })
+
+  it('2/2 РІЗНИЙ chosen_option — розбіжність кворуму лишається видимою (не закрита, не авторезольована)', () => {
+    const divergedDirs = [
+      {
+        dir: '/root/runs/demo-5/decisions',
+        files: [
+          { name: '0001-decision-request.md', content: DR_IRREVERSIBLE },
+          {
+            name: '0001-approval-olena.json',
+            content: JSON.stringify({ chosen_option: 'A', signed_at: '2026-08-02T00:00:00.000Z' })
+          },
+          {
+            name: '0001-approval-vitalii.json',
+            content: JSON.stringify({ chosen_option: 'B', signed_at: '2026-08-03T00:00:00.000Z' })
+          }
+        ]
+      }
+    ]
+    const [olenaItem] = deriveQueue(divergedDirs, 'olena')
+    const [vitaliiItem] = deriveQueue(divergedDirs, 'vitalii')
+    expect(olenaItem.quorum.status).toBe('diverged')
+    expect(vitaliiItem.quorum.status).toBe('diverged')
+    // Обидва вже підписали — не бракує реакції саме від них (awaitingMe false), але картка лишається видимою.
+    expect(olenaItem.awaitingMe).toBe(false)
+    expect(vitaliiItem.awaitingMe).toBe(false)
   })
 })

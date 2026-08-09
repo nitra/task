@@ -154,10 +154,90 @@ export function parseDecisionRequest(text, meta = {}) {
     // домен без крос-читання `.mt/mandates.yaml` під час деривації квізу.
     // Відсутнє поле — домен `'general'` (knowledge.js), не помилка парсингу.
     decisionType: typeof frontmatter.decision_type === 'string' ? frontmatter.decision_type : null,
+    // `approvers` — власне розширення M4 (docs/specs/260809-delta-app.md,
+    // «Обсяг M4», п.2): мультипартійний підпис для irreversible-рішень
+    // (leverage_facets.irreversible: true) вимагає підписів УСІХ handle-ів
+    // цього списку; поле відсутнє → фолбек `[computedOwner]` (одноосібний
+    // підписант, той самий, що весь інший flow) — див. `resolveApprovers`.
+    approvers: Array.isArray(frontmatter.approvers) ? frontmatter.approvers.map(String) : null,
+    // `opened_at` — власне розширення M4 (watcher.js): ISO-час, коли
+    // decision-request зʼявився у черзі. Контракт mt не фіксує явного поля
+    // «час відкриття» для файлового мока (у реальному git-refs транспорті
+    // це час коміту decision-request, якого файловий мок не матеріалізує) —
+    // той самий підхід, що `decision_type` (escalation-intake штампує
+    // дефакто-поле понад букву контракту). Відсутнє поле — вік невідомий,
+    // watcher.js свідомо НЕ пінгує (fail-safe, не вигаданий вік).
+    openedAt: typeof frontmatter.opened_at === 'string' ? frontmatter.opened_at : null,
     context: sectionBody(sections, 'Контекст'),
     options: parseOptions(variantsBody),
     recommendation: sectionBody(sections, 'Рекомендація агента')
   }
+}
+
+/**
+ * Чи рішення вимагає мультипартійного підпису (кворуму) — M4, docs/specs/
+ * 260809-delta-app.md, «Обсяг M4», п.2: КОЖНЕ irreversible-рішення (не лише
+ * широкий blast_radius) підписують УСІ `approvers`, кожен ВЛАСНИМ квізом
+ * (`quorum.js`), а не єдиний computed_owner звичайним M1/M2-конвеєром.
+ * @param {{irreversible: boolean}} leverageFacets нормалізовані leverage-фасети
+ * @returns {boolean} true — рішення йде через `quorum.js`, не `decision-flow.js`
+ */
+export function requiresQuorum(leverageFacets) {
+  return leverageFacets.irreversible === true
+}
+
+/**
+ * Список handle-ів, чиї підписи потрібні для закриття irreversible-рішення
+ * — фронтматер `approvers: [...]`, або фолбек `[computedOwner]` (мок без
+ * явного поля — одноосібний підписант, той самий владник, що обчислив
+ * маршрутизатор ескалацій).
+ * @param {{approvers: string[]|null, computedOwner: string|null}} decisionRequest розібраний decision-request
+ * @returns {string[]} handle-и підписантів кворуму
+ */
+export function resolveApprovers(decisionRequest) {
+  if (Array.isArray(decisionRequest.approvers) && decisionRequest.approvers.length > 0) return decisionRequest.approvers
+  return decisionRequest.computedOwner ? [decisionRequest.computedOwner] : []
+}
+
+/**
+ * Деривує стан кворуму irreversible-рішення зі скановних файлів сусідньої
+ * decisions-директорії (`NNNN-approval-{handle}.json` на кожного
+ * підписанта) — pure-функція, не читає диск сама (той самий підхід, що
+ * `isOpen` нижче): викликач (`deriveQueue`/`quorum.js: loadQuorumStatus`)
+ * дає вже скановану карту імʼя→вміст.
+ *
+ * Статуси: `'pending'` — не всі підписали (звичайний прогрес, штатний
+ * стан); `'closed'` — усі підписали З ОДНАКОВИМ `chosen_option` (рішення
+ * закрите); `'diverged'` — усі підписали, але `chosen_option` розійшовся —
+ * «розбіжність кворуму» (mandates.md: чесний стан, без автоматичної
+ * авторезолюції — рішення лишається відкритим).
+ * @param {{nnnn: string}} decisionRequest розібраний decision-request (для `nnnn`/`resolveApprovers`)
+ * @param {Map<string, string>} filesByName карта імʼя файлу → вміст у директорії decisions
+ * @returns {{approvers: string[], signed: {handle: string, chosenOption: string|null, signedAt: string|null}[], pending: string[], status: 'pending'|'closed'|'diverged'}}
+ *   стан кворуму
+ */
+export function deriveQuorumStatus(decisionRequest, filesByName) {
+  const approvers = resolveApprovers(decisionRequest)
+  const signed = []
+  const pending = []
+  for (const handle of approvers) {
+    const raw = filesByName.get(`${decisionRequest.nnnn}-approval-${handle}.json`)
+    if (!raw) {
+      pending.push(handle)
+      continue
+    }
+    try {
+      const approval = JSON.parse(raw)
+      signed.push({ handle, chosenOption: approval.chosen_option ?? null, signedAt: approval.signed_at ?? null })
+    } catch {
+      pending.push(handle) // битий approval-файл — той самий інваріант, що device-registry.js: fail-closed, не рахується
+    }
+  }
+  const allSigned = pending.length === 0
+  const distinctOptions = new Set(signed.map(s => s.chosenOption))
+  let status = 'pending'
+  if (allSigned) status = distinctOptions.size === 1 ? 'closed' : 'diverged'
+  return { approvers, signed, pending, status }
 }
 
 // «Помітна ціна» для decide-and-inform (mandates.md, «Крок 3», рядок
@@ -231,9 +311,41 @@ function isOpen(filesByName, nnnn) {
 }
 
 /**
+ * Депа кворумних (irreversible) карток у черзі — форсовано на `standard`
+ * (M4, той самий форс-патерн, що change-proposal.js: `teach-back` —
+ * контрактно правильна глибина для irreversible, mandates.md, але лишається
+ * M5; `standard` — найвища ДОСТУПНА зараз для КОЖНОГО підписанта окремо,
+ * `quorum.js` реалізує лише цю глибину).
+ */
+const QUORUM_DEPTH = 'standard'
+
+/**
+ * Одна картка кворумного (irreversible) рішення для черги `handle` —
+ * винесено з {@link deriveQueue} окремою функцією (той самий рефактор, що
+ * `handle*Cli`-хелпери в `bin/delta.mjs`): `null`, коли `handle` не бере
+ * участі в кворумі, або кворум уже одноголосно закритий (item лишає чергу).
+ * Розбіжність (`diverged`) і незавершений прогрес (`pending`) ОБИДВА
+ * лишаються в черзі — «не вигадуй авторезолюцію» (mandates.md).
+ * @param {object} parsed розібраний decision-request
+ * @param {string} dir абсолютний шлях до decisions-директорії
+ * @param {Map<string, string>} filesByName карта імʼя файлу → вміст у директорії decisions
+ * @param {string} handle власник, чий зріз деривувати
+ * @returns {object|null} картка черги з полем `quorum`, або null
+ */
+function quorumQueueItem(parsed, dir, filesByName, handle) {
+  const quorum = deriveQuorumStatus(parsed, filesByName)
+  if (!quorum.approvers.includes(handle)) return null
+  if (quorum.status === 'closed') return null
+  return { ...parsed, dir, depth: QUORUM_DEPTH, open: true, quorum, awaitingMe: quorum.pending.includes(handle) }
+}
+
+/**
  * Деривує чергу «Вирішую» одного власника: відкриті decision-request-и, чий
- * `computed_owner` == `handle`, відсортовані за leverage-фасетами (спека
- * docs/specs/260809-delta-app.md, п.2 «Обсяг M1»).
+ * `computed_owner` == `handle` (одноосібний M1/M2-шлях), або, для
+ * irreversible-рішень, чий `handle` входить до `approvers` і кворум ще не
+ * закритий одноголосно (M4 — {@link quorumQueueItem}) — відсортовані за
+ * leverage-фасетами (спека docs/specs/260809-delta-app.md, п.2 «Обсяг M1»,
+ * п.2 «Обсяг M4»).
  * @param {{dir: string, files: {name: string, content: string}[]}[]} decisionsDirs
  *   скановані `decisions/`-директорії (кожна — один run), як повертає
  *   Tauri-команда `scan_decisions`/CLI-скан файлової системи
@@ -251,6 +363,13 @@ export function deriveQueue(decisionsDirs, handle) {
       const nnnn = match[1]
       const runId = dir.split('/').filter(Boolean).at(-2) ?? null
       const parsed = parseDecisionRequest(file.content, { path: `${dir}/${file.name}`, runId, nnnn })
+
+      if (requiresQuorum(parsed.leverageFacets)) {
+        const item = quorumQueueItem(parsed, dir, filesByName, handle)
+        if (item) items.push(item)
+        continue
+      }
+
       if (parsed.computedOwner !== handle) continue
       if (!isOpen(filesByName, nnnn)) continue
       items.push({ ...parsed, dir, depth: depthForFacets(parsed.leverageFacets), open: true })
