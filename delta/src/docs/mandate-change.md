@@ -3,25 +3,25 @@ type: JS Module
 title: mandate-change.js
 resource: delta/src/mandate-change.js
 docgen:
-  crc: 3eb447fb
+  crc: c288ced2
   model: omlx/gemma-4-26b-a4b-it
-  tier: local-min
-  score: 90
-  issues: internal-name:signPayload,judge-refine:kept-original,judge:inaccurate:0.99
+  tier: local-min-retry
+  score: 85
+  issues: internal-name:signPayload,anchor-miss:device-registry.json,judge-refine:kept-original,judge:inaccurate:0.99
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл реалізує процес управління змінами в мандатах: від `parseMandatesFile` та `validateMandatesFileStructure` до `classifyMandateChange` та `buildMandateChangePayload`. Процес завершується через `signMandateChangeAct`, `verifyMandateChangeSignature` та `validateMandateChange` для безпечного застосування оновлень за допомогою `applyMandateChangeIfValid`. Форматування результатів здійснюється через `formatMandatesFile`.
+Цей файл дозволяє виконувати повний цикл роботи з мандатами: від `parseMandatesFile` та `validateMandatesFileStructure` до `formatMandatesFile`. Він забезпечує валідацію через `validateMandateChange`, створення підписаних актів за допомогою `signMandateChangeAct` та їх подальшу перевірку через `verifyMandateChangeSignature` перед виконанням `applyMandateChangeIfValid`. Кожна зміна проходить через `classifyMandateChange` та `buildMandateChangePayload` для формування коректних пакетів даних.
 
 ## Поведінка
 
-Потік роботи з мандатами починається з отримання даних через parseMandatesFile та їх серіалізації за допомогою formatMandatesFile. Для перевірки цілісності файлу використовується validateMandatesFileStructure, яка перевіряє структуру, унікальність власників та досяжність кореня.
+Потік роботи з мандатами починається з отримання даних через parseMandatesFile та їх серіалізації за допомогою formatMandatesFile. Для перевірки цілісності файлу використовується validateMandatesFileStructure, яка включає перевірку форми, унікальності власників та досяжності кореня.
 
-Процес внесення змін базується на порівнянні старого та нового станів. classifyMandateChange визначає тип зміни для кожного власника, що дозволяє застосувати відповідні правила перевірки через validateMandateChange. Для створення підписаного акта використовуються buildMandateChangePayload та signMandateChangeAct, а криптографічна валідність перевіряється через verifyMandсяChangeSignature.
+Процес внесення змін базується на порівнянні старого та нового станів. classifyMandateChange визначає тип зміни для кожного власника, а validateMandateChange виконує повну перевірку: від зростання generation та структурної валідності до перевірки підписів згідно з правилами, що залежать від типу зміни (наприклад, використання людських ключів для моделей або підписів делегаторів). Для створення підписаного акта використовуються buildMandateChangePayload та signMandateChangeAct, а криптографічна достовірність перевіряється через verifyMandateChangeSignature.
 
-Застосування змін відбувається через applyMandateChangeIfValid, яка поєднує перевірку валідності за допомогою validateMandateChange та запис нового файлу через formatMandatesFile. При роботі з реєстрами пристроїв та перевірці підписів враховується device-registry.json.
+Застосування змін відбувається через applyMandateChangeIfValid, яка гарантує запис нового файлу лише після отримання успішного вердикту від validateMandateChange.
 
 ## Публічний API
 

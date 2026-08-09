@@ -368,6 +368,117 @@ bun bin/delta-watcher.mjs /tmp/delta-demo-m4
 watcher-нотифікації в порядку виконавець-спершу-потім-власник, і тиха година, що батчить некритичне (`batched:
 true`) та пропускає критичне (irreversible+дедлайн) без затримки.
 
+## M5 — Штаб і зухвалість: teach-back, бриф, кандор, дрейф, делегування
+
+Демо-критерій: дрейф-картка приходить лише власнику; делегування відкладеної дії агенту одним квізом;
+teach-back оцінено локально (докладніше — `docs/specs/260809-delta-app.md`, «Обсяг M5»).
+
+- **`depth: teach-back`** (`src/quiz.js` + `src/decision-flow.js` + `src/quorum.js`) — найвища глибина
+  квіз-гейта, доводить `depthForFacets` до контракту (mandates.md: «irreversible + широкий blast_radius →
+  teach-back: власник переказує рішення і наслідки своїми словами, агент оцінює переказ»). Механіка
+  ПРИНЦИПОВО інша за Q&A-квізи M1/M2: немає варіантів відповіді — власник пише ВІЛЬНИЙ ТЕКСТ (`transcript`,
+  CLI-аргумент `decision_approve`/`quorum_approve`, UI: textarea з підказкою), локальна модель оцінює
+  ПОКРИТТЯ чотирьох аспектів (суть розвилки, обраний варіант, головний наслідок, головний ризик) —
+  `{understood, missingAspects, feedback}`. У квіз-файл — точний контракт задачі: «## Переказ (teach-back)»
+  із транскриптом + «### Оцінка локальної моделі» з вердиктом (`formatTeachBackFile`/`parseTeachBackFile`,
+  той самий frontmatter, що Q&A-квізи). Не зрозумів (`understood: false`) → навчальний режим M2
+  (`layeredExplain`, шари контексту) і новий переказ, `iterations++` — той самий інваріант «фейл ≠
+  покарання». **LLM недоступний → ЧЕСНА відмова** (`TEACHBACK_UNAVAILABLE_MESSAGE`, `available: false`) —
+  СВІДОМО без фолбека на нижчу глибину: незворотне рішення без доведеного розуміння не підписується
+  (задокументоване рішення M5, відмінне від one-tap/standard, де детермінований фолбек є). Голосовий ввід —
+  НЕ реалізовано: macOS-диктовка друкує текст у ту саму textarea сама, окремого механізму не потрібно.
+  Кворум (`quorum.js`) БІЛЬШЕ НЕ форсує `standard` — кожен підписант проходить ВЛАСНИЙ teach-back
+  (`NNNN-quiz-{handle}.md`), незалежну оцінку, той самий `available: false`-контракт відмови.
+- **Штаб — бриф перед рішенням** (`src/staff.js`, tool `decision_brief`, ідея з owner-спеки 260711, «Штаб») —
+  ЛІНИВИЙ виклик (не автогенерується при відкритті картки): LLM стискає decision-request у
+  `{contextSummary (3 речення), options (ціна одним рядком кожен), recommendationSummary,
+  strongestObjection (анти-rubber-stamping — найсильніше заперечення ПРОТИ рекомендації), delaySummary}`.
+  LLM недоступний → структурний фолбек (`fallbackStaffBrief`): заголовки/поля decision-request як є, БЕЗ
+  стискання, `compressed: false`, `strongestObjection: null` — чесно позначено (генерація контраргументу
+  принципово потребує LLM-судження, той самий підхід, що teach-back).
+- **Панель «незручна правда»** (`src/candor.js`, tool `ai_candor` — headless, симулює модель, той самий
+  патерн, що `ai_petition`) — окремий інбокс `.mt/candor/{handle}.jsonl`, ВІДДІЛЕНИЙ від черги рішень
+  (конституція п.6). Запис `{from_model, statement, evidence_refs, audacity_level, created_at}`; **бюджет
+  зухвалості**: `audacity_level` запису ≤ `thresholds.audacity` мандата моделі (`mandates.js`) — той самий
+  бюджет, що «жорсткі переговори сам» у «Довіряю» (`trust.js`), СПОЖИВАЄ той самий ресурс, не окремий
+  канал; модель без мандата, чи понад бюджет — відхилено. Позначка «прочитано» — ЛОКАЛЬНО поза git
+  (`candor_read.json`, файл-сусід `config.json`), не синхронізується між пристроями (профспілковий режим:
+  моя приватність). CLI/tools: `ai_candor`, `candor_show`, `candor_mark_read`.
+- **Детектор соціального дрейфу — приватне дзеркало** (`src/drift.js`, tool `drift_scan`, mandates.md:
+  «Детектор соціального дрейфу») — сканує МОЇ відкриті одноосібні decision-request-и (кворумні
+  `irreversible` виключено — власна механіка прогресу), групує за `decision_type`, два сигнали
+  систематичного відкладання: **застаріле** (`opened_at` старше `staleDays`, дефолт 7) і **повторні
+  ітерації без підпису** (квіз-файл з `iterations ≥ iterationsThreshold`, дефолт 3, рішення й досі
+  відкрите). «Reject-и з поверненням того самого класу» (третій сигнал з задачі) — СВІДОМО не реалізовано:
+  потребує графової прив'язки причин-наслідків, якої файловий мок не матеріалізує (задокументований ліміт,
+  той самий чесний підхід, що `track-record.js: override`). Картки зберігаються **ЛОКАЛЬНО поза git**
+  (`drift.json`, файл-сусід `knowledge.json`) — **НЕ** в `.mt/notifications` (буквально з задачі: «приходить
+  лише самому власнику»), кожен скан ПЕРЕЗАПИСУЄ файл свіжим результатом (не append — застарілі картки не
+  накопичуються). Кожна картка несе `deadlineCostSample` — дельта «мета vs комфорт» (що блокується
+  затримкою). CLI/tools: `drift_scan`, `drift_show`.
+- **Черга відкладених дій + делегування одним квізом** (`src/delegation.js`, tools `delegation_quiz` +
+  `decision_delegate`) — деривація з дрейф-карток: `findEligibleModel` обирає модель СВОГО делегатора
+  (`escalates_to === я`), чий `scope.decision_types` покриває клас; ОДИН **детермінований** (без LLM,
+  задокументоване рішення — мета-питання завжди тієї самої структури) one-tap квіз «що саме делегуєш і що
+  модель зробить»; правильна відповідь підписує й пише `NNNN-delegation.json`
+  `{delegated_to, delegated_by, signed_at, pubkey, signature, quiz_ref}` (та сама канонікалізація
+  `signing.js`, що approval/quorum/петиція). **`computed_owner` decision-request НЕ переписується** —
+  деривація: `deriveQueue` (`decisions.js`) бачить сусідній `NNNN-delegation.json` і переносить розвилку з
+  черги делегатора В чергу моделі (`delegatedTo`/`delegatedBy` на картці), сам decision-request лишається
+  незмінним назавжди (audit-trail рекомендації не втрачається).
+
+### Demo-послідовність (реально прогнана: teach-back честа відмова живого LLM, кандор, дрейф → делегування)
+
+```bash
+cd delta
+export DELTA_CONFIG_PATH=/tmp/delta-demo-m5/config.json
+mkdir -p /tmp/delta-demo-m5/.mt /tmp/delta-demo-m5/runs/demo-1/decisions
+cp src/tests/fixtures/mandates.yaml /tmp/delta-demo-m5/.mt/mandates.yaml
+cp src/tests/fixtures/runs/demo-1/decisions/0003-decision-request.md /tmp/delta-demo-m5/runs/demo-1/decisions/
+cp src/tests/fixtures/runs/demo-1/decisions/0004-decision-request.md /tmp/delta-demo-m5/runs/demo-1/decisions/
+bun bin/delta.mjs set_identity '{"handle":"olena"}'
+bun bin/delta.mjs set_mandates_dir '{"dir":"/tmp/delta-demo-m5"}'
+
+# 1. Штаб — бриф (LLM недоступний/повільний у цьому середовищі → чесний структурний фолбек)
+bun bin/delta.mjs decision_brief '{"runId":"demo-1","nnnn":"0003"}'
+# => {"compressed":false,"generatedBy":"staff-brief-fallback","strongestObjection":null,...}
+
+# 2. teach-back — prompt (0003: blast_radius company, irreversible: false — одноосібний шлях, НЕ кворум)
+bun bin/delta.mjs decision_quiz '{"runId":"demo-1","nnnn":"0003","chosenOption":"A"}'
+# => {"depth":"teach-back","prompt":"Перекажи своїми словами...", "iterations":0}
+
+# 3. Переказ — локальна модель недоступна/не відповідає контрактом → ЧЕСНА відмова, рішення лишається відкритим
+bun bin/delta.mjs decision_approve '{"runId":"demo-1","nnnn":"0003","chosenOption":"A","transcript":"Обираю варіант A — перехід на чотириденний тиждень. Головний наслідок: вища залученість команди. Головний ризик: SLA з клієнтами може постраждати на перехідний період."}'
+# => {"approved":false,"available":false,"message":"teach-back недоступний без локальної моделі..."}
+# (з живою моделлю, яка відповідає контрактом SYSTEM_PROMPT — той самий виклик повертає understood:true/false)
+
+# 4. Кандор — fable-5 каже незручну правду olena (окремий інбокс, medium у межах бюджету)
+bun bin/delta.mjs ai_candor '{"toHandle":"olena","fromModelHandle":"fable-5","statement":"Ти три тижні відкладаєш ops-розвилку 0004...","audacityLevel":"medium"}'
+bun bin/delta.mjs ai_candor '{"toHandle":"olena","fromModelHandle":"fable-5","statement":"x","audacityLevel":"high"}'
+# => {"ok":false,"error":{"message":"...перевищує бюджет зухвалості мандата 'fable-5' ('medium')..."}}
+bun bin/delta.mjs candor_show '{}'
+# => [{"from_model":"fable-5","audacity_level":"medium","read":false,...}] — ВІДДІЛЕНО від decisions_show
+
+# 5. Дрейф — 0004 (ops, opened_at 2026-07-01) застаріле для olena, картка ЛИШЕ локально (drift.json)
+bun bin/delta.mjs drift_scan '{}'
+# => [{"decisionType":"ops","count":1,"items":[{"nnnn":"0004","ageDays":40,"signal":"stale"}],...}]
+
+# 6. Делегування одним квізом — модель fable-5 (scope: ops, escalates_to: olena)
+bun bin/delta.mjs delegation_quiz '{"runId":"demo-1","nnnn":"0004","modelHandle":"fable-5"}'
+bun bin/delta.mjs decision_delegate '{"runId":"demo-1","nnnn":"0004","modelHandle":"fable-5","delegatedByHandle":"olena","answer":<індекс правильної відповіді з кроку 6>}'
+# => {"delegated":true,"delegation":{"delegated_to":"fable-5","delegated_by":"olena",...}}
+
+# 7. Деривація черги — 0004 зникло в olena, зʼявилось у fable-5 (computed_owner у файлі НЕ змінився)
+bun bin/delta.mjs decisions_show '{}'                          # лише 0003 (teach-back)
+bun bin/delta.mjs decisions_show '{"handle":"fable-5"}'         # 0004, delegatedTo: fable-5
+```
+
+Реальний прогін цієї послідовності (агентом, що писав M5) підтвердив точно цей вивід — включно з живим
+локальним LLM-ендпоінтом на `127.0.0.1:8080` (наявним у середовищі розробки), який на цей запит не
+відповів контрактом `SYSTEM_PROMPT` вчасно — `callLlmTeachBackEvaluator` коректно повернув `null`,
+`decisionApprove` коректно повернув ЧЕСНУ відмову (`available: false`) БЕЗ фолбека на нижчу глибину, рішення
+лишилось відкритим — саме той інваріант, який задокументовано вище як свідомий вибір M5.
+
 ## Розробка
 
 ```bash

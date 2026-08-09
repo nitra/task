@@ -3,23 +3,23 @@ type: JS Module
 title: change-proposal.js
 resource: delta/src/change-proposal.js
 docgen:
-  crc: a345c2e6
+  crc: b72c0fd1
   model: omlx/gemma-4-26b-a4b-it
-  tier: local-min
+  tier: local-min-retry
   score: 100
-  issues: judge-refine:kept-original,judge:inaccurate:0.99
+  issues: judge-refine:kept-original,judge:inaccurate:0.98
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Файл керує життєвим циклом пропозицій щодо змін: від формування структури через `changeProposalDecisionsDir` та генерації запитів за допомогою `buildChangeProposalMarkdown` до їхнього збереження через `writeChangeProposal` та зчитування через `readChangeProposal`. Інструментарій підтримує застосування змін через `applyMandateChangeProposal` та перехід між станами за допомогою `applyMandateNarrow` з використанням `describeMandateDiffLines`.
+Файл реалізує управління змінами мандата: від генерації пропозицій у форматі Markdown з описом змінених осей через `buildChangeProposalMarkdown` до запису пропозицій у файлову систему через `writeChangeProposal` та `readChangeProposal`. Система підтримує застосування рішень шляхом мутації через `applyMandateChangeProposal` або миттєвого звуження мандата через `applyMandateNarrow`. Процес включає визначення змінених рядків через `describeMandateDiffLines`, а також роботу з ідентифікаторами та директоріями через `changeProposalRunId` та `changeProposalDecisionsDir`.
 
 ## Поведінка
 
-Процес ініціювання змін починається з визначення шляхів через changeProposalRunId та changeProposalDecisionsDir, що дозволяє організувати структуру директорій для конкретного ідентифікатора. На основі поточного та запропонованого станів за допомогою describeMandateDiffLines та buildChangeProposalMarkdown формується markdown-текст запиту на зміну. Результати підготовки зберігаються через writeChangeProposal, що створює decision-request та супутній конфіг change.json. Дані для подальшої роботи можна отримати з цих файлів через readChangeProposal.
+Процес ініціювання змін починається з формування шляхів до директорій через changeProposalRunId та changeProposalDecisionsDir. На основі вхідних даних формується markdown-текст запиту за допомогою buildChangeProposalMarkdown, де describeMandateDiffLines генерує перелік змінених осей. Результати обчислень записуються у файли через writeChangeProposal, що створює decision-request та супутній change.json. Дані для подальшої роботи можна отримати з цих файлів за допомогою readChangeProposal.
 
-Застосування змін відбувається за двома сценаріями. applyMandateChangeProposal виконує перехід між станами після проходження квіз-конвеєра, перевіряючи підписаний відповідь на запит та актуальність даних. applyMandateNarrow забезпечує пряме звуження мандата без квізу, де власник підписує нові параметри безпосередньо.
+Застосування змін відбувається двома шляхами. applyMandateChangeProposal виконує мутацію після проходження квіз-конвеєра, перевіряючи підписаний відповідь на запит. applyMandateNarrow забезпечує миттєве звуження мандата через самопідпис без проходження квізу.
 
 ## Публічний API
 
@@ -57,7 +57,7 @@ M1/M2-конвеєр (`decision-flow.js: decisionApprove`) і підписала
 «звузити»). На відміну від {@link applyMandateChangeProposal}, тут НЕМАЄ
 decision-request/квіз-конвеєра — власник мандата вище підписує напряму
 (той самий шлях, що `mandate-change.js`-тести «звуження із самопідписом»).
-- changeProposalDecisionsDir — визначає шлях до директорії з рішеннями про пропозиції згідно з конфігурацією change.json.
+- changeProposalDecisionsDir — повертає шлях до директорії з рішеннями щодо пропозицій згідно з конфігурацією change.json.
 
 ## Сценарії використання
 
