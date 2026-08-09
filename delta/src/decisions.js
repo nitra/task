@@ -361,6 +361,21 @@ function quorumQueueItem(parsed, dir, filesByName, handle) {
 }
 
 /**
+ * ЕФЕКТИВНИЙ owner-handle для деривації черги — `rawOwner`, або, коли
+ * `rawOwner` — модель з активним kill-switch делегатора (M6, `kill-switch.js`),
+ * ТОЙ делегатор замість неї (конституція п.10: «розвилки, делеговані моїм
+ * ШІ-мандатам, і нові розвилки їхніх scope-ів падають мені»). Відсутній
+ * `killSwitchRedirect` (звичайний виклик без M6-контексту) — `rawOwner` без
+ * змін, byte-сумісно з поведінкою до M6.
+ * @param {string|null} rawOwner сирий owner (computed_owner, або delegated_to)
+ * @param {Map<string, string>|null|undefined} killSwitchRedirect карта modelHandle → humanHandle ({@link import('./kill-switch.js').buildKillSwitchRedirect})
+ * @returns {string|null} ефективний owner
+ */
+function effectiveOwner(rawOwner, killSwitchRedirect) {
+  return (rawOwner && killSwitchRedirect?.get(rawOwner)) ?? rawOwner
+}
+
+/**
  * Одна картка одноосібного (не-кворумного) ВІДКРИТОГО decision-request-а
  * для черги `handle` — винесено з {@link deriveQueue} окремою функцією (той
  * самий рефактор, що {@link quorumQueueItem}): `null`, коли `handle` не
@@ -368,22 +383,29 @@ function quorumQueueItem(parsed, dir, filesByName, handle) {
  * `NNNN-delegation.json` переносить картку в чергу `delegated_to` (моделі)
  * ЗАМІСТЬ `computed_owner` — `computed_owner` decision-request НЕ
  * переписується, лише маршрут деривується заново (заголовок `delegation.js`).
+ * M6 (`killSwitchRedirect`): і `delegated_to`, і голий `computed_owner`
+ * додатково проходять {@link effectiveOwner} — активний kill-switch
+ * делегатора моделі переносить картку НА нього (kill-switch.js, заголовок
+ * модуля).
  * @param {object} parsed розібраний decision-request
  * @param {string} dir абсолютний шлях до decisions-директорії
  * @param {Map<string, string>} filesByName карта імʼя файлу → вміст у директорії decisions
  * @param {string} nnnn чотиризначний номер
  * @param {string} handle власник, чий зріз деривувати
+ * @param {Map<string, string>|null|undefined} killSwitchRedirect карта kill-switch перенаправлення (M6)
  * @returns {object|null} картка черги, або null
  */
-function soloQueueItem(parsed, dir, filesByName, nnnn, handle) {
+function soloQueueItem(parsed, dir, filesByName, nnnn, handle, killSwitchRedirect) {
   const depth = depthForFacets(parsed.leverageFacets)
   const delegatedTo = delegatedToOrNull(filesByName, nnnn)
   if (delegatedTo) {
-    return delegatedTo === handle
-      ? { ...parsed, dir, depth, open: true, delegatedTo, delegatedBy: parsed.computedOwner }
+    const effective = effectiveOwner(delegatedTo, killSwitchRedirect)
+    return effective === handle
+      ? { ...parsed, dir, depth, open: true, delegatedTo, delegatedBy: parsed.computedOwner, killSwitchRedirected: effective !== delegatedTo }
       : null
   }
-  return parsed.computedOwner === handle ? { ...parsed, dir, depth, open: true } : null
+  const effective = effectiveOwner(parsed.computedOwner, killSwitchRedirect)
+  return effective === handle ? { ...parsed, dir, depth, open: true, killSwitchRedirected: effective !== parsed.computedOwner } : null
 }
 
 /**
@@ -397,10 +419,14 @@ function soloQueueItem(parsed, dir, filesByName, nnnn, handle) {
  *   скановані `decisions/`-директорії (кожна — один run), як повертає
  *   Tauri-команда `scan_decisions`/CLI-скан файлової системи
  * @param {string|null|undefined} handle власник, чий зріз деривувати
+ * @param {{killSwitchRedirect?: Map<string, string>}} [options] M6-контекст: карта kill-switch
+ *   перенаправлення (`kill-switch.js: buildKillSwitchRedirect().redirect`) — опційно, відсутність
+ *   зберігає точну поведінку до M6 (жодного перенаправлення)
  * @returns {object[]} відкриті decision-request власника, відсортовані найважільніші-перші
  */
-export function deriveQueue(decisionsDirs, handle) {
+export function deriveQueue(decisionsDirs, handle, options = {}) {
   if (!handle) return []
+  const { killSwitchRedirect } = options
   const items = []
   for (const { dir, files } of decisionsDirs ?? []) {
     const filesByName = new Map(files.map(f => [f.name, f.content]))
@@ -418,7 +444,7 @@ export function deriveQueue(decisionsDirs, handle) {
       }
 
       if (!isOpen(filesByName, nnnn)) continue
-      const item = soloQueueItem(parsed, dir, filesByName, nnnn, handle)
+      const item = soloQueueItem(parsed, dir, filesByName, nnnn, handle, killSwitchRedirect)
       if (item) items.push(item)
     }
   }

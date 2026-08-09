@@ -67,17 +67,24 @@ function hoursSince(openedAtIso, now) {
  * ще нема; для кворумного (irreversible) — ті з `approvers`, хто ще не
  * підписав ({@link import('./decisions.js').deriveQuorumStatus}), і лише
  * поки кворум `'pending'` (закритий/розбіжний — вже термінальний, watcher
- * не пінгує далі).
+ * не пінгує далі). M6 (`killSwitchSuppressed`): виконавці з активним
+ * kill-switch делегатора ({@link import('./kill-switch.js').buildKillSwitchRedirect})
+ * НЕ повертаються — «watcher бачить активацію і НЕ ескалює по них»
+ * (docs/specs/260809-delta-app.md, «Обсяг M6», п.3): пінгувати модель, чий
+ * делегатор свідомо забрав усе собі, безглуздо, а ескалювати ЙОМУ ж —
+ * повторний шум по тому, що він і так уже бачить у своїй черзі.
  * @param {object} parsed розібраний decision-request
  * @param {Map<string, string>} filesByName карта імʼя файлу → вміст у директорії decisions
+ * @param {Set<string>|null|undefined} [killSwitchSuppressed] handle-и моделей, чий делегатор має активний kill-switch (M6)
  * @returns {string[]} handle-и, що ще не відповіли
  */
-function pendingSignersFor(parsed, filesByName) {
+function pendingSignersFor(parsed, filesByName, killSwitchSuppressed) {
   if (requiresQuorum(parsed.leverageFacets)) {
     const quorum = deriveQuorumStatus(parsed, filesByName)
-    return quorum.status === 'pending' ? quorum.pending : []
+    const pending = quorum.status === 'pending' ? quorum.pending : []
+    return pending.filter(signer => !killSwitchSuppressed?.has(signer))
   }
-  if (!parsed.computedOwner) return []
+  if (!parsed.computedOwner || killSwitchSuppressed?.has(parsed.computedOwner)) return []
   return filesByName.has(`${parsed.nnnn}-approval.json`) ? [] : [parsed.computedOwner]
 }
 
@@ -107,10 +114,11 @@ function ownerAbove(escalationChain, signer) {
  * @param {Map<string, string>} filesByName карта імʼя файлу → вміст у директорії decisions
  * @param {{slaHours: number, graceHours: number}} config конфіг watcher-а
  * @param {Date} now поточний час
+ * @param {Set<string>|null|undefined} [killSwitchSuppressed] handle-и моделей, пригнічені kill-switch-ем (M6)
  * @returns {object[]} нотифікації цієї розвилки (можливо порожньо)
  */
-function notificationsForDecision(parsed, runId, filesByName, config, now) {
-  const signers = pendingSignersFor(parsed, filesByName)
+function notificationsForDecision(parsed, runId, filesByName, config, now, killSwitchSuppressed) {
+  const signers = pendingSignersFor(parsed, filesByName, killSwitchSuppressed)
   if (signers.length === 0 || !parsed.openedAt) return []
   const ageHours = hoursSince(parsed.openedAt, now)
   if (ageHours === null || ageHours < config.slaHours) return []
@@ -172,9 +180,12 @@ function notificationsForDecision(parsed, runId, filesByName, config, now) {
  * @param {{dir: string, files: {name: string, content: string}[]}[]} params.decisionsDirs скановані decisions-директорії
  * @param {{slaHours: number, graceHours: number}} [params.config] конфіг (дефолт — {@link defaultWatcherConfig})
  * @param {Date} params.now поточний час (ін'єкція годинника)
+ * @param {Set<string>|null|undefined} [params.killSwitchSuppressed] handle-и моделей, пригнічені kill-switch-ем
+ *   делегатора (M6, `kill-switch.js: buildKillSwitchRedirect().redirect` — множина ключів) — опційно, відсутність
+ *   зберігає точну поведінку до M6 (жодного пригнічення)
  * @returns {object[]} нотифікації, недетерміновано впорядковані за run-ами файлової системи
  */
-export function scanForNotifications({ decisionsDirs, config, now }) {
+export function scanForNotifications({ decisionsDirs, config, now, killSwitchSuppressed }) {
   const resolvedConfig = { ...defaultWatcherConfig(), ...config }
   const notifications = []
   for (const { dir, files } of decisionsDirs ?? []) {
@@ -185,7 +196,7 @@ export function scanForNotifications({ decisionsDirs, config, now }) {
       const nnnn = match[1]
       const runId = dir.split('/').filter(Boolean).at(-2) ?? null
       const parsed = parseDecisionRequest(file.content, { path: `${dir}/${file.name}`, runId, nnnn })
-      notifications.push(...notificationsForDecision(parsed, runId, filesByName, resolvedConfig, now))
+      notifications.push(...notificationsForDecision(parsed, runId, filesByName, resolvedConfig, now, killSwitchSuppressed))
     }
   }
   return notifications
@@ -319,12 +330,13 @@ export async function appendNotifications(io, path, notifications) {
  * @param {{dir: string, files: {name: string, content: string}[]}[]} params.decisionsDirs скановані decisions-директорії
  * @param {{slaHours: number, graceHours: number}} [params.config] конфіг watcher-а
  * @param {{start: string, end: string}|null|undefined} [params.quietHours] конфіг тихої години
+ * @param {Set<string>|null|undefined} [params.killSwitchSuppressed] handle-и моделей, пригнічені kill-switch-ем (M6)
  * @param {() => Date} [params.now] ін'єкція годинника (тести)
  * @returns {Promise<{notifications: object[], delivered: number, batched: number}>} підсумок прогону
  */
-export async function runWatcherScan({ io, mandatesDir, decisionsDirs, config, quietHours, now }) {
+export async function runWatcherScan({ io, mandatesDir, decisionsDirs, config, quietHours, killSwitchSuppressed, now }) {
   const nowDate = now ? now() : new Date()
-  const scanned = scanForNotifications({ decisionsDirs, config, now: nowDate })
+  const scanned = scanForNotifications({ decisionsDirs, config, now: nowDate, killSwitchSuppressed })
   const withDelivery = applyQuietHours(scanned, { quietHours, now: nowDate })
 
   const byHandle = new Map()
