@@ -68,9 +68,8 @@ describe('base64 round-trip — фолбек без Uint8Array.toBase64/fromBase
   it('підпис/перевірка round-trip з вимкненим нативним Uint8Array.toBase64/fromBase64 (Buffer-шлях)', async () => {
     const originalToBase64 = Uint8Array.prototype.toBase64
     const originalFromBase64 = Uint8Array.fromBase64
-    // eslint-disable-next-line no-undefined -- навмисно знімаємо нативний метод, щоб перевірити фолбек-гілку
+    // eslint-disable-next-line no-extend-native -- навмисно знімаємо нативний метод у тесті, щоб перевірити фолбек-гілку
     Uint8Array.prototype.toBase64 = undefined
-    // eslint-disable-next-line no-undefined
     Uint8Array.fromBase64 = undefined
     try {
       const { privateKeyJwk, publicKeyJwk, publicKeyBase64 } = await generateDeviceKeypair()
@@ -81,6 +80,7 @@ describe('base64 round-trip — фолбек без Uint8Array.toBase64/fromBase
       expect(await verifyPayload(publicKeyJwk, payload, signature)).toBe(true)
       expect(await verifyPayload(publicKeyBase64, payload, signature)).toBe(true)
     } finally {
+      // eslint-disable-next-line no-extend-native -- відновлюємо нативний метод, знятий вище
       Uint8Array.prototype.toBase64 = originalToBase64
       Uint8Array.fromBase64 = originalFromBase64
     }
@@ -93,13 +93,15 @@ describe('base64 round-trip — фолбек без Uint8Array.toBase64/fromBase
     const nativeBase64 = new Uint8Array(raw).toBase64()
 
     const originalToBase64 = Uint8Array.prototype.toBase64
-    // eslint-disable-next-line no-undefined
+    // eslint-disable-next-line no-extend-native -- навмисно знімаємо нативний метод у тесті, щоб перевірити фолбек-гілку
     Uint8Array.prototype.toBase64 = undefined
     let fallbackBase64
     try {
-      // Buffer лишається доступним у vitest (Node) — вправляє саме Buffer-гілку фолбеку.
-      fallbackBase64 = Buffer.from(new Uint8Array(raw)).toString('base64')
+      // globalThis.Buffer лишається доступним у vitest (Node) — вправляє саме Buffer-гілку фолбеку.
+      // eslint-disable-next-line unicorn/prefer-uint8array-base64 -- навмисно перевіряє САМЕ Buffer-фолбек (toBase64 знято вище)
+      fallbackBase64 = globalThis.Buffer.from(new Uint8Array(raw)).toString('base64')
     } finally {
+      // eslint-disable-next-line no-extend-native -- відновлюємо нативний метод, знятий вище
       Uint8Array.prototype.toBase64 = originalToBase64
     }
     expect(fallbackBase64).toBe(nativeBase64)

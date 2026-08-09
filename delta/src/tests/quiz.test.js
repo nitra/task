@@ -5,11 +5,15 @@ import { parseDecisionRequest } from '../decisions.js'
 import {
   buildQuizPrompt,
   callLlmQuizGenerator,
+  callLlmStandardQuizGenerator,
   defaultLlmConfig,
   fallbackQuiz,
+  fallbackStandardQuiz,
   formatQuizFile,
   generateQuiz,
-  parseQuizFile
+  generateStandardQuiz,
+  parseQuizFile,
+  rephraseQuestion
 } from '../quiz.js'
 
 const DR_TEXT = readFileSync(
@@ -17,6 +21,11 @@ const DR_TEXT = readFileSync(
   'utf8'
 )
 const decisionRequest = parseDecisionRequest(DR_TEXT, { path: 'x', nnnn: '0001' })
+const DR_STANDARD_TEXT = readFileSync(
+  join(import.meta.dirname, 'fixtures/runs/demo-1/decisions/0002-decision-request.md'),
+  'utf8'
+)
+const standardDecisionRequest = parseDecisionRequest(DR_STANDARD_TEXT, { path: 'y', nnnn: '0002' })
 
 const CONTEXT_RE = /MandateCard\.vue/
 const CHOSEN_OPTION_RE = /Обраний варіант\nB/
@@ -33,6 +42,12 @@ const QUESTION_1_ATTEMPT_2_RE = /## Питання 1 \(спроба 2\)/
 const QUESTION_2_RE = /## Питання 2/
 const SHOWN_AT_VALUE_RE = /shown_at: 2026-08-09T10:00:00\.000Z/
 const SHOWN_AT_FIELD_RE = /shown_at/
+const QUESTION_2_REPETITION_RE = /## Питання 2 \(повторення\)/
+const QUESTION_2_REPETITION_RETRY_RE = /## Питання 2 \(повторення, спроба 2\)/
+const REPETITION_SOURCE_FIELD_RE = /repetition_source: 9998-decision-request\.md@2026-08-01T10:00:00\.000Z/
+const RESOLVED_COUNT_FIELD_RE = /resolved_count: 0/
+const DEADLINE_COST_MENTION_RE = /deadline_cost/
+const BLAST_RADIUS_MENTION_RE = /blast_radius/
 
 describe('defaultLlmConfig', () => {
   it('дефолт — 127.0.0.1:8080 / gemma-4-26b-a4b-it (спека 260809-delta-app.md, рішення З)', () => {
@@ -232,5 +247,211 @@ describe('formatQuizFile / parseQuizFile — round trip', () => {
 
     const finalText = formatQuizFile(quizState)
     expect(finalText).not.toMatch(SHOWN_AT_FIELD_RE)
+  })
+})
+
+describe('formatQuizFile / parseQuizFile — множинні питання (М2: standard/spaced-repetition)', () => {
+  const multiQuestionState = {
+    decisionRef: '0001-decision-request.md',
+    depth: 'one-tap',
+    generatedBy: 'quiz-gen-fallback',
+    shownAt: '2026-08-09T10:00:00.000Z',
+    resolvedCount: 0,
+    repetitionSource: '9998-decision-request.md@2026-08-01T10:00:00.000Z',
+    iterations: 2,
+    questions: [
+      {
+        repetition: false,
+        attempts: [
+          {
+            question: 'Головне питання про розвилку?',
+            options: ['Правильна', 'Дистрактор 1', 'Дистрактор 2'],
+            correctAnswer: 'Правильна',
+            microlesson: 'Мікроурок 1.'
+          }
+        ]
+      },
+      {
+        repetition: true,
+        attempts: [
+          {
+            question: 'Старе питання-повторення?',
+            options: ['Стара правильна', 'Стара 1', 'Стара 2'],
+            correctAnswer: 'Стара правильна',
+            microlesson: 'Мікроурок 2.'
+          }
+        ]
+      }
+    ]
+  }
+
+  it('друге питання серіалізується як «## Питання 2 (повторення)»', () => {
+    const text = formatQuizFile(multiQuestionState)
+    expect(text).toMatch(QUESTION_1_RE)
+    expect(text).toMatch(QUESTION_2_REPETITION_RE)
+  })
+
+  it('repetition_source/resolved_count — draft-тільки поля фронтматера', () => {
+    const text = formatQuizFile(multiQuestionState)
+    expect(text).toMatch(REPETITION_SOURCE_FIELD_RE)
+    expect(text).toMatch(RESOLVED_COUNT_FIELD_RE)
+  })
+
+  it('round-trip: questions[] відновлюється з repetition-прапорцем на кожному питанні', () => {
+    const parsed = parseQuizFile(formatQuizFile(multiQuestionState))
+    expect(parsed.questions).toHaveLength(2)
+    expect(parsed.questions[0].repetition).toBe(false)
+    expect(parsed.questions[0].attempts[0].question).toBe('Головне питання про розвилку?')
+    expect(parsed.questions[1].repetition).toBe(true)
+    expect(parsed.questions[1].attempts[0].question).toBe('Старе питання-повторення?')
+    expect(parsed.resolvedCount).toBe(0)
+    expect(parsed.repetitionSource).toBe('9998-decision-request.md@2026-08-01T10:00:00.000Z')
+    // attempts (плаский, backward-compat) містить УСІ спроби обох питань.
+    expect(parsed.attempts).toHaveLength(2)
+  })
+
+  it('повторний захід repetition-питання — «## Питання 2 (повторення, спроба 2)»', () => {
+    const retried = {
+      ...multiQuestionState,
+      questions: [
+        multiQuestionState.questions[0],
+        { repetition: true, attempts: [multiQuestionState.questions[1].attempts[0], multiQuestionState.questions[1].attempts[0]] }
+      ]
+    }
+    const text = formatQuizFile(retried)
+    expect(text).toMatch(QUESTION_2_REPETITION_RETRY_RE)
+    const parsed = parseQuizFile(text)
+    expect(parsed.questions[1].attempts).toHaveLength(2)
+    expect(parsed.questions[1].repetition).toBe(true)
+  })
+
+  it('legacy attempts (без questions) — той самий вихід, що М1 (backward-compat)', () => {
+    const legacy = {
+      decisionRef: '0001-decision-request.md',
+      depth: 'one-tap',
+      generatedBy: 'quiz-gen-fallback',
+      iterations: 1,
+      timeToUnderstandingSec: 47,
+      attempts: [
+        {
+          question: 'Питання?',
+          options: ['A', 'B', 'C'],
+          correctAnswer: 'A',
+          microlesson: 'M.'
+        }
+      ]
+    }
+    const viaAttempts = formatQuizFile(legacy)
+    const viaQuestions = formatQuizFile({ ...legacy, attempts: undefined, questions: [{ repetition: false, attempts: legacy.attempts }] })
+    expect(viaAttempts).toBe(viaQuestions)
+  })
+})
+
+describe('callLlmStandardQuizGenerator', () => {
+  it('валідна відповідь LLM (2 питання) — generatedBy = quiz-gen-<model>', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                questions: [
+                  { question: 'Питання 1?', options: ['a', 'b', 'c'], correctIndex: 0, microlesson: 'm1' },
+                  { question: 'Питання 2?', options: ['x', 'y', 'z'], correctIndex: 1, microlesson: 'm2' }
+                ]
+              })
+            }
+          }
+        ]
+      })
+    })
+    const result = await callLlmStandardQuizGenerator(defaultLlmConfig(), standardDecisionRequest, 'A', fetchImpl)
+    expect(result.generatedBy).toBe('quiz-gen-gemma-4-26b-a4b-it')
+    expect(result.questions).toHaveLength(2)
+  })
+
+  it('лише 1 питання в масиві — невалідна форма, повертає null', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => ({
+        choices: [{ message: { content: JSON.stringify({ questions: [{ question: 'q', options: ['1', '2', '3'], correctIndex: 0, microlesson: 'm' }] }) } }]
+      })
+    })
+    expect(await callLlmStandardQuizGenerator(defaultLlmConfig(), standardDecisionRequest, 'A', fetchImpl)).toBeNull()
+  })
+
+  it('мережева помилка — null, не кидає', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('down'))
+    expect(await callLlmStandardQuizGenerator(defaultLlmConfig(), standardDecisionRequest, 'A', fetchImpl)).toBeNull()
+  })
+})
+
+describe('fallbackStandardQuiz', () => {
+  it('2 питання, детермінований (без мережі)', () => {
+    const a = fallbackStandardQuiz(standardDecisionRequest, 'A')
+    const b = fallbackStandardQuiz(standardDecisionRequest, 'A')
+    expect(a).toEqual(b)
+    expect(a.questions).toHaveLength(2)
+    expect(a.generatedBy).toBe('quiz-gen-fallback')
+  })
+
+  it('друге питання — про deadline_cost (є в фікстурі 0002)', () => {
+    const quiz = fallbackStandardQuiz(standardDecisionRequest, 'A')
+    expect(quiz.questions[1].question).toMatch(DEADLINE_COST_MENTION_RE)
+    expect(quiz.questions[1].options[quiz.questions[1].correctIndex]).toBe(standardDecisionRequest.deadlineCost)
+  })
+
+  it('немає deadline_cost — друге питання про blast_radius', () => {
+    const noDeadline = { ...standardDecisionRequest, deadlineCost: null }
+    const quiz = fallbackStandardQuiz(noDeadline, 'A')
+    expect(quiz.questions[1].question).toMatch(BLAST_RADIUS_MENTION_RE)
+    expect(quiz.questions[1].options[quiz.questions[1].correctIndex]).toBe(noDeadline.leverageFacets.blastRadius)
+  })
+})
+
+describe('generateStandardQuiz', () => {
+  it('LLM недоступний — фолбек, 2 питання все одно повертаються', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('down'))
+    const quiz = await generateStandardQuiz({ decisionRequest: standardDecisionRequest, chosenOption: 'A', fetchImpl })
+    expect(quiz.generatedBy).toBe('quiz-gen-fallback')
+    expect(quiz.questions).toHaveLength(2)
+  })
+})
+
+describe('rephraseQuestion', () => {
+  it('валідна LLM-відповідь — повертає нове формулювання', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => ({ choices: [{ message: { content: 'Нове формулювання питання?' } }] })
+    })
+    const result = await rephraseQuestion({
+      decisionRequest,
+      chosenOption: 'B',
+      previousQuestion: 'Старе питання?',
+      fetchImpl
+    })
+    expect(result).toBe('Нове формулювання питання?')
+  })
+
+  it('LLM повертає те саме формулювання — null (нема сенсу міняти на ідентичне)', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => ({ choices: [{ message: { content: 'Старе питання?' } }] })
+    })
+    const result = await rephraseQuestion({ decisionRequest, chosenOption: 'B', previousQuestion: 'Старе питання?', fetchImpl })
+    expect(result).toBeNull()
+  })
+
+  it('мережева помилка — null, не кидає', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new Error('down'))
+    const result = await rephraseQuestion({ decisionRequest, chosenOption: 'B', previousQuestion: 'Старе питання?', fetchImpl })
+    expect(result).toBeNull()
+  })
+
+  it('порожня відповідь LLM — null', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, json: () => ({ choices: [{ message: { content: ' '.repeat(3) } }] }) })
+    const result = await rephraseQuestion({ decisionRequest, chosenOption: 'B', previousQuestion: 'Старе питання?', fetchImpl })
+    expect(result).toBeNull()
   })
 })

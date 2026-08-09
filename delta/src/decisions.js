@@ -145,28 +145,57 @@ export function parseDecisionRequest(text, meta = {}) {
     leverageFacets: normalizeLeverageFacets(frontmatter.leverage_facets),
     deadlineCost: typeof frontmatter.deadline_cost === 'string' ? frontmatter.deadline_cost : null,
     recommendedBy: typeof frontmatter.recommended_by === 'string' ? frontmatter.recommended_by : null,
+    // `decision_type` — власне розширення M2 (docs/specs/260809-delta-app.md,
+    // «Обсяг M2», п.4): decision-request у mandates.md-контракті НЕ несе поле
+    // decision_type напряму (воно живе лише в `scope.decision_types`
+    // мандата, не в самій розвилці) — тут задокументований дефакто-стандарт
+    // цього застосунку: escalation-intake (мок — тестові фікстури) додатково
+    // штампує `decision_type`, щоб база знань (`src/knowledge.js`) мала явний
+    // домен без крос-читання `.mt/mandates.yaml` під час деривації квізу.
+    // Відсутнє поле — домен `'general'` (knowledge.js), не помилка парсингу.
+    decisionType: typeof frontmatter.decision_type === 'string' ? frontmatter.decision_type : null,
     context: sectionBody(sections, 'Контекст'),
     options: parseOptions(variantsBody),
     recommendation: sectionBody(sections, 'Рекомендація агента')
   }
 }
 
+// «Помітна ціна» для decide-and-inform (mandates.md, «Крок 3», рядок
+// decide-and-inform: «середні фасети») — власний поріг M2, задокументоване
+// рішення цього застосунку (немає ще підписаної політики в mandates.yaml,
+// яка б фіксувала це число): 300 EUR — нижче типового est_cost_eur
+// «high-дивергентних» фікстур (800-1500 у прикладах mandates.md/README), але
+// вище дрібних вузлових правок (0001: 40 EUR → one-tap лишається).
+const NOTABLE_COST_EUR_THRESHOLD = 300
+
 /**
- * Мапить leverage-фасети на глибину квіз-гейта — та сама детермінована
- * таблиця, що мапить фасети на режим ескалації (mandates.md, «Крок 3»),
- * лише замкнена на квіз, не на маршрутизацію: `irreversible` або широкий
- * `blast_radius` (repo/company) → teach-back; reversible з дивергенцією
- * high або помітною ціною → standard; інакше — one-tap. Справжня таблиця
- * житиме підписаною політикою в `mandates.yaml` (M3+, коли мандат-крейт
- * mt-rust стабілізується) — тут задокументований дефолт-мокап для M1, де
- * реалізовано лише one-tap (docs/specs/260809-delta-app.md, «Обсяг M1»).
+ * Мапить leverage-фасети на глибину квіз-гейта — контрактне вирівнювання з
+ * таблицею режимів маршрутизатора ескалацій (mandates.md, «Крок 3, режим»):
+ *
+ * | Режим (mandates.md)      | Умова                                  | Глибина квіз-гейта |
+ * | ------------------------ | --------------------------------------- | ------------------- |
+ * | ask-and-wait              | `irreversible` АБО широкий blast_radius | `teach-back` (M5)   |
+ * | decide-and-inform         | середні фасети **і лише** reversible    | `standard` (M2)     |
+ * | local/agent                | низькі фасети                          | `one-tap` (M1)      |
+ *
+ * «Середні фасети» — робоче визначення M2 (задокументоване тут, не
+ * підписана політика `mandates.yaml`, якої ще не існує — M3+ переносить цю
+ * таблицю в мандат-крейт mt-rust): blast_radius `subtree`, АБО divergence
+ * `medium`/`high`, АБО `est_cost_eur` ≥ {@link NOTABLE_COST_EUR_THRESHOLD}.
+ * Будь-який один із трьох фасетів достатній — вони декларативно незалежні
+ * (mandates.md: «схлопнутий score неможливо оскаржити по частинах»).
  * @param {{irreversible: boolean, blastRadius: string, divergence: string|null, estCostEur: number|null}} facets leverage-фасети
  * @returns {'one-tap'|'standard'|'teach-back'} глибина квіз-гейта
  */
 export function depthForFacets(facets) {
   const wideBlastRadius = facets.blastRadius === 'repo' || facets.blastRadius === 'company'
   if (facets.irreversible || wideBlastRadius) return 'teach-back'
-  if (facets.divergence === 'high' || (facets.estCostEur !== null && facets.estCostEur >= 1000)) return 'standard'
+
+  const mediumBlastRadius = facets.blastRadius === 'subtree'
+  const mediumOrHighDivergence = facets.divergence === 'medium' || facets.divergence === 'high'
+  const notableCost = facets.estCostEur !== null && facets.estCostEur >= NOTABLE_COST_EUR_THRESHOLD
+  if (mediumBlastRadius || mediumOrHighDivergence || notableCost) return 'standard'
+
   return 'one-tap'
 }
 

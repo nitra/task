@@ -8,6 +8,7 @@ retry_history:
 leverage_facets: { irreversible: false, blast_radius: node, divergence: low, est_cost_eur: 40 }
 deadline_cost: "затримка блокує вихід design-review вузла"
 recommended_by: escalation-intake-fable-5
+decision_type: architecture
 ---
 
 ## Контекст

@@ -106,6 +106,33 @@ describe('depthForFacets', () => {
       'standard'
     )
   })
+
+  it('decide-and-inform (mandates.md, Крок 3): кожен «середній» фасет окремо достатній для standard', () => {
+    // Лише blast_radius: subtree — інші фасети низькі.
+    expect(depthForFacets({ irreversible: false, blastRadius: 'subtree', divergence: 'low', estCostEur: 0 })).toBe(
+      'standard'
+    )
+    // Лише divergence: medium — інші фасети низькі.
+    expect(depthForFacets({ irreversible: false, blastRadius: 'node', divergence: 'medium', estCostEur: 0 })).toBe(
+      'standard'
+    )
+    // Лише est_cost_eur на порозі (300) — інші фасети низькі.
+    expect(depthForFacets({ irreversible: false, blastRadius: 'node', divergence: 'low', estCostEur: 300 })).toBe(
+      'standard'
+    )
+  })
+
+  it('ціна нижче порогу (< 300) з інакше низькими фасетами — one-tap', () => {
+    expect(depthForFacets({ irreversible: false, blastRadius: 'node', divergence: 'low', estCostEur: 299 })).toBe(
+      'one-tap'
+    )
+  })
+
+  it('irreversible домінує над «середніми» фасетами — завжди teach-back', () => {
+    expect(
+      depthForFacets({ irreversible: true, blastRadius: 'subtree', divergence: 'medium', estCostEur: 300 })
+    ).toBe('teach-back')
+  })
 })
 
 describe('deriveQueue', () => {

@@ -64,9 +64,11 @@ function sortKeysDeep(value) {
 function base64FromBytes(bytes) {
   const arr = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes
   if (typeof arr.toBase64 === 'function') return arr.toBase64()
-  if (typeof Buffer !== 'undefined') return Buffer.from(arr).toString('base64')
+  // eslint-disable-next-line unicorn/prefer-uint8array-base64 -- САМЕ фолбек-гілка для середовищ без Uint8Array#toBase64 (перевірка вище)
+  if (globalThis.Buffer !== undefined) return globalThis.Buffer.from(arr).toString('base64')
   let binary = ''
   for (const byte of arr) binary += String.fromCodePoint(byte)
+  // eslint-disable-next-line unicorn/prefer-uint8array-base64 -- останній фолбек-шлях (браузерний глобал, немає Buffer)
   return btoa(binary)
 }
 
@@ -76,7 +78,9 @@ function base64FromBytes(bytes) {
  */
 function bytesFromBase64(base64) {
   if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(base64)
-  if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(base64, 'base64'))
+  // eslint-disable-next-line unicorn/prefer-uint8array-base64 -- САМЕ фолбек-гілка для середовищ без Uint8Array.fromBase64 (перевірка вище)
+  if (globalThis.Buffer !== undefined) return new Uint8Array(globalThis.Buffer.from(base64, 'base64'))
+  // eslint-disable-next-line unicorn/prefer-uint8array-base64 -- останній фолбек-шлях (браузерний глобал, немає Buffer)
   const binary = atob(base64)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.codePointAt(i)

@@ -7,6 +7,7 @@ retry_history: []
 leverage_facets: { irreversible: false, blast_radius: subtree, divergence: medium, est_cost_eur: 150 }
 deadline_cost: "блокує 1 залежну задачу — низький пріоритет"
 recommended_by: escalation-intake-fable-5
+decision_type: process
 ---
 
 ## Контекст
