@@ -17,11 +17,14 @@ import { delegateDecision, delegationQuiz } from '../delegation.js'
 import { formatDeviceRegistry, parseDeviceRegistry, upsertDevice } from '../device-registry.js'
 import { formatDirectory, parseDirectory, setDirectoryEntry } from '../directory.js'
 import { loadDriftCards, runDriftScan } from '../drift.js'
+import { buildKillSwitchRedirect, killSwitchOff, killSwitchOn, killSwitchStatus } from '../kill-switch.js'
 import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../knowledge.js'
 import { parseMandatesFile } from '../mandate-change.js'
 import { deriveMandatesView } from '../mandates.js'
 import { loadQuorumStatus, quorumApprove, quorumQuiz } from '../quorum.js'
 import { defaultLlmConfig } from '../quiz.js'
+import { deltaReport } from '../report.js'
+import { reviewAgenda } from '../review.js'
 import { loadOrCreateDeviceKey } from '../signing.js'
 import { decisionBrief } from '../staff.js'
 import { deriveTrackRecord } from '../track-record.js'
@@ -161,11 +164,14 @@ async function handleDirectorySetGui(input) {
  */
 async function handleWatcherScanGui(input) {
   const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
+  const mandatesFile = await readMandatesFileGui(input.mandatesDir)
+  const { redirect } = await killSwitchContextGui(input.mandatesDir, mandatesFile.mandates)
   return runWatcherScan({
     io: tauriIo(),
     mandatesDir: input.mandatesDir,
     decisionsDirs,
-    quietHours: await loadQuietHoursGui()
+    quietHours: await loadQuietHoursGui(),
+    killSwitchSuppressed: new Set(redirect.keys())
   })
 }
 
@@ -257,6 +263,17 @@ async function ensureRegisteredGui(mandatesDir, device) {
   const entries = await readDeviceRegistryGui(mandatesDir)
   const updated = upsertDevice(entries, device)
   await invoke('write_text_file', { path: deviceRegistryPathGui(mandatesDir), content: formatDeviceRegistry(updated) })
+}
+
+/**
+ * Kill-switch контекст (M6) для деривації черги/watcher-а — той самий
+ * інваріант, що CLI (`bin/delta.mjs: killSwitchContextCli`).
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @param {object[]} mandates нормалізовані мандати
+ * @returns {Promise<{redirect: Map<string, string>, activeHandles: Set<string>}>} kill-switch контекст
+ */
+function killSwitchContextGui(mandatesDir, mandates) {
+  return buildKillSwitchRedirect({ io: tauriIo(), mandatesDir, mandates })
 }
 
 /**
@@ -423,7 +440,10 @@ async function handleMandateChangeApplyGui(input) {
     approval,
     handle: input.handle,
     role,
-    deviceKey
+    deviceKey,
+    // Маркер «застосовано» (M6, report.js) — пишеться ЛИШЕ в run-каталозі
+    // цього change-proposal, поруч із decision-request/change.json.
+    appliedMarkerPath: `${changeProposalDecisionsDir(input.mandatesDir, input.changeId)}/0001-applied.json`
   })
 }
 
@@ -504,7 +524,9 @@ async function handleMandatesShowGui(input) {
  */
 async function handleDecisionsShowGui(input) {
   const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
-  return deriveQueue(decisionsDirs, input.handle ?? null)
+  const mandatesFile = await readMandatesFileGui(input.mandatesDir)
+  const { redirect } = await killSwitchContextGui(input.mandatesDir, mandatesFile.mandates)
+  return deriveQueue(decisionsDirs, input.handle ?? null, { killSwitchRedirect: redirect })
 }
 
 /**
@@ -578,7 +600,9 @@ function decisionRequestPathGui(mandatesDir, runId, nnnn) {
  * @returns {Promise<object>} бриф
  */
 async function handleDecisionBriefGui(input) {
-  const text = await invoke('read_text_file', { path: decisionRequestPathGui(input.mandatesDir, input.runId, input.nnnn) })
+  const text = await invoke('read_text_file', {
+    path: decisionRequestPathGui(input.mandatesDir, input.runId, input.nnnn)
+  })
   if (!text) throw new Error(`decision_brief: decision-request не знайдено: ${input.nnnn}`)
   const decisionRequest = parseDecisionRequest(text, { nnnn: input.nnnn })
   return decisionBrief({ decisionRequest, llmConfig: await loadLlmConfigGui() })
@@ -612,7 +636,8 @@ async function handleAiCandorGui(input) {
 function candorReadMarksIoGui() {
   return {
     read: async () => invoke('read_text_file', { path: await joinPath(await appLocalDataDir(), 'candor_read.json') }),
-    write: async content => invoke('write_text_file', { path: await joinPath(await appLocalDataDir(), 'candor_read.json'), content })
+    write: async content =>
+      invoke('write_text_file', { path: await joinPath(await appLocalDataDir(), 'candor_read.json'), content })
   }
 }
 
@@ -622,7 +647,12 @@ function candorReadMarksIoGui() {
  * @returns {Promise<object[]>} інбокс «незручна правда» з `id`/`read`
  */
 function handleCandorShowGui(input) {
-  return candorShow({ io: tauriIo(), mandatesDir: input.mandatesDir, handle: input.handle, readMarksIo: candorReadMarksIoGui() })
+  return candorShow({
+    io: tauriIo(),
+    mandatesDir: input.mandatesDir,
+    handle: input.handle,
+    readMarksIo: candorReadMarksIoGui()
+  })
 }
 
 /**
@@ -644,7 +674,8 @@ async function handleCandorMarkReadGui(input) {
 function driftIoGui() {
   return {
     read: async () => invoke('read_text_file', { path: await joinPath(await appLocalDataDir(), 'drift.json') }),
-    write: async content => invoke('write_text_file', { path: await joinPath(await appLocalDataDir(), 'drift.json'), content })
+    write: async content =>
+      invoke('write_text_file', { path: await joinPath(await appLocalDataDir(), 'drift.json'), content })
   }
 }
 
@@ -672,7 +703,9 @@ function handleDriftShowGui() {
  * @returns {Promise<object>} активне one-tap мета-питання делегування
  */
 async function handleDelegationQuizGui(input) {
-  const decisionRequestText = await invoke('read_text_file', { path: decisionRequestPathGui(input.mandatesDir, input.runId, input.nnnn) })
+  const decisionRequestText = await invoke('read_text_file', {
+    path: decisionRequestPathGui(input.mandatesDir, input.runId, input.nnnn)
+  })
   return delegationQuiz({
     io: tauriIo(),
     decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
@@ -697,6 +730,74 @@ async function handleDecisionDelegateGui(input) {
     delegatedByHandle: input.delegatedByHandle,
     answer: input.answer,
     deviceKey: await loadDeviceKeyGui()
+  })
+}
+
+/**
+ * Тіло tool `delta_report` (M6).
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} модель звіту + `markdown` + `path`
+ */
+async function handleDeltaReportGui(input) {
+  const mandatesFile = await readMandatesFileGui(input.mandatesDir)
+  const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
+  return deltaReport({
+    io: tauriIo(),
+    mandatesDir: input.mandatesDir,
+    mandatesFile,
+    decisionsDirs,
+    periodDays: input.periodDays ?? 7
+  })
+}
+
+/**
+ * Тіло tool `kill_switch_on` (M6) — БЕЗ квізу, миттєво (панічна кнопка).
+ * @param {object} input вхід тула
+ * @returns {Promise<{active: true, activatedAt: string}>} новий стан
+ */
+async function handleKillSwitchOnGui(input) {
+  return killSwitchOn({ io: tauriIo(), mandatesDir: input.mandatesDir, handle: input.handle, deviceKey: await loadDeviceKeyGui() })
+}
+
+/**
+ * Тіло tool `kill_switch_off` (M6).
+ * @param {object} input вхід тула
+ * @returns {Promise<{active: false, deactivatedAt: string}>} новий стан
+ */
+async function handleKillSwitchOffGui(input) {
+  return killSwitchOff({ io: tauriIo(), mandatesDir: input.mandatesDir, handle: input.handle, deviceKey: await loadDeviceKeyGui() })
+}
+
+/**
+ * Тіло tool `kill_switch_status` (M6).
+ * @param {object} input вхід тула
+ * @returns {Promise<{active: boolean}>} поточний стан
+ */
+function handleKillSwitchStatusGui(input) {
+  return killSwitchStatus(tauriIo(), input.mandatesDir, input.handle)
+}
+
+/**
+ * Тіло tool `review_agenda` (M6).
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{widenCandidates, materialized, narrowCandidates, disputes, markdown, path}`
+ */
+async function handleReviewAgendaGui(input) {
+  const mandatesDir = input.mandatesDir
+  const mandatesFile = await readMandatesFileGui(mandatesDir)
+  const decisionsDirs = await invoke('scan_decisions', { mandatesDir })
+  const deviceRegistry = await readDeviceRegistryGui(mandatesDir)
+  const { activeHandles } = await killSwitchContextGui(mandatesDir, mandatesFile.mandates)
+  return reviewAgenda({
+    io: tauriIo(),
+    mandatesDir,
+    mandatesFile,
+    decisionsDirs,
+    deviceRegistry,
+    killSwitchActiveHandles: activeHandles,
+    loadModelDeviceKey: handle => loadOrCreateModelDeviceKeyGui(handle),
+    registerDevice: device => ensureRegisteredGui(mandatesDir, device),
+    periodDays: input.periodDays ?? 7
   })
 }
 
@@ -734,7 +835,12 @@ const HANDLERS_GUI = {
   drift_scan: handleDriftScanGui,
   drift_show: handleDriftShowGui,
   delegation_quiz: handleDelegationQuizGui,
-  decision_delegate: handleDecisionDelegateGui
+  decision_delegate: handleDecisionDelegateGui,
+  delta_report: handleDeltaReportGui,
+  kill_switch_on: handleKillSwitchOnGui,
+  kill_switch_off: handleKillSwitchOffGui,
+  kill_switch_status: handleKillSwitchStatusGui,
+  review_agenda: handleReviewAgendaGui
 }
 
 /**

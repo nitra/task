@@ -136,12 +136,14 @@ export const TOOLS = [
       chosenOption: CHOSEN_OPTION,
       answer: {
         required: false,
-        description: '0-based quiz option index (number), or the exact option text (string) — Q&A depths (one-tap/standard).'
+        description:
+          '0-based quiz option index (number), or the exact option text (string) — Q&A depths (one-tap/standard).'
       },
       transcript: {
         type: 'string',
         required: false,
-        description: 'Retell of the decision and its consequences in the owner\'s own words — depth: teach-back only (M5).'
+        description:
+          "Retell of the decision and its consequences in the owner's own words — depth: teach-back only (M5)."
       }
     },
     tauri: 'decision_approve', // те саме — оркестрація в decision-flow.js, Rust лишається fs-шаром
@@ -432,16 +434,32 @@ export const TOOLS = [
     name: 'ai_candor',
     summary:
       'Headless tool simulating a model (M5, "незручна правда" pattern — mirrors ai_petition): appends a candor ' +
-      'record {from_model, statement, evidence_refs, audacity_level, created_at} to the ADDRESSEE\'s SEPARATE ' +
+      "record {from_model, statement, evidence_refs, audacity_level, created_at} to the ADDRESSEE's SEPARATE " +
       '.mt/candor/{handle}.jsonl inbox (never mixed into the decisions queue). audacity_level is validated against ' +
       "the sender model's mandate audacity budget — rejected if it exceeds it.",
     input: {
       mandatesDir: MANDATES_DIR,
-      toHandle: { type: 'string', required: true, description: 'Handle who should hear this — the candor inbox owner.' },
-      fromModelHandle: { type: 'string', required: true, description: 'Handle of the model (kind: model) sending the candor.' },
+      toHandle: {
+        type: 'string',
+        required: true,
+        description: 'Handle who should hear this — the candor inbox owner.'
+      },
+      fromModelHandle: {
+        type: 'string',
+        required: true,
+        description: 'Handle of the model (kind: model) sending the candor.'
+      },
       statement: { type: 'string', required: true, description: 'The uncomfortable truth itself.' },
-      evidenceRefs: { type: 'array', required: false, description: 'References backing the statement (decision-refs, quiz-refs, ...).' },
-      audacityLevel: { type: 'string', required: true, description: '"low" | "medium" | "high" — validated against the mandate budget.' }
+      evidenceRefs: {
+        type: 'array',
+        required: false,
+        description: 'References backing the statement (decision-refs, quiz-refs, ...).'
+      },
+      audacityLevel: {
+        type: 'string',
+        required: true,
+        description: '"low" | "medium" | "high" — validated against the mandate budget.'
+      }
     },
     tauri: 'ai_candor',
     cli: true
@@ -449,7 +467,8 @@ export const TOOLS = [
   {
     tier: 'read',
     name: 'candor_show',
-    summary: 'Read my "незручна правда" inbox (.mt/candor/{handle}.jsonl) — separate from the decisions queue, with local (private) read marks.',
+    summary:
+      'Read my "незручна правда" inbox (.mt/candor/{handle}.jsonl) — separate from the decisions queue, with local (private) read marks.',
     input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
     tauri: 'candor_show', // немає прямої Rust-команди — оркеструє src/candor.js
     cli: true
@@ -457,7 +476,8 @@ export const TOOLS = [
   {
     tier: 'write',
     name: 'candor_mark_read',
-    summary: 'Mark one candor record as read — LOCAL to this device only (candor_read.json, outside git; never synced/shared).',
+    summary:
+      'Mark one candor record as read — LOCAL to this device only (candor_read.json, outside git; never synced/shared).',
     input: { id: { type: 'string', required: true, description: 'Candor record id (candorShow()[].id).' } },
     tauri: 'candor_mark_read',
     cli: true
@@ -506,10 +526,75 @@ export const TOOLS = [
       runId: RUN_ID,
       nnnn: NNNN,
       modelHandle: { type: 'string', required: true, description: 'Handle of the model the decision is delegated to.' },
-      delegatedByHandle: { type: 'string', required: true, description: 'Handle of the human delegating (directorial responsibility stays with them).' },
+      delegatedByHandle: {
+        type: 'string',
+        required: true,
+        description: 'Handle of the human delegating (directorial responsibility stays with them).'
+      },
       answer: { required: true, description: '0-based quiz option index (number), or the exact option text (string).' }
     },
     tauri: 'decision_delegate',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'delta_report',
+    summary:
+      'M6 pilot metric: deterministic (no LLM) delta-report over a window (default 7 days) — boundary moves (applied ' +
+      'mandate-changes, runs/mandate-change-*/0001-applied.json), decisions closed (human/model/quorum, by ' +
+      'decision_type), gate cost (Σ time_to_understanding_sec × org.js hourly_rate_eur, EUR + blocked-with-deadline-cost ' +
+      'count), delegation depth (model-owned decision_types + delegations signed in the window), and aggregate-only ' +
+      'candor-delivered / kill-switch-activation counts. Writes .mt/reports/YYYY-MM-DD-delta.md.',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      periodDays: { type: 'number', required: false, description: 'Window size in days — defaults to 7.' }
+    },
+    tauri: 'delta_report', // немає прямої Rust-команди — оркеструє src/report.js над scan_decisions
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'kill_switch_on',
+    summary:
+      'M6 panic button — NO quiz, NO confirmation, instant (docs/specs/260809-delta-app.md, «Обсяг M6», п.3). ' +
+      'Writes a signed .mt/kill-switch/{handle}.json marker — a SUSPENSION layer, mandates.yaml is never mutated ' +
+      '(reversible by construction). While active, decisions_show/watcher_scan redirect every fork delegated to (or ' +
+      'newly routed to) this handle\'s own AI mandates back to this handle, and the watcher stops pinging/escalating ' +
+      'on them.',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'kill_switch_on',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'kill_switch_off',
+    summary: 'M6 — deactivates the kill-switch (empties the marker) with a NEW signature, logged for the delta-report activation count.',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'kill_switch_off',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'kill_switch_status',
+    summary: 'M6 — read the CURRENT kill-switch state ({active: boolean}) of one handle.',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'kill_switch_status',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'review_agenda',
+    summary:
+      'M6 weekly delta-review agenda: deterministic (no LLM) — (a) draft-widen candidates (models with N+ override-free ' +
+      'decisions in the window whose delegator has no active kill-switch) get an ai_petition-pattern change-proposal ' +
+      'MATERIALIZED automatically, ready for the delegator to sign via the normal decision_quiz/decision_approve flow; ' +
+      '(b) narrow candidates (override-ers or active kill-switch, informational only); (c) open quorum divergences and ' +
+      'stale open decisions across the whole workspace. Writes .mt/reviews/YYYY-MM-DD-agenda.md.',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      periodDays: { type: 'number', required: false, description: 'Window size in days — defaults to 7.' }
+    },
+    tauri: 'review_agenda', // немає прямої Rust-команди — оркеструє src/review.js
     cli: true
   }
 ]

@@ -479,6 +479,123 @@ bun bin/delta.mjs decisions_show '{"handle":"fable-5"}'         # 0004, delegate
 `decisionApprove` коректно повернув ЧЕСНУ відмову (`available: false`) БЕЗ фолбека на нижчу глибину, рішення
 лишилось відкритим — саме той інваріант, який задокументовано вище як свідомий вибір M5.
 
+## M6 — Пілот-механіка: дельта-звіт, kill-switch, тижневе рев'ю
+
+Демо-критерій: перше дельта-рев'ю організації на реальних даних — звіт згенеровано, ≥1 мандат
+розширено/звужено підписом (докладніше — `docs/specs/260809-delta-app.md`, «Обсяг M6»).
+
+- **UI-догон M5** — вкладка «Незручна правда» (`CandorView.vue`/`use-candor.js`: список
+  `candor_show`, бейдж непрочитаних, mark-read), секція «Дрейф» на вкладці «Стежу»
+  (`WatcherView.vue`/`use-drift.js`: картки `drift_show`/`drift_scan`, кнопка «делегувати ШІ» → inline
+  one-tap квіз `delegation_quiz`/`decision_delegate`, той самий M5-flow), делегування з UI — чиста Vue-
+  обв'язка над наявними M5 tools, без нової логіки в `src/*.js`.
+- **Org-конфіг** (`src/org.js`) — новий файл `<mandatesDir>/.mt/org.json` (**комітиться в git**, не PII —
+  той самий рівень публічності, що `device-registry.json`): `{ "hourly_rate_eur": 60 }` (дефолт 60 €/год,
+  редагується вручну — жодного tool для запису поки що).
+- **Дельта-звіт** (`src/report.js`, tool `delta_report {mandatesDir, periodDays}`) — детермінований
+  markdown, БЕЗ LLM: (а) **рух межі** — застосовані mandate-change за період, зі знайденого маркера
+  `runs/mandate-change-{id}/decisions/0001-applied.json` (новий — `change-proposal.js:
+  applyMandateChangeProposal` пише його ПІСЛЯ Valid-вердикту `validate_mandate_change`, окремо від самої
+  мутації `.mt/mandates.yaml`, бо мутація сама не несе часової мітки застосування); (б) **рішення за
+  період** — закриті decision-request-и, класифіковані людський/модельний/кворумний за ефективним
+  власником (`delegated_to`, якщо є, інакше `computed_owner`, звірений проти `kind` мандата); (в) **ціна
+  гейта** — Σ `time_to_understanding_sec` людських/кворумних підписів × `hourly_rate_eur` + кількість
+  (не сума грошей) відкритих розвилок з непорожнім `deadline_cost`; (г) **глибина делегування** —
+  кількість `decision_types` із model-власником у мандатах + кількість делегувань, підписаних за період;
+  (д) **агреговано без приватного** — кількість доставлених кандор-заяв і активацій kill-switch (лише
+  count, БЕЗ вмісту дрейф-карток/бази знань). Пише `.mt/reports/YYYY-MM-DD-delta.md`; UI-вкладка «Звіт»
+  (`ReportView.vue`/`use-report.js`) — рендер простим списком/числами/таблицею, без чартів.
+- **Kill-switch** (`src/kill-switch.js`, tools `kill_switch_on`/`kill_switch_off`/`kill_switch_status`) —
+  **SUSPENSION-шар, НЕ мутація мандата**: `.mt/mandates.yaml` НІКОЛИ не торкається (реверсивність).
+  Активний kill-switch змінює ЛИШЕ деривацію: `decisions.js: deriveQueue` (третій аргумент
+  `{killSwitchRedirect}`) перенаправляє розвилки, делеговані МОЇМ ШІ-мандатам (`escalates_to === я`), і
+  нові розвилки їхніх scope-ів — у МОЮ чергу; `watcher.js: scanForNotifications`
+  (`killSwitchSuppressed`) перестає пінгувати/ескалювати по них. UI-кнопка в шапці (`App.vue`) — **БЕЗ
+  квізу, БЕЗ підтвердження**, миттєва (задокументоване рішення задачі: панічна кнопка не для роздумів
+  над формулюванням квізу). Активний маркер — підписаний `.mt/kill-switch/{handle}.json`; `off`
+  спорожнює його НОВИМ підписом (жодної Rust-команди видалення файлу — той самий інваріант, що
+  `read_text_file`/`write_text_file` в решті застосунку). Обидві дії дописуються у спільний append-only
+  лог `.mt/kill-switch/log.jsonl`, який рахує `report.js` (лише кількість активацій, не «хто»).
+- **Тижневе дельта-рев'ю** (`src/review.js`, tool `review_agenda {mandatesDir, periodDays}`) —
+  детермінований порядок денний, БЕЗ LLM: (а) **draft-пропозиції розширення** — модель мала 5+ рішень БЕЗ
+  override за період і її делегатор НЕ має активного kill-switch → рев'ю САМЕ матеріалізує
+  change-proposal ОДНИМ викликом `ai-petition.js: aiPetition` (той самий headless-actor патерн, що
+  ШІ-петиція M3, `initiatedBy: review-agenda`) — підписує ЛЮДИНА звичайним `decision_quiz`/
+  `decision_approve` + `mandate_change_apply` (M3), рев'ю нічого не підписує само; (б) **кандидати на
+  звуження** — override-и за період або активний kill-switch делегатора (інформаційний список); (в)
+  **відкриті розбіжності кворумів** (`status: diverged`) і **застарілі розвилки** — по УСІХ
+  decision-request-ах воркспейсу (на відміну від приватного дзеркала `drift.js`, рев'ю — організаційна
+  прозорість). Пише `.mt/reviews/YYYY-MM-DD-agenda.md`.
+
+### Ритуал дельта-рев'ю
+
+30 хвилин, раз на тиждень, єдина синхронна церемонія організації (конституція п.4). Порядок: (1)
+`delta_report` — що сталось за тиждень (рух межі, ціна гейта, глибина делегування); (2) `review_agenda`
+— порядок денний із уже готовими чернетками розширень (draft-пропозиції матеріалізуються автоматично,
+не вигадуються на льоту); (3) організація вголос дивиться кандидатів на звуження й відкриті розбіжності;
+(4) КОЖНЕ розширення з (2) підписує його делегатор — звичайний `decision_quiz`/`decision_approve` +
+`mandate_change_apply`, той самий M3-конвеєр, немає обхідного шляху; (5) повторний `delta_report`
+наступного тижня показує рух межі як факт, не як намір.
+
+### Demo-послідовність (реально прогнана: тиждень фікстур → звіт → рев'ю → підпис розширення → рух межі → kill-switch)
+
+```bash
+cd delta
+mkdir -p /tmp/delta-demo-m6/.mt /tmp/delta-demo-m6/runs/week1/decisions
+cp src/tests/fixtures/mandates.yaml /tmp/delta-demo-m6/.mt/mandates.yaml
+echo '{"hourly_rate_eur": 75}' > /tmp/delta-demo-m6/.mt/org.json
+export DELTA_CONFIG_PATH=/tmp/delta-demo-m6-config/config.json
+bun bin/delta.mjs set_identity '{"handle":"olena"}'
+bun bin/delta.mjs set_mandates_dir '{"dir":"/tmp/delta-demo-m6"}'
+
+# ... наповнити runs/week1/decisions/ фікстурами тижня активності: 5 model-signed
+# ops-рішень fable-5 (без override — набирає поріг widen-кандидата), одне людське
+# architecture-рішення з квіз-часом, одну застарілу відкриту розвилку з deadline_cost,
+# один diverged-кворум, один candor-запис .mt/candor/olena.jsonl, device-registry.json
+# з pubkey fable-5 (role: model) — той самий підхід, що фікстури M0-M5 (`cp .../fixtures/...`).
+
+# 1. Звіт ДО рев'ю — 6 закритих рішень (5 модельних ops, 1 людське), рух межі порожній
+bun bin/delta.mjs delta_report '{"periodDays":14}'
+
+# 2. Рев'ю — fable-5 набрав поріг (5/5 без override), делегатор olena БЕЗ kill-switch →
+#    change-proposal МАТЕРІАЛІЗУЄТЬСЯ автоматично (runId mandate-change-review-1-fable-5)
+bun bin/delta.mjs review_agenda '{"periodDays":14}'
+# => widenCandidates: [{modelHandle: "fable-5", delegatorHandle: "olena", ...}]
+#    materialized: [{changeId: "review-1-fable-5", decisionRequestPath: "..."}]
+
+# 3-4. olena проходить ЗВИЧАЙНИЙ квіз-гейт (depth: standard, 2 питання) на chosenOption A
+bun bin/delta.mjs decision_quiz '{"runId":"mandate-change-review-1-fable-5","nnnn":"0001","chosenOption":"A"}'
+bun bin/delta.mjs decision_approve '{"runId":"mandate-change-review-1-fable-5","nnnn":"0001","chosenOption":"A","answer":<індекс Q1>}'
+bun bin/delta.mjs decision_approve '{"runId":"mandate-change-review-1-fable-5","nnnn":"0001","chosenOption":"A","answer":<індекс Q2>}'
+
+# 5. Застосування — .mt/mandates.yaml: generation 1 → 2, fable-5.audacity: medium → high
+bun bin/delta.mjs mandate_change_apply '{"changeId":"review-1-fable-5","handle":"olena","role":"human"}'
+# => {"valid":true}; сусідній 0001-applied.json несе {appliedAt, handle: "olena", role: "human"}
+
+# 6. Звіт ПІСЛЯ — «Рух межі» тепер несе fable-5: widened, thresholds.audacity: medium → high
+bun bin/delta.mjs delta_report '{"periodDays":14}'
+
+# 7. Kill-switch — olena забирає все собі: черга fable-5 порожніє, нова ops-розвилка
+#    fable-5 деривується в чергу olena, watcher НЕ ескалює по ній
+bun bin/delta.mjs kill_switch_on '{}'
+bun bin/delta.mjs decisions_show '{"handle":"fable-5"}'   # => []
+bun bin/delta.mjs decisions_show '{}'                       # => розвилка fable-5 тут, killSwitchRedirected: true
+bun bin/delta.mjs watcher_scan '{}'                          # => без нотифікацій по цій розвилці
+bun bin/delta.mjs kill_switch_off '{}'                       # реверсивність — черга fable-5 відновлюється
+```
+
+Реальний прогін цієї послідовності (агентом, що писав M6) підтвердив точно цей вивід: звіт до рев'ю
+показав 6 закритих рішень (5 модельних/1 людське) і порожній рух межі; `review_agenda` знайшов fable-5
+кандидатом (5/5 без override) і сам матеріалізував change-proposal `review-1-fable-5` у черзі olena;
+звичайний `decision_quiz`/`decision_approve` (depth: standard, 2 питання, fallback-генератор) підписав
+його; `mandate_change_apply` застосував — generation файлу зріс з 1 до 2, поріг зухвалості fable-5
+піднявся з medium до high, сусідній `0001-applied.json` записав `appliedAt`/`handle`/`role`; повторний
+звіт показав рух межі як рядок з owner `fable-5`, дією «розширено», делегатором `olena` і diff-рядком
+`thresholds.audacity: medium → high` — точно той критерій демо M6, що вимагала задача. Kill-switch:
+після `kill_switch_on` нова ops-розвилка fable-5 зникла з його черги й з'явилась у черзі olena
+(`killSwitchRedirected: true`), `watcher_scan` не згенерував по ній жодної нотифікації (лише по
+непов'язаній застарілій розвилці), `kill_switch_off` відновив чергу fable-5.
+
 ## Розробка
 
 ```bash
@@ -527,3 +644,53 @@ mandates:
 ```
 
 Тестова фікстура з двома людьми й однією моделлю — `src/tests/fixtures/mandates.yaml`.
+
+## Формат `.mt/org.json` (M6)
+
+Org-level конфіг для метрики «ціна гейта» — **комітиться в git** (не PII, той самий рівень публічності,
+що `device-registry.json`). Єдине поле — `hourly_rate_eur` (ставка вартості людської години, EUR);
+відсутній файл — дефолт **60**. Редагується вручну, без окремого tool:
+
+```json
+{
+  "hourly_rate_eur": 60
+}
+```
+
+## Статус: M0–M6 реалізовано, борги
+
+Усі шість мілстоунів (`M0`–`M6`) реалізовано в цьому workspace (`delta/`), 445 vitest + 7 Rust зелені.
+Чесний список того, що лишається боргом — без прикрашання:
+
+- **napi-стикування з `mt-mandates` crate ще не сталось** — `src/mandates.js`/`src/mandate-change.js`
+  лишаються мок-парсерами за буквою контракту (`mt: docs/architecture/mandates.md`), не napi-викликами
+  crate mt-rust. Заміна прийде, коли crate стабілізується (M6 фаза 0 роадмапу mt) — контракт-перший
+  порядок (рішення Ж спеки) досі в силі.
+- **Doc-files беклог** — частина модулів (`decision-flow.js`, `delegation.js`, `directory.js`,
+  `drift.js`, `knowledge.js`, `mandates.js`, `onboarding.js`, `quiz.js`, `quorum.js`, `signing.js`,
+  `staff.js`, `watcher.js`, `what-system-knows.js`, і нові M6-модулі `report.js`/`review.js`/
+  `kill-switch.js`/`org.js`) досі без файлової доки `src/docs/<stem>.md` — той самий стан, що успадкований
+  від M1-M5 (доку веде окремий таймбоксований прогін `/n-doc-files`, не кожна задача).
+- **Іконки застосунку** — відсутні (той самий дефолт Tauri-скаффолда, що з M0).
+- **Голосовий ввід teach-back** — не реалізовано; macOS-диктовка друкує в ту саму textarea сама,
+  окремого механізму намірено не додавали (задокументовано в M5).
+- **Relay для живих нотифікацій** — досі файловий полінг (`watcher_scan`/headless-крон
+  `bin/delta-watcher.mjs`), не push. Деградація «полінг замість пушу» задокументована з M4.
+- **UI майстра делегування з симуляцією (конституція п.12)** — «Довіряю» лишається MVP-скоупом однієї
+  осі (audacity ±1 щабель, `budget_eur`-фолбек), не повним багатовісним редактором мандата з прогнозом
+  «за минулий місяць це були б N рішень» на історії. Той самий свідомо звужений обсяг M3, перенесений
+  без змін.
+- **Немає живого tool-шляху, яким модель сама підписує decision-request** — `track-record.js`/
+  `review.js: draftWidenCandidates` рахують «модельні» рішення за атрибуцією pubkey в
+  `device-registry.json`, але жоден CLI/GUI tool не дає моделі підписати ЗВИЧАЙНЕ рішення власним ключем
+  (лише петиція/кандор/звуження мандата підписуються модельним ключем напряму) — у демо M6 і тестах
+  модельні рішення матеріалізовані як фікстури (той самий підхід, що `track-record.test.js`), не через
+  живий виклик. Кандидат для наступного мілстоуна: `decision_delegate` дає моделі чергу, але не дає їй
+  інструмента `decision_approve` власним ключем.
+- **Kill-switch off — «видалення» через порожній запис, не Rust-команда delete** — задокументоване
+  рішення M6 (заголовок `kill-switch.js`): жодних нових Tauri-команд, `write_text_file('')` над
+  generic-шаром замість окремого `remove_file`.
+- **`review_agenda` ідемпотентний лише в межах одного `generation`** — повторний прогін у той самий
+  тиждень освіжає ту саму чернетку (`changeId: review-{generation}-{model}`), але не запобігає
+  «спаму» чернеток, якщо генерація файлу зміниться між прогонами того самого тижня (рідкісний
+  edge-case, не покритий тестом).

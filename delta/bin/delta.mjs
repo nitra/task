@@ -19,11 +19,14 @@ import { delegateDecision, delegationQuiz } from '../src/delegation.js'
 import { formatDeviceRegistry, parseDeviceRegistry, upsertDevice } from '../src/device-registry.js'
 import { formatDirectory, parseDirectory, setDirectoryEntry } from '../src/directory.js'
 import { loadDriftCards, runDriftScan } from '../src/drift.js'
+import { buildKillSwitchRedirect, killSwitchOff, killSwitchOn, killSwitchStatus } from '../src/kill-switch.js'
 import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../src/knowledge.js'
 import { parseMandatesFile } from '../src/mandate-change.js'
 import { deriveMandatesView } from '../src/mandates.js'
 import { loadQuorumStatus, quorumApprove, quorumQuiz } from '../src/quorum.js'
 import { defaultLlmConfig } from '../src/quiz.js'
+import { deltaReport } from '../src/report.js'
+import { reviewAgenda } from '../src/review.js'
 import { loadOrCreateDeviceKey } from '../src/signing.js'
 import { decisionBrief } from '../src/staff.js'
 import { TOOLS } from '../src/tool/catalog.js'
@@ -225,6 +228,17 @@ function readMandatesFileCli(mandatesDir) {
 }
 
 /**
+ * Kill-switch контекст (M6) для деривації черги/watcher-а — один прохід по
+ * person-owner карти мандатів (`kill-switch.js: buildKillSwitchRedirect`).
+ * @param {string} mandatesDir абсолютний шлях до воркспейсу
+ * @param {object[]} mandates нормалізовані мандати (уже розібраний `.mt/mandates.yaml`)
+ * @returns {Promise<{redirect: Map<string, string>, activeHandles: Set<string>}>} kill-switch контекст
+ */
+function killSwitchContextCli(mandatesDir, mandates) {
+  return buildKillSwitchRedirect({ io: fsIo(), mandatesDir, mandates })
+}
+
+/**
  * @param {string} mandatesDir абсолютний шлях до воркспейсу
  * @returns {string} абсолютний шлях до `device-registry.json` (публічний реєстр, У `mandatesDir`, комітиться в git — `device-registry.js`)
  */
@@ -376,13 +390,16 @@ async function handleQuorumApproveCli(input) {
  * @param {object} input вхід тула
  * @returns {Promise<object>} `{notifications, delivered, batched}`
  */
-function handleWatcherScanCli(input) {
+async function handleWatcherScanCli(input) {
+  const mandatesFile = readMandatesFileCli(input.mandatesDir)
+  const { redirect } = await killSwitchContextCli(input.mandatesDir, mandatesFile.mandates)
   return runWatcherScan({
     io: fsIo(),
     mandatesDir: input.mandatesDir,
     decisionsDirs: scanDecisionsDirs(input.mandatesDir),
     config: input.config,
-    quietHours: readQuietHours()
+    quietHours: readQuietHours(),
+    killSwitchSuppressed: new Set(redirect.keys())
   })
 }
 
@@ -445,7 +462,12 @@ function handleAiCandorCli(input) {
  * @returns {Promise<object[]>} інбокс «незручна правда» з `id`/`read`
  */
 function handleCandorShowCli(input) {
-  return candorShow({ io: fsIo(), mandatesDir: input.mandatesDir, handle: input.handle, readMarksIo: candorReadMarksIoCli() })
+  return candorShow({
+    io: fsIo(),
+    mandatesDir: input.mandatesDir,
+    handle: input.handle,
+    readMarksIo: candorReadMarksIoCli()
+  })
 }
 
 /**
@@ -454,7 +476,11 @@ function handleCandorShowCli(input) {
  * @returns {Promise<object[]>} свіжі дрейф-картки
  */
 function handleDriftScanCli(input) {
-  return runDriftScan({ decisionsDirs: scanDecisionsDirs(input.mandatesDir), handle: input.handle, driftIo: driftIoCli() })
+  return runDriftScan({
+    decisionsDirs: scanDecisionsDirs(input.mandatesDir),
+    handle: input.handle,
+    driftIo: driftIoCli()
+  })
 }
 
 /**
@@ -632,7 +658,8 @@ async function handleMandateChangeApplyCli(input) {
     approval,
     handle: input.handle,
     role,
-    deviceKey
+    deviceKey,
+    appliedMarkerPath: `${changeProposalDecisionsDir(mandatesDir, changeId)}/0001-applied.json`
   })
 }
 
@@ -720,7 +747,11 @@ async function handleKnowledgeShowCli() {
  * @returns {Promise<object>} `{nnnn, approvers, signed, pending, status}`
  */
 function handleQuorumStatusCli(input) {
-  return loadQuorumStatus({ io: fsIo(), decisionsDir: decisionsDirPath(input.mandatesDir, input.runId), nnnn: input.nnnn })
+  return loadQuorumStatus({
+    io: fsIo(),
+    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
+    nnnn: input.nnnn
+  })
 }
 
 /**
@@ -743,6 +774,74 @@ async function handleCandorMarkReadCli(input) {
   return null
 }
 
+/**
+ * Тіло case `decisions_show` — M6 додає kill-switch перенаправлення
+ * (`decisions.js: deriveQueue` третій аргумент).
+ * @param {object} input вхід тула
+ * @returns {Promise<object[]>} черга «Вирішую»
+ */
+async function handleDecisionsShowCli(input) {
+  const mandatesFile = readMandatesFileCli(input.mandatesDir)
+  const { redirect } = await killSwitchContextCli(input.mandatesDir, mandatesFile.mandates)
+  return deriveQueue(scanDecisionsDirs(input.mandatesDir), input.handle ?? null, { killSwitchRedirect: redirect })
+}
+
+/**
+ * Тіло case `delta_report` (M6).
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} модель звіту + `markdown` + `path`
+ */
+function handleDeltaReportCli(input) {
+  const mandatesFile = readMandatesFileCli(input.mandatesDir)
+  return deltaReport({
+    io: fsIo(),
+    mandatesDir: input.mandatesDir,
+    mandatesFile,
+    decisionsDirs: scanDecisionsDirs(input.mandatesDir),
+    periodDays: input.periodDays ?? 7
+  })
+}
+
+/**
+ * Тіло case `kill_switch_on` (M6) — БЕЗ квізу, миттєво (панічна кнопка).
+ * @param {object} input вхід тула
+ * @returns {Promise<{active: true, activatedAt: string}>} новий стан
+ */
+async function handleKillSwitchOnCli(input) {
+  return killSwitchOn({ io: fsIo(), mandatesDir: input.mandatesDir, handle: input.handle, deviceKey: await loadDeviceKeyCli() })
+}
+
+/**
+ * Тіло case `kill_switch_off` (M6).
+ * @param {object} input вхід тула
+ * @returns {Promise<{active: false, deactivatedAt: string}>} новий стан
+ */
+async function handleKillSwitchOffCli(input) {
+  return killSwitchOff({ io: fsIo(), mandatesDir: input.mandatesDir, handle: input.handle, deviceKey: await loadDeviceKeyCli() })
+}
+
+/**
+ * Тіло case `review_agenda` (M6).
+ * @param {object} input вхід тула
+ * @returns {Promise<object>} `{widenCandidates, materialized, narrowCandidates, disputes, markdown, path}`
+ */
+async function handleReviewAgendaCli(input) {
+  const mandatesDir = input.mandatesDir
+  const mandatesFile = readMandatesFileCli(mandatesDir)
+  const { activeHandles } = await killSwitchContextCli(mandatesDir, mandatesFile.mandates)
+  return reviewAgenda({
+    io: fsIo(),
+    mandatesDir,
+    mandatesFile,
+    decisionsDirs: scanDecisionsDirs(mandatesDir),
+    deviceRegistry: readDeviceRegistryCli(mandatesDir),
+    killSwitchActiveHandles: activeHandles,
+    loadModelDeviceKey: handle => loadOrCreateModelDeviceKeyCli(handle),
+    registerDevice: device => Promise.resolve(ensureRegisteredCli(mandatesDir, device)),
+    periodDays: input.periodDays ?? 7
+  })
+}
+
 // Диспетчерська таблиця замість довгого `switch` (sonarjs/max-switch-cases
 // — той самий рефактор, що HANDLERS_GUI у tool/index.js): КОЖЕН tool — один
 // запис, `cliTransport` лишається чистим lookup+виклик.
@@ -758,7 +857,7 @@ const CLI_HANDLERS = {
     return null
   },
   mandates_show: handleMandatesShowCli,
-  decisions_show: input => deriveQueue(scanDecisionsDirs(input.mandatesDir), input.handle ?? null),
+  decisions_show: handleDecisionsShowCli,
   decision_quiz: handleDecisionQuizCli,
   decision_approve: handleDecisionApproveCli,
   device_pubkey: handleDevicePubkeyCli,
@@ -787,7 +886,12 @@ const CLI_HANDLERS = {
   drift_scan: handleDriftScanCli,
   drift_show: () => loadDriftCards(driftIoCli()),
   delegation_quiz: handleDelegationQuizCli,
-  decision_delegate: handleDecisionDelegateCli
+  decision_delegate: handleDecisionDelegateCli,
+  delta_report: handleDeltaReportCli,
+  kill_switch_on: handleKillSwitchOnCli,
+  kill_switch_off: handleKillSwitchOffCli,
+  kill_switch_status: input => killSwitchStatus(fsIo(), input.mandatesDir, input.handle),
+  review_agenda: handleReviewAgendaCli
 }
 
 /**
@@ -855,7 +959,12 @@ async function main() {
     'candor_show',
     'drift_scan',
     'delegation_quiz',
-    'decision_delegate'
+    'decision_delegate',
+    'delta_report',
+    'kill_switch_on',
+    'kill_switch_off',
+    'kill_switch_status',
+    'review_agenda'
   ]
   const HANDLE_DEFAULT_TOOLS = [
     'mandates_show',
@@ -864,7 +973,10 @@ async function main() {
     'notifications_show',
     'what_system_knows',
     'candor_show',
-    'drift_scan'
+    'drift_scan',
+    'kill_switch_on',
+    'kill_switch_off',
+    'kill_switch_status'
   ]
   if (MANDATES_DIR_DEFAULT_TOOLS.includes(cmd) && input.mandatesDir === undefined) {
     input.mandatesDir = readConfig().mandates_dir
