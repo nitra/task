@@ -502,6 +502,7 @@ describe('spaced repetition на живих рішеннях — підмішу�
     const first = await submitQuizAnswer({ io, decisionsDir: DECISIONS_DIR, nnnn: '0001', answer: correctIndex1, now: () => now, knowledgeIo })
     expect(first.correct).toBe(true)
     expect(first.done).toBe(false)
+    expect(first.microlesson).toMatch(MICROLESSON_RE) // мікроурок після ЩОЙНО відповіданого питання, не лише фіналу
     expect(first.nextQuestion.repetition).toBe(true)
     expect(first.nextQuestion.question).toBe('Старе питання про архітектуру?')
 

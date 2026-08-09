@@ -118,6 +118,33 @@ pub fn set_llm_model(model: String) -> Result<(), String> {
     merge_config("llm_model", json!(model.trim()))
 }
 
+/// Шлях до особистої бази знань (M2, docs/specs/260809-delta-app.md — «Обсяг
+/// M2», п.4) — файл-сусід `config.json`/`device_key.json`, той самий каталог
+/// (`appLocalDataDir`), поза git (той самий рівень приватності, що ключ
+/// пристрою — «що про мене знає система» бачить лише власник).
+fn knowledge_path() -> Result<PathBuf, String> {
+    Ok(own_config_path()?.with_file_name("knowledge.json"))
+}
+
+/// Сирий JSON-текст бази знань (None — ще жодного завершеного квізу). Формат
+/// і деривації (конспект по доменах, тренд «час до розуміння», spaced
+/// repetition) — спільний JS-модуль `src/knowledge.js`, Rust лишається
+/// тонким fs-шаром (той самий патерн, що `read_device_key`).
+pub fn read_knowledge() -> Option<String> {
+    knowledge_path().ok().and_then(|p| fs::read_to_string(p).ok())
+}
+
+/// Персистить базу знань, серіалізовану JS-шаром (`src/knowledge.js:
+/// formatKnowledgeFile`) після кожного завершеного квізу чи spaced-repetition
+/// відповіді.
+pub fn write_knowledge(json_text: String) -> Result<(), String> {
+    let path = knowledge_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(path, json_text).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,6 +205,21 @@ mod tests {
         assert_eq!(
             get_mandates_dir(),
             Some("/Users/vitalii/www/nitra/task".to_string())
+        );
+
+        // база знань (M2): окремий файл-сусід config.json/device_key.json, не сам config.json
+        assert_eq!(read_knowledge(), None);
+        write_knowledge("[{\"decisionRef\":\"0001-decision-request.md\"}]".to_string()).unwrap();
+        assert_eq!(
+            read_knowledge(),
+            Some("[{\"decisionRef\":\"0001-decision-request.md\"}]".to_string())
+        );
+        let knowledge_file = tmp.path().join("knowledge.json");
+        assert!(knowledge_file.exists());
+        // мердж config.json (llm-конфіг вище) не торкається файлу бази знань
+        assert_eq!(
+            read_knowledge(),
+            Some("[{\"decisionRef\":\"0001-decision-request.md\"}]".to_string())
         );
 
         std::env::remove_var("DELTA_CONFIG_PATH");

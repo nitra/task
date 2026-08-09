@@ -85,6 +85,78 @@ ls /tmp/delta-demo/runs/demo-1/decisions/
 bun bin/delta.mjs decisions_show '{}'
 ```
 
+## M2 — навчальний квіз: мікроуроки, навчальний режим, база знань, spaced repetition, depth: standard
+
+Демо-критерій: фейл квізу → розгортання контексту → повторне питання → мікроурок ліг в особисту базу знань
+(докладніше — `docs/specs/260809-delta-app.md`, «Обсяг M2»).
+
+- **Мікроурок — завжди, не лише на фейлі.** `decision_quiz`/`decision_approve` повертають `microlesson` після
+  БУДЬ-якої відповіді (правильної теж — M1 показувала лише після неправильної), «у момент максимальної уваги»
+  (конституція п.2). Генерується LLM разом із питанням; у фолбек-режимі — детермінований з полів decision-request
+  (`generated_by: quiz-gen-fallback` чесно позначає джерело).
+- **Навчальний режим при фейлі («право на глибину»)** — `src/decision-flow.js: submitQuizAnswer` повертає поле
+  `explain`: розгортання decision-request шар за шаром, КУМУЛЯТИВНО з кожним наступним фейлом того самого
+  питання — 1-й фейл `## Контекст`; 2-й — і контекст, і наслідки всіх варіантів; 3-й+ — і те, і те, і
+  `## Рекомендація агента` з обґрунтуванням. Повторне питання після кожного шару — те саме формулювання, або
+  перефразоване LLM-ом через `rephraseQuestion` (best-effort — options/правильна відповідь НІКОЛИ не міняються
+  перефразуванням), коли ендпоінт живий.
+- **Особиста база знань** (`src/knowledge.js`) — локальне сховище ПОЗА git, файл-сусід `config.json`/
+  `device_key.json` (`knowledge.json`, той самий рівень приватності, що ключ пристрою: «що про мене знає
+  система» бачиш лише ти, конституція п.9). Кожен ПОВНІСТЮ завершений квіз дописує запис `{decisionRef, domain,
+  question, options, correctAnswer, microlesson, iterations, timeToUnderstandingSec, completedAt, intervalDays,
+  lastRepeatedAt}` — домен береться з `decision_type` фронтматера decision-request (власне розширення M2, `null`
+  → `'general'`). Деривації: `domainDigest` (конспект по доменах — «що я зрозумів, підписуючи»), приватний тренд
+  `timeToUnderstandingTrend` (метрика №3 спеки: тренд вниз = навчальна функція квізів працює; <2 записів домену —
+  чесний статус `insufficient-data`, не вигаданий «flat»). UI: вкладка «Знання» (конспект + тренд простим списком/
+  числами, без чартів); CLI: `knowledge_show`.
+- **Spaced repetition на живих рішеннях** (п.5 конституції) — генератор квізу для НОВОЇ розвилки `depth: one-tap`
+  підмішує (як друге питання, позначене «Питання 2 (повторення)» у квіз-файлі) повторення знання з бази, чий
+  інтервал настав: драбинка **1 → 3 → 7 → 21 днів** від `completedAt`/`lastRepeatedAt`, домен має збігатися з
+  доменом нової розвилки. Немає давнього дозрілого знання в домені — квіз лишається одним питанням (штатний, не
+  винятковий шлях). Правильна відповідь на повторення просуває драбинку; неправильна скидає до 1 дня (фейл ≠
+  покарання — коротший інтервал, не виключення з бази). `standard`/spaced-repetition свідомо НЕ стекуються в M2
+  (задокументоване рішення обсягу — уникає комбінаторного вибуху UX у першій ітерації).
+- **`depth: standard`** — другий рівень глибини за контрактом (mandates.md, «Крок 3»: decide-and-inform —
+  середні leverage-фасети **і лише** reversible): 2 питання про саму розвилку (без переказу — teach-back
+  лишається M5), обидва мають бути здані правильно, перш ніж підпис стане доступним. `depthForFacets`
+  (`src/decisions.js`) доведено до контрактного мапінгу й задокументовано таблицею; фікстура
+  `0002-decision-request.md` (`blast_radius: subtree`) демонструє `standard` у тестах.
+- **Квіз-файл узагальнено на кілька питань** (`src/quiz.js`) — `## Питання N` / `## Питання N (повторення)` /
+  `## Питання N (спроба K)`, byte-сумісно з M1-форматом для one-question квізів.
+
+### Demo-послідовність (навчальний цикл: фейл → шари → мікроурок у базі)
+
+```bash
+cd delta
+export DELTA_CONFIG_PATH=/tmp/delta-demo-m2/config.json
+
+mkdir -p /tmp/delta-demo-m2/runs/demo-1/decisions
+cp src/tests/fixtures/runs/demo-1/decisions/0001-decision-request.md /tmp/delta-demo-m2/runs/demo-1/decisions/
+bun bin/delta.mjs set_identity '{"handle":"olena"}'
+bun bin/delta.mjs set_mandates_dir '{"dir":"/tmp/delta-demo-m2"}'
+
+# 1. Генерує питання (fallback без живого LLM-ендпоінта — quiz-gen-fallback)
+bun bin/delta.mjs decision_quiz '{"runId":"demo-1","nnnn":"0001","chosenOption":"B"}'
+
+# 2. Неправильна відповідь (свідомо помилковий індекс) — мікроурок + explain: layer 1 (## Контекст)
+bun bin/delta.mjs decision_approve '{"runId":"demo-1","nnnn":"0001","chosenOption":"B","answer":0}'
+# output.explain[0] = {"layer":1,"heading":"Контекст","content":"..."}; output.microlesson присутній
+
+# 3. Правильна відповідь (індекс із кроку 1 output.options) — фіналізує квіз, підписує, дописує базу знань
+bun bin/delta.mjs decision_approve '{"runId":"demo-1","nnnn":"0001","chosenOption":"B","answer":1}'
+
+# 4. Мікроурок ліг у особисту базу знань — конспект домену architecture + тренд
+bun bin/delta.mjs knowledge_show '{}'
+cat /tmp/delta-demo-m2/knowledge.json
+```
+
+### Демо spaced repetition (повторення через нову розвилку)
+
+Інтервал (1 день) не можна прогнати в реальному часі одним CLI-викликом — підроби `completedAt` у минуле
+безпосередньо у `knowledge.json` (той самий формат, що дописує `appendKnowledgeEntry`), тоді підклади НОВИЙ
+decision-request того самого домену (`decision_type`) і виклич `decision_quiz` — друге питання підмішається
+автоматично, файл покаже `## Питання 2 (повторення)`.
+
 ## Розробка
 
 ```bash

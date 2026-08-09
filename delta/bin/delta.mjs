@@ -5,6 +5,7 @@ import process from 'node:process'
 import { createDispatch, listTools, toolManifest } from '@7n/tauri-components'
 import { decisionApprove, decisionQuiz } from '../src/decision-flow.js'
 import { deriveQueue } from '../src/decisions.js'
+import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../src/knowledge.js'
 import { deriveMandatesView } from '../src/mandates.js'
 import { defaultLlmConfig } from '../src/quiz.js'
 import { loadOrCreateDeviceKey } from '../src/signing.js'
@@ -122,6 +123,28 @@ async function loadDeviceKeyCli() {
 }
 
 /**
+ * @returns {string} абсолютний шлях до бази знань (файл-сусід `config.json`/`device_key.json`, поза git)
+ */
+function knowledgePath() {
+  return join(dirname(configPath()), 'knowledge.json')
+}
+
+/**
+ * io бази знань для `src/knowledge.js` — той самий `{read, write}`-контракт,
+ * що GUI (`tool/index.js`: Tauri `read_knowledge`/`write_knowledge`).
+ * @returns {{read: () => Promise<string|null>, write: (content: string) => Promise<void>}} io
+ */
+function knowledgeIoCli() {
+  return {
+    read: () => (existsSync(knowledgePath()) ? readFileSync(knowledgePath(), 'utf8') : null),
+    write: content => {
+      mkdirSync(dirname(knowledgePath()), { recursive: true })
+      writeFileSync(knowledgePath(), content)
+    }
+  }
+}
+
+/**
  * @returns {{baseUrl: string, model: string}} конфіг LLM-ендпоінта з `config.json`, дефолт — `quiz.js`
  */
 function readLlmConfig() {
@@ -167,7 +190,8 @@ async function cliTransport(tool, input) {
         decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
         nnnn: input.nnnn,
         chosenOption: input.chosenOption,
-        llmConfig: readLlmConfig()
+        llmConfig: readLlmConfig(),
+        knowledgeIo: knowledgeIoCli()
       })
     }
     case 'decision_approve': {
@@ -178,7 +202,9 @@ async function cliTransport(tool, input) {
         nnnn: input.nnnn,
         chosenOption: input.chosenOption,
         answer: input.answer,
-        deviceKey: await loadDeviceKeyCli()
+        deviceKey: await loadDeviceKeyCli(),
+        llmConfig: readLlmConfig(),
+        knowledgeIo: knowledgeIoCli()
       })
     }
     case 'device_pubkey': {
@@ -194,6 +220,10 @@ async function cliTransport(tool, input) {
         ...(input.model !== undefined && { llm_model: input.model.trim() })
       })
       return null
+    }
+    case 'knowledge_show': {
+      const entries = await loadKnowledgeEntries(knowledgeIoCli())
+      return { digest: domainDigest(entries), trend: timeToUnderstandingTrend(entries), entryCount: entries.length }
     }
     default: {
       throw new Error(`tool "${tool.name}" has no CLI transport`)

@@ -3,6 +3,7 @@ import { createDispatch } from '@7n/tauri-components'
 import { tauriTransport } from '@7n/tauri-components/vue'
 import { decisionApprove, decisionQuiz } from '../decision-flow.js'
 import { deriveQueue } from '../decisions.js'
+import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../knowledge.js'
 import { deriveMandatesView } from '../mandates.js'
 import { defaultLlmConfig } from '../quiz.js'
 import { loadOrCreateDeviceKey } from '../signing.js'
@@ -54,6 +55,18 @@ async function loadLlmConfigGui() {
 }
 
 /**
+ * io бази знань (M2) над Rust fs-командами — той самий `{read, write}`-
+ * контракт, що CLI (`bin/delta.mjs: knowledgeIoCli`).
+ * @returns {{read: () => Promise<string|null>, write: (content: string) => Promise<void>}} io
+ */
+function knowledgeIoGui() {
+  return {
+    read: () => invoke('read_knowledge'),
+    write: content => invoke('write_knowledge', { json: content })
+  }
+}
+
+/**
  * @param {string} mandatesDir абсолютний шлях до воркспейсу
  * @param {string} runId run-id
  * @returns {string} абсолютний шлях до `runs/{runId}/decisions`
@@ -82,7 +95,8 @@ async function transport(tool, input) {
       decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
       nnnn: input.nnnn,
       chosenOption: input.chosenOption,
-      llmConfig: await loadLlmConfigGui()
+      llmConfig: await loadLlmConfigGui(),
+      knowledgeIo: knowledgeIoGui()
     })
   }
   if (tool.name === 'decision_approve') {
@@ -93,12 +107,18 @@ async function transport(tool, input) {
       nnnn: input.nnnn,
       chosenOption: input.chosenOption,
       answer: input.answer,
-      deviceKey: await loadDeviceKeyGui()
+      deviceKey: await loadDeviceKeyGui(),
+      llmConfig: await loadLlmConfigGui(),
+      knowledgeIo: knowledgeIoGui()
     })
   }
   if (tool.name === 'device_pubkey') {
     const key = await loadDeviceKeyGui()
     return { publicKeyBase64: key.publicKeyBase64 }
+  }
+  if (tool.name === 'knowledge_show') {
+    const entries = await loadKnowledgeEntries(knowledgeIoGui())
+    return { digest: domainDigest(entries), trend: timeToUnderstandingTrend(entries), entryCount: entries.length }
   }
   return tauriTransport(tool, input)
 }

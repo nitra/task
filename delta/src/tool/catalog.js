@@ -110,7 +110,9 @@ export const TOOLS = [
     tier: 'write',
     name: 'decision_quiz',
     summary:
-      'Generate (first call) or show (repeat call) the one-tap quiz question for a decision-request variant — writes the mutable NNNN-quiz.md draft.',
+      'Generate (first call) or show (repeat call) the active quiz question for a decision-request variant — ' +
+      'writes the mutable NNNN-quiz.md draft. depth: one-tap may mix in a second spaced-repetition question from ' +
+      'the personal knowledge base; depth: standard generates 2 questions about the decision itself (M2).',
     input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN, chosenOption: CHOSEN_OPTION },
     tauri: 'decision_quiz', // немає прямої Rust-команди — GUI-транспорт (tool/index.js) оркеструє через decision-flow.js
     cli: true
@@ -119,7 +121,10 @@ export const TOOLS = [
     tier: 'write',
     name: 'decision_approve',
     summary:
-      'Submit a quiz answer. Wrong: returns the microlesson, iterations++, no approval written. Right: finalizes the quiz and writes a signed NNNN-approval.json.',
+      'Submit an answer for the quiz\'s active question. Wrong: returns the microlesson and layered decision-request ' +
+      'context ("right to depth", M2), iterations++, no approval written. Right on a non-last question: returns the ' +
+      'next question (done: false), still no approval. Right on the last question: finalizes the quiz, records a ' +
+      'personal-knowledge-base entry, and writes a signed NNNN-approval.json.',
     input: {
       mandatesDir: MANDATES_DIR,
       runId: RUN_ID,
@@ -157,6 +162,17 @@ export const TOOLS = [
       model: { type: 'string', required: false, description: 'Model name served by the local endpoint.' }
     },
     tauri: 'set_llm_config',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'knowledge_show',
+    summary:
+      'Read the personal knowledge base (outside git, next to config.json): per-domain digest ("what I understood, ' +
+      'signing") and the private time-to-understanding trend (spec metric #3) — "what the system knows about me" ' +
+      'screen (M2).',
+    input: {},
+    tauri: 'knowledge_show', // немає прямої Rust-команди — GUI-транспорт оркеструє через src/knowledge.js
     cli: true
   }
 ]

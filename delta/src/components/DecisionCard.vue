@@ -56,9 +56,19 @@
           <q-icon name="sym_o_check_circle" size="18px" />
           Підписано — {{ approvalResult.approval.signed_at }} · pubkey {{ shortPubkey }}
         </div>
+        <div v-if="microlesson" class="microlesson-banner">
+          <div class="microlesson-title">
+            <q-icon name="sym_o_lightbulb" size="14px" /> Мікроурок
+          </div>
+          <p>{{ microlesson }}</p>
+        </div>
       </template>
 
       <template v-else-if="quiz">
+        <div v-if="quiz.questionCount > 1" class="question-progress">
+          Питання {{ quiz.questionIndex }}/{{ quiz.questionCount }}
+          <span v-if="quiz.repetition" class="repetition-badge">повторення</span>
+        </div>
         <p class="quiz-question">{{ quiz.question }}</p>
         <div class="quiz-options">
           <q-btn
@@ -72,12 +82,25 @@
             class="quiz-option-btn"
             :label="`${String.fromCharCode(65 + index)}. ${opt}`" />
         </div>
-        <div v-if="lastWrong" class="microlesson-banner">
+
+        <!-- Мікроурок — після БУДЬ-якої відповіді (правильної теж), у момент
+             максимальної уваги (конституція п.2, М2). -->
+        <div v-if="microlesson" class="microlesson-banner">
           <div class="microlesson-title">
-            <q-icon name="sym_o_lightbulb" size="14px" /> Мікроурок (спроба {{ iterations }})
+            <q-icon name="sym_o_lightbulb" size="14px" /> Мікроурок
           </div>
-          <p>{{ lastWrong }}</p>
+          <p>{{ microlesson }}</p>
         </div>
+
+        <!-- Навчальний режим при фейлі — «право на глибину»: розгортання
+             decision-request шар за шаром, кумулятивно з кожним фейлом. -->
+        <div v-if="explain && explain.length > 0" class="explain-panel">
+          <div v-for="layer in explain" :key="layer.layer" class="explain-layer">
+            <div class="explain-heading">{{ layer.heading }}</div>
+            <p class="explain-content">{{ layer.content }}</p>
+          </div>
+        </div>
+
         <div v-if="error" class="banner banner-error">{{ error }}</div>
       </template>
     </div>
@@ -100,7 +123,8 @@ const quizLoading = ref(false)
 const answering = ref(false)
 const approved = ref(false)
 const approvalResult = ref(null)
-const lastWrong = ref(null)
+const microlesson = ref(null)
+const explain = ref(null)
 const iterations = ref(0)
 const error = ref(null)
 
@@ -110,9 +134,10 @@ const shortPubkey = computed(() => {
 })
 
 /**
- * Обирає варіант decision-request-а й одразу генерує/показує one-tap квіз
- * про наслідки саме цього варіанта (конституція п.2: питання — з самого
- * decision-request, не з шаблону).
+ * Обирає варіант decision-request-а й одразу генерує/показує активне
+ * питання квізу про наслідки саме цього варіанта (конституція п.2: питання
+ * — з самого decision-request, не з шаблону). `depth: standard` дає 2
+ * питання; `depth: one-tap` може підмішати spaced-repetition-питання (М2).
  * @param {string} label обраний варіант (напр. `'B'`)
  * @returns {Promise<void>}
  */
@@ -131,7 +156,13 @@ async function chooseOption(label) {
     error.value = res.error.message
     return
   }
-  quiz.value = { question: res.output.question, options: res.output.options }
+  quiz.value = {
+    question: res.output.question,
+    options: res.output.options,
+    questionIndex: res.output.questionIndex,
+    questionCount: res.output.questionCount,
+    repetition: res.output.repetition
+  }
   iterations.value = res.output.iterations
 }
 
@@ -143,14 +174,18 @@ async function chooseOption(label) {
 function reset() {
   chosenOption.value = null
   quiz.value = null
-  lastWrong.value = null
+  microlesson.value = null
+  explain.value = null
   error.value = null
 }
 
 /**
- * Проводить квіз-відповідь через `decision_approve` — неправильна показує
- * мікроурок і лишає гейт відкритим (фейл ≠ покарання), правильна фіналізує
- * квіз і пише підписаний approval, після чого картка повідомляє батька.
+ * Проводить квіз-відповідь через `decision_approve`. Неправильна — показує
+ * мікроурок і навчальний режим (розгортання контексту шар за шаром), гейт
+ * лишається відкритим (фейл ≠ покарання). Правильна на НЕостанньому питанні
+ * квізу — показує наступне питання (`done: false`), підпис ще недоступний.
+ * Правильна на останньому питанні — фіналізує квіз і пише підписаний
+ * approval, картка повідомляє батька.
  * @param {number} index 0-based індекс обраної відповіді
  * @returns {Promise<void>}
  */
@@ -169,14 +204,33 @@ async function answer(index) {
     error.value = res.error.message
     return
   }
+  microlesson.value = res.output.microlesson ?? null
+  iterations.value = res.output.iterations
+
   if (res.output.approved) {
+    explain.value = null
     approved.value = true
     approvalResult.value = res.output
     emit('approved', { runId: props.decision.runId, nnnn: props.decision.nnnn, approval: res.output.approval })
     return
   }
-  lastWrong.value = res.output.microlesson
-  iterations.value = res.output.iterations
+
+  if (res.output.correct) {
+    // Правильно, але квіз ще не завершено (standard/spaced-repetition) —
+    // переходимо до наступного питання, підпис лишається недоступним.
+    explain.value = null
+    const next = res.output.nextQuestion
+    quiz.value = {
+      question: next.question,
+      options: next.options,
+      questionIndex: next.questionIndex,
+      questionCount: next.questionCount,
+      repetition: next.repetition
+    }
+    return
+  }
+
+  explain.value = res.output.explain ?? null
 }
 </script>
 
@@ -319,6 +373,55 @@ async function answer(index) {
 .microlesson-banner p {
   margin: 0;
   opacity: 0.85;
+}
+
+.question-progress {
+  font-size: 11px;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.repetition-badge {
+  background: color-mix(in srgb, #14b8a6 18%, transparent);
+  color: #14b8a6;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 10px;
+}
+
+.explain-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: color-mix(in srgb, currentcolor 5%, transparent);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.explain-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.explain-heading {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.6;
+}
+
+.explain-content {
+  font-size: 12.5px;
+  margin: 0;
+  white-space: pre-line;
+  opacity: 0.9;
 }
 
 .approved-banner {

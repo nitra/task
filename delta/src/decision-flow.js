@@ -382,6 +382,9 @@ export async function submitQuizAnswer({ io, decisionsDir, nnnn, answer, chosenO
       correct: true,
       done: false,
       iterations: draft.iterations,
+      // Мікроурок ЩОЙНО відповіданого питання — показ після будь-якої
+      // відповіді (М2 п.2), не лише фінальної.
+      microlesson: lastAttempt.microlesson,
       domain,
       nextQuestion: {
         question: nextAttempt.question,
@@ -426,7 +429,11 @@ export async function submitQuizAnswer({ io, decisionsDir, nnnn, answer, chosenO
     done: true,
     iterations: finalQuiz.iterations,
     quiz: finalQuiz,
-    microlesson: primaryAttempt.microlesson,
+    // Мікроурок ЩОЙНО відповіданого (останнього) питання — може відрізнятися
+    // від primaryAttempt.microlesson, коли квіз має >1 питання (standard,
+    // spaced-repetition): база знань записує PRIMARY-питання, показ у GUI —
+    // те, що людина щойно бачила.
+    microlesson: lastAttempt.microlesson,
     domain
   }
 }
@@ -487,6 +494,7 @@ export async function decisionApprove({
       correct: true,
       done: false,
       iterations: result.iterations,
+      microlesson: result.microlesson,
       domain: result.domain,
       nextQuestion: result.nextQuestion
     }

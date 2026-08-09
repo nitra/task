@@ -170,6 +170,22 @@ fn set_llm_config(base_url: Option<String>, model: Option<String>) -> Result<(),
     Ok(())
 }
 
+/// Сирий JSON особистої бази знань (None — ще жодного завершеного квізу;
+/// M2, docs/specs/260809-delta-app.md — «Обсяг M2», п.4). Формат і деривації
+/// — спільний JS-модуль `src/knowledge.js`, Rust лишається тонким fs-шаром
+/// (той самий патерн, що `read_device_key`/`get_llm_config`).
+#[tauri::command]
+fn read_knowledge() -> Option<String> {
+    config::read_knowledge()
+}
+
+/// Персистить базу знань, серіалізовану JS-шаром після кожного завершеного
+/// квізу чи spaced-repetition відповіді.
+#[tauri::command]
+fn write_knowledge(json: String) -> Result<(), String> {
+    config::write_knowledge(json)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default().invoke_handler(tauri::generate_handler![
@@ -184,7 +200,9 @@ pub fn run() {
         read_device_key,
         write_device_key,
         get_llm_config,
-        set_llm_config
+        set_llm_config,
+        read_knowledge,
+        write_knowledge
     ]);
 
     #[cfg(desktop)]
