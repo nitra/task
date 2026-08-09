@@ -84,3 +84,9 @@ dist/
 
 # Agent memory (not project source)
 memory/
+
+# delta M4 — .mt/directory.json (handle → name/email, PII) never committed,
+# same privacy level as device_key.json/knowledge.json (docs/specs/
+# 260809-delta-app.md, «Обсяг M4», п.1); example format lives in
+# delta/src/tests/fixtures/directory.example.json instead.
+**/.mt/directory.json
