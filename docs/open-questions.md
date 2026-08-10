@@ -9,20 +9,58 @@
 
 - **Перший клас людських рішень через квіз-гейти** — свідомо відкладено (рішення сесії 2026-08-09): досвіду немає ні в кого, апріорний вибір — вгадування. M2 готовий → обрати на **першому дельта-рев'ю** за даними. Кандидати: dev-апруви (push/deploy), витрати до порогу.
 - **Наповнення реальними даними** — `.mt/mandates.yaml` організації, справжні handle в directory, перший тиждень пілота. Без цього метрики звіту працюють лише на фікстурах.
-- **Пуш delta-комітів** — ~26 комітів M0–M6 на локальному main репо task не запушені (стан на 2026-08-10).
+- **Пуш delta-комітів** — понад 30 комітів (M0–M6, увесь Rust-порт включно) на локальному main репо task не запушені (стан на 2026-08-10).
 
 ## 2. Технічні борги реалізованого (M0–M6)
 
-- **Стикування з `mt-rust/crates/mt-mandates` — ЗАВЕРШЕНО (фаза A Rust-порту).** Не napi: CLI Delta App перейшов на Rust-бінарник (`delta-cli`), уся гейт-логіка (мандати/decisions/квіз-гейт/кворум/mandate-change/довіра) живе у спільному crate `delta/crates/delta-core`, який лінкує `mt-mandates` НАПРЯМУ git-залежністю і лінкується і Tauri-бекендом (`delta/src-tauri/src/phase_a.rs`), і CLI (`delta/crates/delta-cli`) — жодного napi-мосту не потрібно, обидві сторони вже Rust. 19 tools фази A (whoami/set_identity/mandates_dir/set_mandates_dir/mandates_show/decisions_show/decision_quiz/decision_approve/device_pubkey/llm_config/set_llm_config/trust_show/mandate_narrow/mandate_widen_propose/ai_petition/mandate_change_apply/quorum_quiz/quorum_approve/quorum_status) працюють через delta-core з обох поверхонь; `bin/delta.mjs` лишається лише для фази B. Мандат-зміна (M3, «остання константа», подвійний підпис на `escalates_to`) тепер ІДЕ через справжній `mt_mandates::validate_mandate_change`, не мок — старі M3-демо-підписи стали криптографічно невалідними проти нового домену (очікувано). 160 Rust-тестів зелені, `cargo clippy -D warnings` чисто по всіх трьох crate. Обидва M1/M3 демо-сценарії прогнані реально через `delta-cli` (README, «Фаза A Rust-порту гейт-ядра»). **Борг, перенесений на фазу B:** з 11 JS-модулів, спершу намічених до видалення, видалено лише `quorum.js` (підтверджено нуль фазо-B-імпортерів) — решта (`mandates.js`/`decisions.js`/`signing.js`/`approval.js`/`quiz.js`/`decision-flow.js`/`mandate-change.js`/`device-registry.js`/`change-proposal.js`/`ai-petition.js`) лишились: аудит графа імпортів під час видалення показав, що `kill-switch.js`/`review.js`/`drift.js`/`delegation.js`/`watcher.js`/`report.js` (фаза B) і навіть тести ІНШИХ модулів (`change-proposal.test.js` → `decision-flow.js`) транзитивно на них тримаються. Ці модулі — дубльована логіка (не мертвий код: активно імпортуються й тестуються фазою B), доки фаза B сама не перейде на `delta-core`. Наступний крок: портувати `kill-switch.js`/`drift.js`/`watcher.js`/`delegation.js`/`report.js`/`review.js` у delta-core (той самий шаблон, що фаза A) — це й дозволить нарешті видалити решту JS.
-- **Модель не має живого шляху підписати звичайне рішення** — модельні рішення для трек-рекорду демонструються фікстурами; справжній цикл «модель вирішує в межах порогів» потребує agent-server/каскаду (mt-rust).
-- **Relay** — нотифікації через файловий полінг (`watcher_scan`, `bin/delta-watcher.mjs` кроном); живий push прийде з relay-шаром mt 0.3.0-draft.
-- **GUI не тестований інтерактивно** — Tauri-вікно збирається (`vite build`, `cargo check`), але клікові сценарії перевірялись лише через CLI-паритет (та сама логіка). Перед пілотом — ручний прохід усіх вкладок.
+- **Стикування з `mt-rust/crates/mt-mandates` і повний Rust-порт tool-поверхні — ЗАВЕРШЕНО.** Не napi: CLI Delta App
+  — Rust-бінарник (`delta-cli`), уся логіка застосунку (не лише гейт-ядро фази A, а й уся фаза B —
+  knowledge/directory/watcher/what-system-knows/staff/candor/drift/delegation/report/kill-switch/review/org)
+  живе у спільному crate `delta/crates/delta-core` (26 модулів), який лінкує `mt-mandates` НАПРЯМУ
+  git-залежністю і лінкується і Tauri-бекендом (`delta/src-tauri/src/phase_a.rs` + `phase_b.rs`), і CLI
+  (`delta/crates/delta-cli`) — жодного napi-мосту не було потрібно, обидві сторони вже Rust. Усі 40 tools
+  (19 фази A + 21 фази B) працюють через delta-core з обох поверхонь. Мандат-зміна (M3, «остання константа»,
+  подвійний підпис на `escalates_to`) іде через справжній `mt_mandates::validate_mandate_change`, не мок —
+  старі M3-демо-підписи, зроблені ДО переходу, криптографічно невалідні проти нового домену (очікувано,
+  задокументовано). **Увесь `delta/src/*.js` JS-шар бізнес-логіки видалено** (23 модулі + `bin/delta.mjs` +
+  `bin/delta-watcher.mjs` + 432 vitest-кейси + спільні фікстури) — жодного дубльованого/мертвого JS не
+  лишилось; лишились Vue-компоненти, тонкі композабли (лише `invoke`), `tool/index.js` як чистий
+  invoke-диспетчер, і `onboarding.js`/`onboarding.test.js` (браузерний localStorage UI-стан, поза
+  n-tool-surface — не backend tool, свідомо поза обсягом порту). 283 Rust-тести в `delta-core` (+7 у
+  `delta`/`delta-cli`) зелені, `cargo fmt`/`cargo clippy --all-targets -- -D warnings` чисто по всіх трьох
+  crate; `vite build`/`vitest run` (1 тест — онбординг) зелені. M4 (кворум 2/2 двома незалежними device-key
+  ідентичностями, кожна з живим teach-back) і M6 (`delta_report` → `review_agenda` →
+  `mandate_change_apply` → `delta_report` → `kill_switch on/off`) прогнані реально проти живого локального
+  LLM і справжнього бінарника — README, розділи M4/M6. Під час цих прогонів знайдено й виправлено реальний
+  баг: локальний LLM-ендпоінт обгортає JSON-відповідь у markdown code fence, `serde_json::from_str` падав —
+  додано `quiz::strip_json_code_fence` на всіх чотирьох LLM-парсинг-сайтах (README, «Знайдене й виправлене»).
+- **Модель не має живого шляху підписати звичайне рішення** — модельні рішення для трек-рекорду й
+  досі демонструються фікстурами (тепер: реальний Ed25519-ключ + справжній підпис через
+  `delta_core::approval`, той самий підхід, що мав JS-era M6-демо, лише без окремого JS-скрипта) — справжній
+  цикл «модель вирішує в межах порогів» потребує agent-server/каскаду (mt-rust); `delta-core::track_record`/
+  `review::draft_widen_candidates` і далі рахують «модельні» рішення виключно за атрибуцією pubkey в
+  `device-registry.json`.
+- **Relay** — нотифікації через файловий полінг; headless-вхід тепер той самий tool `delta watcher_scan`, що
+  й GUI (`bin/delta-watcher.mjs` видалено разом з рештою JS-шару — не окремий бінарник більше). Живий push
+  прийде з relay-шаром mt 0.3.0-draft.
+- **GUI не тестований інтерактивно** — Tauri-вікно збирається (`vite build`, `cargo check --workspace`), але
+  клікові сценарії перевірялись лише через CLI-паритет (та сама Rust-логіка з обох поверхонь) — тепер це
+  стосується й усіх 21 tool-ів фази B, не лише 19 фази A. Перед пілотом — ручний прохід усіх вкладок.
 - **Іконки** — плейсхолдери від owner, потрібна власна айдентика (teal).
 - **Голосовий ввід teach-back** — не реалізовано; macOS-диктовка друкує в textarea сама (задокументовано в README M5).
-- **doc-files беклог** (частково закрито 2026-08-10 комітом lint-доків): без доки лишаються `kill-switch.js`, `knowledge.js`, `mandates.js`, `onboarding.js`, `org.js`, `report.js`, `review.js`, `signing.js`, `CandorView/KnowledgeView/ReportView.vue`, `use-candor/use-decisions/use-drift/use-knowledge/use-report.js`.
-- **Баг фіксера `js-doc-comments` у `@7n/rules`** — двічі псував js-файли вкладеними JSDoc (інциденти 2026-08-09/10, відкочено; є task-chip). До фіксу `lint --full` у цьому репо небезпечний для js — ганяти цільові перевірки (eslint/oxlint/vitest напряму).
-- **Квіз кворуму спрощений відносно M2** — без навчальних шарів, spaced repetition і запису в базу знань (задокументовано в `delta-core/src/quorum.rs`, раніше `quorum.js` — видалений разом із фазою A порту).
-- **Дрейф-сигнал «reject-then-return»** — не реалізований (потребує прецедентного графа, якого файловий мок не має; задокументовано в `drift.js`).
+- **doc-files беклог** — з JS-модулів лишились без доки лише `main.js`/`onboarding.js` (решта JS-модулів
+  видалена разом з файловою докою); Rust-сторона (`delta-core`/`delta-cli`/`phase_a.rs`/`phase_b.rs`) взагалі
+  не має `src/docs/<stem>.md`-конвенції — інший тулінг, окремий беклог, не блокер.
+- **Баг фіксера `js-doc-comments` у `@7n/rules`** — двічі псував js-файли вкладеними JSDoc (інциденти
+  2026-08-09/10, відкочено; є task-chip). Поверхня ризику зменшилась разом з видаленням 23 JS-модулів
+  бізнес-логіки, але лишається для Vue-компонентів/композаблів — до фіксу `lint --full` небезпечний для js,
+  ганяти цільові перевірки (eslint/oxlint/vitest напряму).
+- **Квіз кворуму спрощений відносно M2** — той самий стан, перенесений без змін: `delta-core::quorum`
+  (irreversible-рішення, з M5 форсує `teach-back`, не `standard`) і далі БЕЗ навчальних шарів (`layered_explain`),
+  spaced repetition і запису в особисту базу знань — усе це лишається виключно шляхом одноосібних
+  `decision_quiz`/`decision_approve` (`decision_flow.rs`).
+- **Дрейф-сигнал «reject-then-return»** — не реалізований (потребує прецедентного графа, якого файловий мок
+  не має; задокументовано в `delta-core::drift`, module doc).
 
 ## 3. Конституція без коду (пункти спеки поза мілстоунами M0–M6)
 
