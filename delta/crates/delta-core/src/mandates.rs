@@ -121,6 +121,18 @@ pub fn mandate_to_camel_json(m: &Mandate) -> serde_json::Value {
     })
 }
 
+/// Серіалізує повний деривований зріз ([`MandatesView`]) у camelCase JSON
+/// — та сама форма, що `mandates.js: deriveMandatesView` (`mandates_show`
+/// tool).
+pub fn mandates_view_to_json(view: &MandatesView<'_>) -> serde_json::Value {
+    serde_json::json!({
+        "mandates": view.mandates.iter().map(mandate_to_camel_json).collect::<Vec<_>>(),
+        "mine": view.mine.iter().map(|m| mandate_to_camel_json(m)).collect::<Vec<_>>(),
+        "escalationChain": view.escalation_chain,
+        "models": view.models.iter().map(|m| mandate_to_camel_json(m)).collect::<Vec<_>>(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

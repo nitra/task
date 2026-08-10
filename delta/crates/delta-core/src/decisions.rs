@@ -586,6 +586,79 @@ fn by_leverage_desc(a: &QueueItem, b: &QueueItem) -> std::cmp::Ordering {
     a.request.nnnn.cmp(&b.request.nnnn)
 }
 
+/// Серіалізує один decision-request у camelCase JSON — та сама форма,
+/// що `decisions.js: parseDecisionRequest` віддавала GUI/CLI (Vue-
+/// компоненти M1-M6 читають `leverageFacets`/`computedOwner`/... напряму).
+/// camelCase-межа для GUI проведена ТУТ (CLI/Tauri-командний шар), той
+/// самий підхід, що `mandates::mandate_to_camel_json`.
+pub fn decision_request_to_json(dr: &DecisionRequest) -> serde_json::Value {
+    serde_json::json!({
+        "path": dr.path,
+        "runId": dr.run_id,
+        "nnnn": dr.nnnn,
+        "mandateGeneration": dr.mandate_generation,
+        "computedOwner": dr.computed_owner,
+        "escalationChain": dr.escalation_chain,
+        "retryHistory": dr.retry_history,
+        "leverageFacets": {
+            "irreversible": dr.leverage_facets.irreversible,
+            "blastRadius": dr.leverage_facets.blast_radius,
+            "divergence": dr.leverage_facets.divergence,
+            "estCostEur": dr.leverage_facets.est_cost_eur,
+        },
+        "deadlineCost": dr.deadline_cost,
+        "recommendedBy": dr.recommended_by,
+        "decisionType": dr.decision_type,
+        "approvers": dr.approvers,
+        "openedAt": dr.opened_at,
+        "context": dr.context,
+        "options": dr.options.iter().map(|o| serde_json::json!({"label": o.label, "title": o.title, "body": o.body})).collect::<Vec<_>>(),
+        "recommendation": dr.recommendation,
+    })
+}
+
+fn quorum_status_to_json(status: &QuorumStatus) -> serde_json::Value {
+    let signed: Vec<serde_json::Value> = status.signed.iter().map(|s| serde_json::json!({"handle": s.handle, "chosenOption": s.chosen_option, "signedAt": s.signed_at})).collect();
+    let status_str = match status.status {
+        QuorumState::Pending => "pending",
+        QuorumState::Closed => "closed",
+        QuorumState::Diverged => "diverged",
+    };
+    serde_json::json!({"approvers": status.approvers, "signed": signed, "pending": status.pending, "status": status_str})
+}
+
+/// Серіалізує один елемент черги «Вирішую» у camelCase JSON — плоский
+/// spread decision-request полів + queue-специфічні поля, той самий
+/// вихід, що `decisions.js: deriveQueue` (`decisions_show` tool).
+pub fn queue_item_to_json(item: &QueueItem) -> serde_json::Value {
+    let mut value = decision_request_to_json(&item.request);
+    let obj = value
+        .as_object_mut()
+        .expect("decision_request_to_json завжди повертає обʼєкт");
+    obj.insert("dir".to_string(), serde_json::json!(item.dir));
+    obj.insert("depth".to_string(), serde_json::json!(item.depth));
+    obj.insert("open".to_string(), serde_json::json!(item.open));
+    if let Some(quorum) = &item.quorum {
+        obj.insert("quorum".to_string(), quorum_status_to_json(quorum));
+    }
+    if let Some(awaiting_me) = item.awaiting_me {
+        obj.insert("awaitingMe".to_string(), serde_json::json!(awaiting_me));
+    }
+    if let Some(delegated_to) = &item.delegated_to {
+        obj.insert("delegatedTo".to_string(), serde_json::json!(delegated_to));
+    }
+    if let Some(delegated_by) = &item.delegated_by {
+        obj.insert("delegatedBy".to_string(), serde_json::json!(delegated_by));
+    }
+    if let Some(redirected) = item.kill_switch_redirected {
+        obj.insert(
+            "killSwitchRedirected".to_string(),
+            serde_json::json!(redirected),
+        );
+    }
+    value
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
