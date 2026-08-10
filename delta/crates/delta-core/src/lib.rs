@@ -29,6 +29,7 @@ pub mod org;
 pub mod quiz;
 pub mod quorum;
 pub mod signing;
+pub mod staff;
 pub mod track_record;
 pub mod trust;
 pub mod watcher;
