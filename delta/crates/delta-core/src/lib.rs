@@ -12,6 +12,7 @@
 
 pub mod ai_petition;
 pub mod approval;
+pub mod candor;
 pub mod change_proposal;
 pub mod decision_flow;
 pub mod decisions;
