@@ -125,8 +125,11 @@ pub fn generate_device_keypair() -> DeviceKeypair {
 }
 
 /// Декодує 32-байтний seed з поля `d` приватного JWK, якщо форма сумісна з
-/// `ed25519-dalek` (base64url, рівно 32 байти).
-fn signing_key_from_jwk(private_jwk: &Value) -> Option<SigningKey> {
+/// `ed25519-dalek` (base64url, рівно 32 байти). `pub(crate)` — `mandate_change.rs`
+/// потребує СИРИЙ `ed25519_dalek::SigningKey` пристрою (не канонікалізований
+/// JSON-підпис цього модуля) для підписів через `mt_mandates::change`
+/// (domain-separated хеш, інший крипто-шлях, той самий фізичний ключ).
+pub(crate) fn signing_key_from_jwk(private_jwk: &Value) -> Option<SigningKey> {
     let d = private_jwk.get("d")?.as_str()?;
     let seed_bytes = B64_URL.decode(d).ok()?;
     let seed: [u8; 32] = seed_bytes.try_into().ok()?;

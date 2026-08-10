@@ -11,11 +11,13 @@
 //! поверх його типів.
 
 pub mod approval;
+pub mod change_proposal;
 pub mod decision_flow;
 pub mod decisions;
 pub mod device_registry;
 pub mod io;
 pub mod knowledge;
+pub mod mandate_change;
 pub mod mandates;
 pub mod quiz;
 pub mod quorum;
