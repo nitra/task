@@ -13,12 +13,15 @@
 pub mod approval;
 pub mod decision_flow;
 pub mod decisions;
+pub mod device_registry;
 pub mod io;
 pub mod knowledge;
 pub mod mandates;
 pub mod quiz;
 pub mod quorum;
 pub mod signing;
+pub mod track_record;
+pub mod trust;
 
 // Реекспорт mt-mandates типів/парсера — виклик-сайти delta-core не повинні
 // імпортувати `mt_mandates` напряму для базових операцій з картою мандатів.

@@ -84,6 +84,43 @@ pub fn derive_mandates_view<'a>(mandates: &'a [Mandate], handle: Option<&str>) -
     }
 }
 
+/// Серіалізує один мандат у camelCase JSON — байт-у-байт та сама форма
+/// поля, що стара `mandates.js`-деривація віддавала GUI (Vue-компоненти
+/// M0-M6 читають `thresholds.budgetEur`/`escalatesTo`/`scope.decisionTypes`
+/// напряму). `mt_mandates::Mandate` серіалізується власним derive у
+/// snake_case (контрактна YAML-форма) — camelCase-межа для існуючого GUI
+/// проведена ТУТ, на виході CLI/Tauri-командного шару, а не окремою JS-
+/// обгорткою (задокументоване рішення фази A: одна точка конверсії,
+/// однакова для CLI JSON і Tauri invoke-результату).
+pub fn mandate_to_camel_json(m: &Mandate) -> serde_json::Value {
+    let kind = match m.kind {
+        mt_mandates::MandateKind::Person => "person",
+        mt_mandates::MandateKind::Model => "model",
+    };
+    let risk = m.thresholds.risk.map(|r| match r {
+        mt_mandates::RiskLevel::Low => "low",
+        mt_mandates::RiskLevel::Medium => "medium",
+        mt_mandates::RiskLevel::High => "high",
+    });
+    let audacity = m.thresholds.audacity.map(|a| match a {
+        mt_mandates::AudacityLevel::Low => "low",
+        mt_mandates::AudacityLevel::Medium => "medium",
+        mt_mandates::AudacityLevel::High => "high",
+    });
+    serde_json::json!({
+        "owner": m.owner,
+        "kind": kind,
+        "scope": { "refs": m.scope.refs, "decisionTypes": m.scope.decision_types },
+        "thresholds": {
+            "budgetEur": m.thresholds.budget_eur,
+            "risk": risk,
+            "irreversible": m.thresholds.irreversible,
+            "audacity": audacity,
+        },
+        "escalatesTo": m.escalates_to,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
