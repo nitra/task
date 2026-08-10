@@ -56,19 +56,25 @@ pub fn build_staff_brief_prompt(dr: &DecisionRequest) -> String {
     .join("\n\n")
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct BriefOption {
     pub label: String,
+    #[serde(rename = "priceLine")]
     pub price_line: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct StaffBrief {
+    #[serde(rename = "contextSummary")]
     pub context_summary: String,
     pub options: Vec<BriefOption>,
+    #[serde(rename = "recommendationSummary")]
     pub recommendation_summary: String,
+    #[serde(rename = "strongestObjection")]
     pub strongest_objection: Option<String>,
+    #[serde(rename = "delaySummary")]
     pub delay_summary: String,
+    #[serde(rename = "generatedBy")]
     pub generated_by: String,
 }
 

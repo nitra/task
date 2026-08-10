@@ -528,7 +528,15 @@ pub fn gate_cost_eur(closed: &[ClosedDecision], hourly_rate_eur: f64) -> f64 {
         })
         .map(|d| d.quiz_time_to_understanding_sec)
         .sum();
-    ((total_seconds / 3600.0) * hourly_rate_eur * 100.0).round() / 100.0
+    let rounded = ((total_seconds / 3600.0) * hourly_rate_eur * 100.0).round() / 100.0;
+    // `Sum<f64>` на порожньому ітераторі повертає `-0.0` (стандартна
+    // бібліотека Rust) — нормалізуємо до `0.0`, щоб уникнути «-0 €» у
+    // markdown/JSON (JS `Math.round(0)` завжди дає `0`, не `-0`).
+    if rounded == 0.0 {
+        0.0
+    } else {
+        rounded
+    }
 }
 
 /// Кількість ВІДКРИТИХ розвилок з непорожнім `deadline_cost` — поточний
@@ -849,7 +857,9 @@ pub fn format_delta_report_markdown(report: &DeltaReport) -> String {
     format!("{}\n", lines.join("\n"))
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DeltaReportOutput {
+    #[serde(flatten)]
     pub report: DeltaReport,
     pub markdown: String,
     pub path: String,
@@ -1236,7 +1246,12 @@ mod tests {
 
     #[test]
     fn gate_cost_empty_list_is_zero() {
-        assert_eq!(gate_cost_eur(&[], 60.0), 0.0);
+        let v = gate_cost_eur(&[], 60.0);
+        assert_eq!(v, 0.0);
+        assert!(
+            !v.is_sign_negative(),
+            "має бути +0.0, не -0.0 (не «-0 €» у markdown)"
+        );
     }
 
     // --- countBlockedWithDeadlineCost -------------------------------------------

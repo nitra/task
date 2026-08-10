@@ -598,9 +598,12 @@ pub fn review_agenda_path(mandates_dir: &str, period_end_iso: &str) -> String {
     format!("{mandates_dir}/.mt/reviews/{date}-agenda.md")
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ReviewAgendaOutput {
+    #[serde(rename = "widenCandidates")]
     pub widen_candidates: Vec<WidenCandidate>,
     pub materialized: Vec<MaterializedWidenProposal>,
+    #[serde(rename = "narrowCandidates")]
     pub narrow_candidates: Vec<NarrowCandidate>,
     pub disputes: OpenDisputes,
     pub markdown: String,

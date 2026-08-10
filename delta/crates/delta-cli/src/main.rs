@@ -1,27 +1,30 @@
-//! `delta` CLI (фаза A) — headless вхід у tool-поверхню Delta App
-//! (n-tool-surface), Rust-заміна фази A `bin/delta.mjs`: `delta <tool>
-//! '<json>'`, той самий envelope (`{ok, output|error}`), той самий
-//! config.json/DELTA_CONFIG_PATH, ті самі шляхи (device_key.json/
-//! knowledge.json/model_keys/{handle}.json — файли-сусіди config.json,
-//! поза git; `device-registry.json` — У `mandatesDir`, комітиться).
+//! `delta` CLI — headless вхід у tool-поверхню Delta App (n-tool-surface),
+//! Rust-заміна `bin/delta.mjs`: `delta <tool> '<json>'`, той самий envelope
+//! (`{ok, output|error}`), той самий config.json/DELTA_CONFIG_PATH, ті самі
+//! шляхи (device_key.json/knowledge.json/model_keys/{handle}.json —
+//! файли-сусіди config.json, поза git; `device-registry.json` — У
+//! `mandatesDir`, комітиться).
 //!
-//! **Гібридний CLI (перехідний стан фази A):** цей бінарник реалізує ЛИШЕ
-//! tools фази A (мандати/decisions/квіз-гейт/кворум/mandate-change/довіра).
-//! `bin/delta.mjs` лишається для tools фази B (knowledge/drift/candor/
-//! delegation/watcher/staff/report/review/kill-switch/directory/org) —
-//! див. `delta/README.md`, «Фаза A Rust-порту».
+//! Усі tools — і фаза A (мандати/decisions/квіз-гейт/кворум/mandate-change/
+//! довіра), і фаза B (knowledge/drift/candor/delegation/watcher/staff/
+//! report/review/kill-switch/directory/org) — реалізовані тут напряму над
+//! `delta-core`; `bin/delta.mjs`/`bin/delta-watcher.mjs` видалено (фаза B
+//! міграції завершена, див. `delta/README.md`).
 
 mod config;
 
+use std::collections::HashSet;
+
 use clap::Parser;
 use delta_core::decision_flow::Answer;
+use delta_core::decisions::DecisionRequestMeta;
 use delta_core::device_registry::SignerRole;
 use delta_core::track_record::DecisionsDirScan;
 use mt_mandates::MandatesFile;
 use serde_json::{json, Value};
 
 #[derive(Parser)]
-#[command(name = "delta", about = "Delta App CLI (фаза A)")]
+#[command(name = "delta", about = "Delta App CLI")]
 struct Cli {
     /// Ім'я тула (напр. mandates_show) — відсутнє/`list` друкує підказку.
     tool: Option<String>,
@@ -42,10 +45,37 @@ const MANDATES_DIR_DEFAULT_TOOLS: &[&str] = &[
     "quorum_quiz",
     "quorum_approve",
     "quorum_status",
+    "directory_show",
+    "directory_set",
+    "watcher_scan",
+    "notifications_show",
+    "what_system_knows",
+    "decision_brief",
+    "ai_candor",
+    "candor_show",
+    "drift_scan",
+    "delegation_quiz",
+    "decision_delegate",
+    "delta_report",
+    "kill_switch_on",
+    "kill_switch_off",
+    "kill_switch_status",
+    "review_agenda",
 ];
-const HANDLE_DEFAULT_TOOLS: &[&str] = &["mandates_show", "decisions_show", "trust_show"];
+const HANDLE_DEFAULT_TOOLS: &[&str] = &[
+    "mandates_show",
+    "decisions_show",
+    "trust_show",
+    "notifications_show",
+    "what_system_knows",
+    "candor_show",
+    "drift_scan",
+    "kill_switch_on",
+    "kill_switch_off",
+    "kill_switch_status",
+];
 
-const PHASE_A_TOOLS: &[&str] = &[
+const ALL_TOOLS: &[&str] = &[
     "whoami",
     "set_identity",
     "mandates_dir",
@@ -65,6 +95,27 @@ const PHASE_A_TOOLS: &[&str] = &[
     "quorum_quiz",
     "quorum_approve",
     "quorum_status",
+    "knowledge_show",
+    "directory_show",
+    "directory_set",
+    "watcher_scan",
+    "notifications_show",
+    "quiet_hours",
+    "set_quiet_hours",
+    "what_system_knows",
+    "decision_brief",
+    "ai_candor",
+    "candor_show",
+    "candor_mark_read",
+    "drift_scan",
+    "drift_show",
+    "delegation_quiz",
+    "decision_delegate",
+    "delta_report",
+    "kill_switch_on",
+    "kill_switch_off",
+    "kill_switch_status",
+    "review_agenda",
 ];
 
 fn require_str(input: &Value, key: &str) -> Result<String, String> {
@@ -151,9 +202,18 @@ async fn dispatch(tool: &str, input: &Value) -> Result<Value, String> {
                 .into_iter()
                 .map(|(dir, files)| delta_core::decisions::DecisionsDir { dir, files })
                 .collect();
-            // Kill-switch-перенаправлення (M6) лишається JS/фаза B — цей
-            // шлях завжди None (задокументоване обмеження фази A).
-            let queue = delta_core::decisions::derive_queue(&dirs, handle.as_deref(), None);
+            let mandates_file = read_mandates_file_or_empty(&mandates_dir)?;
+            let kill_switch_ctx = delta_core::kill_switch::build_kill_switch_redirect(
+                &config::FsIo,
+                &mandates_dir,
+                &mandates_file.mandates,
+            )
+            .await;
+            let queue = delta_core::decisions::derive_queue(
+                &dirs,
+                handle.as_deref(),
+                Some(&kill_switch_ctx.redirect),
+            );
             Ok(Value::Array(
                 queue
                     .iter()
@@ -480,9 +540,389 @@ async fn dispatch(tool: &str, input: &Value) -> Result<Value, String> {
             let decisions_dir = format!("{mandates_dir}/runs/{run_id}/decisions");
             delta_core::quorum::load_quorum_status(&config::FsIo, &decisions_dir, &nnnn).await
         }
-        _ => Err(format!(
-            "tool \"{tool}\" has no CLI transport (фаза B — див. bin/delta.mjs)"
-        )),
+
+        // --- Фаза B -----------------------------------------------------------
+        "knowledge_show" => {
+            use delta_core::io::KnowledgeIo;
+            let text = config::FsKnowledgeIo.read().await;
+            let entries = delta_core::knowledge::parse_knowledge_file(text.as_deref());
+            let digest = delta_core::knowledge::domain_digest(&entries);
+            let trend = delta_core::knowledge::time_to_understanding_trend(&entries);
+            Ok(json!({"digest": digest, "trend": trend, "entryCount": entries.len()}))
+        }
+        "directory_show" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let text = delta_core::io::Io::read_file(
+                &config::FsIo,
+                &config::directory_path(&mandates_dir),
+            )
+            .await;
+            let directory = delta_core::directory::parse_directory(text.as_deref());
+            Ok(serde_json::to_value(&directory).unwrap())
+        }
+        "directory_set" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let path = config::directory_path(&mandates_dir);
+            let text = delta_core::io::Io::read_file(&config::FsIo, &path).await;
+            let directory = delta_core::directory::parse_directory(text.as_deref());
+            let patch = delta_core::directory::DirectoryPatch {
+                name: opt_str(input, "name"),
+                email: opt_str(input, "email"),
+                lang: opt_str(input, "lang"),
+            };
+            let updated = delta_core::directory::set_directory_entry(&directory, &handle, patch);
+            delta_core::io::Io::write_file(
+                &config::FsIo,
+                &path,
+                &delta_core::directory::format_directory(&updated),
+            )
+            .await;
+            Ok(serde_json::to_value(&updated[&handle]).unwrap())
+        }
+        "watcher_scan" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let mandates_file = read_mandates_file_or_empty(&mandates_dir)?;
+            let kill_switch_ctx = delta_core::kill_switch::build_kill_switch_redirect(
+                &config::FsIo,
+                &mandates_dir,
+                &mandates_file.mandates,
+            )
+            .await;
+            let raw = config::scan_decisions_dirs(&mandates_dir);
+            let dirs: Vec<delta_core::decisions::DecisionsDir> = raw
+                .into_iter()
+                .map(|(dir, files)| delta_core::decisions::DecisionsDir { dir, files })
+                .collect();
+            let watcher_config = input.get("config").and_then(|v| {
+                Some(delta_core::watcher::WatcherConfig {
+                    sla_hours: v.get("slaHours")?.as_f64()?,
+                    grace_hours: v.get("graceHours")?.as_f64()?,
+                })
+            });
+            let suppressed: HashSet<String> = kill_switch_ctx.redirect.keys().cloned().collect();
+            Ok(delta_core::watcher::run_watcher_scan(
+                &config::FsIo,
+                &mandates_dir,
+                &dirs,
+                watcher_config,
+                config::read_quiet_hours().as_ref(),
+                Some(&suppressed),
+                chrono::Utc::now(),
+                chrono::Local::now(),
+            )
+            .await)
+        }
+        "notifications_show" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let path = delta_core::watcher::notifications_log_path(&mandates_dir, &handle);
+            let text = delta_core::io::Io::read_file(&config::FsIo, &path).await;
+            Ok(Value::Array(delta_core::watcher::parse_notifications_log(
+                text.as_deref(),
+            )))
+        }
+        "quiet_hours" => Ok(match config::read_quiet_hours() {
+            Some(qh) => json!({"start": qh.start, "end": qh.end}),
+            None => Value::Null,
+        }),
+        "set_quiet_hours" => {
+            let start = require_str(input, "start")?;
+            let end = require_str(input, "end")?;
+            config::write_config_patch(
+                json!({"quiet_hours_start": start.trim(), "quiet_hours_end": end.trim()}),
+            )
+            .map_err(|e| e.to_string())?;
+            Ok(Value::Null)
+        }
+        "what_system_knows" => {
+            use delta_core::io::KnowledgeIo;
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = opt_str(input, "handle");
+            let text = config::FsKnowledgeIo.read().await;
+            let knowledge_entries = delta_core::knowledge::parse_knowledge_file(text.as_deref());
+            let notifications = match &handle {
+                Some(h) => {
+                    let path = delta_core::watcher::notifications_log_path(&mandates_dir, h);
+                    let text = delta_core::io::Io::read_file(&config::FsIo, &path).await;
+                    delta_core::watcher::parse_notifications_log(text.as_deref())
+                }
+                None => Vec::new(),
+            };
+            let device_registry = config::read_device_registry(&mandates_dir);
+            Ok(delta_core::what_system_knows::build_what_system_knows(
+                handle.as_deref(),
+                &knowledge_entries,
+                &notifications,
+                &device_registry,
+            ))
+        }
+        "decision_brief" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let run_id = require_str(input, "runId")?;
+            let nnnn = require_str(input, "nnnn")?;
+            let decisions_dir = format!("{mandates_dir}/runs/{run_id}/decisions");
+            let path = format!("{decisions_dir}/{nnnn}-decision-request.md");
+            let text = delta_core::io::Io::read_file(&config::FsIo, &path)
+                .await
+                .ok_or_else(|| format!("decision_brief: decision-request не знайдено: {nnnn}"))?;
+            let dr = delta_core::decisions::parse_decision_request(
+                &text,
+                DecisionRequestMeta {
+                    nnnn: Some(nnnn.clone()),
+                    ..Default::default()
+                },
+            )
+            .map_err(|e| e.to_string())?;
+            let staff_llm_config = delta_core::staff::StaffLlmConfig {
+                base_url: llm_config.base_url.clone(),
+                model: llm_config.model.clone(),
+            };
+            let (brief, compressed) =
+                delta_core::staff::decision_brief(&client, &staff_llm_config, &dr).await;
+            let mut value = serde_json::to_value(&brief).unwrap();
+            value["compressed"] = json!(compressed);
+            Ok(value)
+        }
+        "ai_candor" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let to_handle = require_str(input, "toHandle")?;
+            let from_model_handle = require_str(input, "fromModelHandle")?;
+            let statement = require_str(input, "statement")?;
+            let audacity_level = require_str(input, "audacityLevel")?;
+            let evidence_refs: Vec<String> = input
+                .get("evidenceRefs")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mandates_file = read_mandates_file_or_empty(&mandates_dir)?;
+            delta_core::candor::ai_candor(
+                &config::FsIo,
+                &mandates_dir,
+                &to_handle,
+                &from_model_handle,
+                &statement,
+                &evidence_refs,
+                &audacity_level,
+                &mandates_file,
+                None,
+            )
+            .await
+        }
+        "candor_show" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let read_marks_io = config::SiblingFileIo(config::candor_read_marks_path());
+            Ok(Value::Array(
+                delta_core::candor::candor_show(
+                    &config::FsIo,
+                    &mandates_dir,
+                    &handle,
+                    Some(&read_marks_io),
+                )
+                .await,
+            ))
+        }
+        "candor_mark_read" => {
+            let id = require_str(input, "id")?;
+            let read_marks_io = config::SiblingFileIo(config::candor_read_marks_path());
+            delta_core::candor::mark_candor_read(&read_marks_io, &id).await;
+            Ok(Value::Null)
+        }
+        "drift_scan" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = opt_str(input, "handle");
+            let raw = config::scan_decisions_dirs(&mandates_dir);
+            let dirs: Vec<delta_core::decisions::DecisionsDir> = raw
+                .into_iter()
+                .map(|(dir, files)| delta_core::decisions::DecisionsDir { dir, files })
+                .collect();
+            let drift_io = config::SiblingFileIo(config::drift_path());
+            let cards = delta_core::drift::run_drift_scan(
+                &dirs,
+                handle.as_deref(),
+                Some(&drift_io),
+                None,
+                chrono::Utc::now(),
+            )
+            .await;
+            Ok(serde_json::to_value(&cards).unwrap())
+        }
+        "drift_show" => {
+            let drift_io = config::SiblingFileIo(config::drift_path());
+            let cards = delta_core::drift::load_drift_cards(Some(&drift_io)).await;
+            Ok(serde_json::to_value(&cards).unwrap())
+        }
+        "delegation_quiz" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let run_id = require_str(input, "runId")?;
+            let nnnn = require_str(input, "nnnn")?;
+            let model_handle = require_str(input, "modelHandle")?;
+            let decisions_dir = format!("{mandates_dir}/runs/{run_id}/decisions");
+            let path = format!("{decisions_dir}/{nnnn}-decision-request.md");
+            let text = delta_core::io::Io::read_file(&config::FsIo, &path)
+                .await
+                .ok_or_else(|| format!("delegation_quiz: decision-request не знайдено: {nnnn}"))?;
+            delta_core::delegation::delegation_quiz(
+                &config::FsIo,
+                &decisions_dir,
+                &nnnn,
+                &model_handle,
+                &text,
+                None,
+            )
+            .await
+        }
+        "decision_delegate" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let run_id = require_str(input, "runId")?;
+            let nnnn = require_str(input, "nnnn")?;
+            let model_handle = require_str(input, "modelHandle")?;
+            let delegated_by_handle = require_str(input, "delegatedByHandle")?;
+            let answer = parse_answer(input)
+                .ok_or_else(|| "decision_delegate: Missing required field: answer".to_string())?;
+            let decisions_dir = format!("{mandates_dir}/runs/{run_id}/decisions");
+            let device_key = config::load_or_create_key_at(&config::device_key_path());
+            delta_core::delegation::delegate_decision(
+                &config::FsIo,
+                &decisions_dir,
+                &run_id,
+                &nnnn,
+                &model_handle,
+                &delegated_by_handle,
+                answer,
+                &device_key,
+                None,
+            )
+            .await
+        }
+        "delta_report" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let period_days = input
+                .get("periodDays")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(7);
+            let mandates_file = read_mandates_file_or_empty(&mandates_dir)?;
+            let raw = config::scan_decisions_dirs(&mandates_dir);
+            let dirs: Vec<delta_core::decisions::DecisionsDir> = raw
+                .into_iter()
+                .map(|(dir, files)| delta_core::decisions::DecisionsDir { dir, files })
+                .collect();
+            let output = delta_core::report::delta_report(
+                &config::FsIo,
+                &mandates_dir,
+                &mandates_file,
+                &dirs,
+                period_days,
+                None,
+            )
+            .await?;
+            Ok(serde_json::to_value(&output).unwrap())
+        }
+        "kill_switch_on" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let device_key = config::load_or_create_key_at(&config::device_key_path());
+            Ok(delta_core::kill_switch::kill_switch_on(
+                &config::FsIo,
+                &mandates_dir,
+                &handle,
+                &device_key,
+                None,
+            )
+            .await)
+        }
+        "kill_switch_off" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let device_key = config::load_or_create_key_at(&config::device_key_path());
+            Ok(delta_core::kill_switch::kill_switch_off(
+                &config::FsIo,
+                &mandates_dir,
+                &handle,
+                &device_key,
+                None,
+            )
+            .await)
+        }
+        "kill_switch_status" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            Ok(
+                delta_core::kill_switch::kill_switch_status(&config::FsIo, &mandates_dir, &handle)
+                    .await,
+            )
+        }
+        "review_agenda" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let period_days = input
+                .get("periodDays")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(7);
+            let mandates_file = read_mandates_file_or_empty(&mandates_dir)?;
+            let kill_switch_ctx = delta_core::kill_switch::build_kill_switch_redirect(
+                &config::FsIo,
+                &mandates_dir,
+                &mandates_file.mandates,
+            )
+            .await;
+            let raw = config::scan_decisions_dirs(&mandates_dir);
+            let dirs: Vec<delta_core::decisions::DecisionsDir> = raw
+                .into_iter()
+                .map(|(dir, files)| delta_core::decisions::DecisionsDir { dir, files })
+                .collect();
+            let device_registry = config::read_device_registry(&mandates_dir);
+            let loader = CliModelDeviceKeyLoader;
+            let registrar = CliDeviceRegistrar {
+                mandates_dir: mandates_dir.clone(),
+            };
+            let output = delta_core::review::review_agenda(
+                &config::FsIo,
+                &mandates_dir,
+                &mandates_file,
+                &dirs,
+                &device_registry,
+                &kill_switch_ctx.active_handles,
+                &loader,
+                Some(&registrar),
+                period_days,
+                None,
+                None,
+            )
+            .await?;
+            Ok(serde_json::to_value(&output).unwrap())
+        }
+
+        _ => Err(format!("tool \"{tool}\" is unknown")),
+    }
+}
+
+/// `ModelDeviceKeyLoader` — CLI-транспорт: локально утримуваний ключ моделі,
+/// той самий каталог, що людський `device_key.json` (`bin/delta.mjs:
+/// loadOrCreateModelDeviceKeyCli`).
+struct CliModelDeviceKeyLoader;
+
+#[async_trait::async_trait]
+impl delta_core::review::ModelDeviceKeyLoader for CliModelDeviceKeyLoader {
+    async fn load_model_device_key(&self, handle: &str) -> delta_core::signing::DeviceKeypair {
+        config::load_or_create_key_at(&config::model_key_path(handle))
+    }
+}
+
+/// `DeviceRegistrar` — CLI-транспорт: реєструє pubkey у
+/// `device-registry.json` (`bin/delta.mjs: ensureRegisteredCli`).
+struct CliDeviceRegistrar {
+    mandates_dir: String,
+}
+
+#[async_trait::async_trait]
+impl delta_core::review::DeviceRegistrar for CliDeviceRegistrar {
+    async fn register_device(&self, handle: &str, role: SignerRole, pubkey_base64: &str) {
+        config::ensure_registered(&self.mandates_dir, handle, role, pubkey_base64);
     }
 }
 
@@ -519,14 +959,14 @@ async fn main() {
     let Some(tool) = cli.tool else {
         println!(
             "{}",
-            serde_json::to_string_pretty(&json!(PHASE_A_TOOLS)).unwrap()
+            serde_json::to_string_pretty(&json!(ALL_TOOLS)).unwrap()
         );
         std::process::exit(0);
     };
     if tool == "list" {
         println!(
             "{}",
-            serde_json::to_string_pretty(&json!(PHASE_A_TOOLS)).unwrap()
+            serde_json::to_string_pretty(&json!(ALL_TOOLS)).unwrap()
         );
         std::process::exit(0);
     }

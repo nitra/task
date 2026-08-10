@@ -58,12 +58,42 @@ pub fn model_key_path(handle: &str) -> PathBuf {
     sibling("model_keys").join(format!("{handle}.json"))
 }
 
+/// `drift.json` (M5, поза git — той самий каталог, що `knowledge.json`).
+pub fn drift_path() -> PathBuf {
+    sibling("drift.json")
+}
+
+/// `candor_read.json` (M5, поза git — локальні позначки «прочитано»).
+pub fn candor_read_marks_path() -> PathBuf {
+    sibling("candor_read.json")
+}
+
 pub fn mandates_yaml_path(mandates_dir: &str) -> String {
     format!("{mandates_dir}/.mt/mandates.yaml")
 }
 
 pub fn device_registry_path(mandates_dir: &str) -> String {
     format!("{mandates_dir}/device-registry.json")
+}
+
+/// `.mt/directory.json` (PII, поза git — `directory.js`).
+pub fn directory_path(mandates_dir: &str) -> String {
+    format!("{mandates_dir}/.mt/directory.json")
+}
+
+/// Конфіг тихої години пристрою — `None`, коли не налаштовано
+/// (watcher/UI ніколи не притлумлюють) (`bin/delta.mjs: readQuietHours`).
+pub fn read_quiet_hours() -> Option<delta_core::watcher::QuietHours> {
+    let config = read_config();
+    let start = config.get("quiet_hours_start").and_then(|v| v.as_str());
+    let end = config.get("quiet_hours_end").and_then(|v| v.as_str());
+    match (start, end) {
+        (Some(start), Some(end)) => Some(delta_core::watcher::QuietHours {
+            start: start.to_string(),
+            end: end.to_string(),
+        }),
+        _ => None,
+    }
 }
 
 /// Завантажує (генерує при потребі й персистить) ключ пристрою за
@@ -209,6 +239,34 @@ impl KnowledgeIo for FsKnowledgeIo {
         let content = content.to_string();
         let _ = tokio::task::spawn_blocking(move || {
             let path = knowledge_path();
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, content)
+        })
+        .await;
+    }
+}
+
+/// Загальна `KnowledgeIo`-реалізація над довільним файлом-сусідом
+/// `config.json` — той самий `{read, write}`-контракт, що `FsKnowledgeIo`,
+/// параметризований шляхом (drift.json/candor_read.json).
+pub struct SiblingFileIo(pub PathBuf);
+
+#[async_trait]
+impl KnowledgeIo for SiblingFileIo {
+    async fn read(&self) -> Option<String> {
+        let path = self.0.clone();
+        tokio::task::spawn_blocking(move || fs::read_to_string(path).ok())
+            .await
+            .ok()
+            .flatten()
+    }
+
+    async fn write(&self, content: &str) {
+        let path = self.0.clone();
+        let content = content.to_string();
+        let _ = tokio::task::spawn_blocking(move || {
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent)?;
             }
