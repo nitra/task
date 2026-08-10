@@ -657,6 +657,70 @@ Org-level конфіг для метрики «ціна гейта» — **ко�
 }
 ```
 
+## Фаза A Rust-порту гейт-ядра (у процесі)
+
+Рішення користувача: CLI Delta App має бути Rust-бінарником, не JS; щоб зберегти інваріант «GUI і CLI —
+одна логіка» (n-tool-surface), уся логіка гейт-ядра переїжджає у спільний Rust-crate, який лінкують і
+Tauri-бекенд, і CLI. JS-мок мандатної семантики поступається місцем справжньому crate `mt-mandates`
+(nitra/mt-rust) — контракт-перший порядок (рішення Ж специфікації) нарешті дає плід.
+
+**Зроблено (цей інкремент):**
+
+- `delta/crates/delta-core` — новий lib-crate, зареєстрований у кореневому workspace
+  (`Cargo.toml: members`). Лінкує `mt-mandates` git-залежністю (`ssh://git@github.com/nitra/mt-rust.git`,
+  той самий патерн, що `owner/src-tauri` лінкує `mt-core`).
+  - `mandates.rs` — view-деривації (`mandatesForOwner`/`escalationChain`/`modelMandates`/
+    `rootMandates`/`deriveMandatesView`) поверх типів `mt_mandates::Mandate`. Сам парсинг/валідація
+    `.mt/mandates.yaml` тепер через `mt_mandates::parse_mandates_str` — **семантика змінилась**: файл
+    валідується структурно ЦІЛИМ (один невалідний запис/відсутнє поле `generation` валить увесь файл),
+    на відміну від толерантного JS-мока, що відкидав побиті записи мовчки. Задокументована різниця
+    контракту, не регресія.
+  - `decisions.rs` — `parseDecisionRequest`/`depthForFacets`/`deriveQueue`/`requiresQuorum`/
+    `resolveApprovers`/`deriveQuorumStatus`, 1:1 порт `src/decisions.js`. Kill-switch/delegation
+    читаються лише як дані (сусідні файли) — власна логіка цих шарів лишається в JS до фази B.
+  - `signing.rs` — Ed25519-підпис пристрою на `ed25519-dalek` (заміна Web Crypto): та сама
+    канонікалізація (рекурсивне сортування ключів об'єктів, компактний JSON), сумісне читання
+    існуючого `device_key.json` (JWK `d` — сирий 32-байтний seed, той самий формат, що `ed25519-dalek`
+    приймає напряму) з fail-safe регенерацією + міграційною позначкою при несумісності. **Крос-мовний
+    тест** (`cross_language_fixture_from_web_crypto_verifies_in_rust`) підтверджує байт-у-байт
+    сумісність: підпис, згенерований `bun` + `src/signing.js`, верифікується Rust-стороною, і Rust,
+    підписуючи той самий payload тим самим ключем, відтворює ІДЕНТИЧНИЙ підпис (Ed25519 —
+    детермінований, RFC 8032) — існуючі `device_key.json`/approval-фікстури лишаються верифіковними,
+    перегенерація фікстур не знадобилась.
+  - `approval.rs` — інваріант «підпис без завершеного квізу неможливий»
+    (`quizIsComplete`/`validateApprovalPreconditions`/`buildAndSignApproval` перевіряють ДО підпису),
+    `verifyApproval`, `formatApprovalFile`.
+  - **76 Rust-тестів, усі зелені** — усі кейси `mandates.test.js`/`decisions.test.js`/
+    `signing.test.js`/`approval.test.js` портовано 1:1 (не вибірково), плюс крос-мовний тест вище.
+    `cargo fmt`/`cargo clippy -p delta-core --all-targets -- -D warnings` чисті.
+    `cargo check --workspace` не ламає жоден із наявних crate (`app/src-tauri`, `owner/src-tauri`,
+    `owner-llm`, `delta/src-tauri`).
+
+**НЕ зроблено (залишок обсягу фази A — наступний інкремент):**
+
+- **`quiz.rs`** — генерація one-tap/standard/teach-back (HTTP до LLM-ендпоінта + детермінований
+  фолбек), мікроуроки, `explain`-шари, spaced repetition, запис у `knowledge.json` — НЕ портовано.
+  Найбільший і найскладніший модуль (`src/quiz.js`, 825 рядків), лишається в JS.
+- **`quorum.rs`** — мультипартійний підпис для irreversible-рішень (`src/quorum.js`) залежить від
+  `quiz.rs` (teach-back-оцінювач) — НЕ портовано, лишається в JS.
+- **`delta/crates/delta-cli`** — окремий bin-crate з `clap` для CLI-паритету — НЕ створено.
+  `bin/delta.mjs` лишається ЄДИНИМ CLI (усі tools, не лише фаза B).
+- **Tauri-команди для нових tools** і перемикання `src/tool/index.js: HANDLERS_GUI` з JS-модулів на
+  `invoke` — НЕ зроблено. GUI й далі використовує JS-логіку для мандатів/рішень/квізу/підпису/кворуму.
+- **JS-модулі НЕ видалені** — `mandates.js`/`decisions.js`/`quiz.js`/`signing.js`/`approval.js`/
+  `decision-flow.js`/`quorum.js` і їхні vitest лишаються на місці й ПРАЦЮЮТЬ (445 vitest, як і
+  раніше) — видалення заміненого JS відбудеться разом із повним CLI/GUI-перемиканням наступного
+  інкремента, не раніше (щоб застосунок жодного моменту не лишався непрацездатним).
+- Демо-прогони M1/M3 через новий Rust CLI, наскрізна перевірка `vite build`/`cargo check src-tauri` з
+  новими Tauri-командами — залежать від пунктів вище, НЕ виконані.
+
+Причина розбиття: повний обсяг фази A (гейт-ядро + CLI + Tauri-перемикання + видалення JS + два
+демо-прогони) — це надто великий та ризикований єдиний крок, щоб пропустити верифікацію нашвидкуруч
+(«не тримай мертвий код» — але й «не лишай застосунок непрацездатним» важливіше). Цей інкремент —
+самодостатня, повністю протестована бібліотечна основа (криптографія й парсери — найризикованіші
+частини, з крос-мовною перевіркою байт-сумісності), яку `delta-cli`/Tauri-шар наступного інкремента
+підключить, не переписуючи.
+
 ## Статус: M0–M6 реалізовано, борги
 
 Усі шість мілстоунів (`M0`–`M6`) реалізовано в цьому workspace (`delta/`), 445 vitest + 7 Rust зелені.
