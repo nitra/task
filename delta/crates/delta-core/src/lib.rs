@@ -17,6 +17,7 @@ pub mod io;
 pub mod knowledge;
 pub mod mandates;
 pub mod quiz;
+pub mod quorum;
 pub mod signing;
 
 // Реекспорт mt-mandates типів/парсера — виклик-сайти delta-core не повинні
