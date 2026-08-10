@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["app/src-tauri", "owner/src-tauri", "owner/owner-llm", "delta/src-tauri"]
+members = [
+  "app/src-tauri",
+  "owner/src-tauri",
+  "owner/owner-llm",
+  "delta/src-tauri",
+  "delta/crates/delta-core"
+]
 
 [profile.dev]
 strip = true
