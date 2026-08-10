@@ -13,6 +13,21 @@ use serde_json::json;
 
 use crate::decisions::DecisionRequest;
 
+/// Деякі локальні OpenAI-сумісні ендпоінти обгортають JSON-відповідь у
+/// markdown code fence (` ```json ... ``` ` чи просто ` ``` ... ``` `)
+/// попри явну інструкцію промпту «СТРОГО JSON без пояснень поза ним» —
+/// знімаємо fence перед парсингом (спостережено живим ендпоінтом при
+/// реальному прогоні M4/M6-демо, README). Вміст без fence повертається як є.
+pub(crate) fn strip_json_code_fence(raw: &str) -> &str {
+    let trimmed = raw.trim();
+    let Some(rest) = trimmed.strip_prefix("```") else {
+        return trimmed;
+    };
+    let rest = rest.strip_prefix("json").unwrap_or(rest);
+    let rest = rest.trim_start_matches(['\n', '\r']);
+    rest.strip_suffix("```").map(str::trim).unwrap_or(rest)
+}
+
 pub const TEACHBACK_UNAVAILABLE_MESSAGE: &str = "teach-back недоступний без локальної моделі — рішення лишається відкритим. Незворотне рішення не підписується без доведеного розуміння (mandates.md: «irreversible → teach-back»); фолбек на нижчу глибину квізу тут свідомо НЕ застосовується (docs/specs/260809-delta-app.md, «Обсяг M5», п.1).";
 
 const TEACHBACK_PROMPT: &str = "Перекажи своїми словами: що саме ти підписуєш і що станеться. Включи: обраний варіант, головний наслідок цього вибору і головний ризик рішення.";
@@ -166,7 +181,7 @@ pub async fn call_llm_quiz_generator(
     }
     let data: ChatCompletionResponse = resp.json().await.ok()?;
     let raw = data.choices.first()?.message.content.as_deref()?;
-    let parsed: LlmQuestionPayload = serde_json::from_str(raw).ok()?;
+    let parsed: LlmQuestionPayload = serde_json::from_str(strip_json_code_fence(raw)).ok()?;
     if !parsed.is_valid() {
         return None;
     }
@@ -284,7 +299,7 @@ pub async fn call_llm_standard_quiz_generator(
     }
     let data: ChatCompletionResponse = resp.json().await.ok()?;
     let raw = data.choices.first()?.message.content.as_deref()?;
-    let parsed: LlmStandardPayload = serde_json::from_str(raw).ok()?;
+    let parsed: LlmStandardPayload = serde_json::from_str(strip_json_code_fence(raw)).ok()?;
     if parsed.questions.len() < 2 || parsed.questions.len() > 3 {
         return None;
     }
@@ -486,7 +501,7 @@ pub async fn call_llm_teach_back_evaluator(
     }
     let data: ChatCompletionResponse = resp.json().await.ok()?;
     let raw = data.choices.first()?.message.content.as_deref()?;
-    let parsed: LlmTeachBackPayload = serde_json::from_str(raw).ok()?;
+    let parsed: LlmTeachBackPayload = serde_json::from_str(strip_json_code_fence(raw)).ok()?;
     if !parsed.is_valid() {
         return None;
     }
@@ -991,6 +1006,24 @@ mod tests {
         include_str!("../tests/fixtures/runs/demo-1/decisions/0001-decision-request.md");
     const DR_0002: &str =
         include_str!("../tests/fixtures/runs/demo-1/decisions/0002-decision-request.md");
+
+    #[test]
+    fn strip_json_code_fence_removes_json_labeled_fence() {
+        assert_eq!(
+            strip_json_code_fence("```json\n{\"a\":1}\n```"),
+            "{\"a\":1}"
+        );
+    }
+
+    #[test]
+    fn strip_json_code_fence_removes_bare_fence() {
+        assert_eq!(strip_json_code_fence("```\n{\"a\":1}\n```"), "{\"a\":1}");
+    }
+
+    #[test]
+    fn strip_json_code_fence_passes_through_unwrapped_json() {
+        assert_eq!(strip_json_code_fence("  {\"a\":1}  "), "{\"a\":1}");
+    }
 
     fn dr_0001() -> DecisionRequest {
         parse_decision_request(

@@ -183,7 +183,8 @@ pub async fn call_llm_staff_brief(
     }
     let data: ChatCompletionResponse = resp.json().await.ok()?;
     let raw = data.choices.first()?.message.content.as_deref()?;
-    let parsed: LlmBriefPayload = serde_json::from_str(raw).ok()?;
+    let parsed: LlmBriefPayload =
+        serde_json::from_str(crate::quiz::strip_json_code_fence(raw)).ok()?;
     if !parsed.is_valid() {
         return None;
     }
