@@ -79,7 +79,9 @@ fn device_key_path() -> Result<PathBuf, String> {
 /// Rust лишається тонким fs-шаром — той самий патерн, що читання
 /// `mandates.yaml` у M0.
 pub fn read_device_key() -> Option<String> {
-    device_key_path().ok().and_then(|p| fs::read_to_string(p).ok())
+    device_key_path()
+        .ok()
+        .and_then(|p| fs::read_to_string(p).ok())
 }
 
 /// Персистить ключ пристрою, згенерований JS-шаром (`signing.js:
@@ -131,7 +133,9 @@ fn knowledge_path() -> Result<PathBuf, String> {
 /// repetition) — спільний JS-модуль `src/knowledge.js`, Rust лишається
 /// тонким fs-шаром (той самий патерн, що `read_device_key`).
 pub fn read_knowledge() -> Option<String> {
-    knowledge_path().ok().and_then(|p| fs::read_to_string(p).ok())
+    knowledge_path()
+        .ok()
+        .and_then(|p| fs::read_to_string(p).ok())
 }
 
 /// Персистить базу знань, серіалізовану JS-шаром (`src/knowledge.js:

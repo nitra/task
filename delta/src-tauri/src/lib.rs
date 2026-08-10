@@ -1,14 +1,15 @@
-//! Delta-бекенд: тонкий fs-шар над `.mt/mandates.yaml` і `runs/*/decisions/`
-//! — читає/пише сирі байти, а деривацію (парсинг, зрізи, квіз-гейт, підпис)
-//! робить спільний JS-шар (delta/src/*.js), і в GUI, і в CLI. Rust свідомо
-//! не парсить YAML/markdown тут: контракт мандатів/decision-request/квізів —
-//! мок за docs/specs/260809-delta-app.md (рішення Ж), майбутня заміна —
-//! napi-виклики mandate-crate з mt-rust, не Rust-код цього застосунку.
-//! M1 додає: сканування `runs/*/decisions/` (`scan_decisions`), універсальні
-//! `read_text_file`/`write_text_file` для квіз-/approval-файлів, ключ
-//! пристрою (`read_device_key`/`write_device_key` — сам Ed25519 рахує
-//! `src/signing.js` через Web Crypto, Rust лише читає/пише сирий JSON) і
-//! конфіг локального LLM-ендпоінта квіз-генератора.
+//! Delta-бекенд: тонкий fs-шар над `.mt/mandates.yaml` і `runs/*/decisions/`.
+//!
+//! **Фаза A (мандати/decisions/квіз-гейт/кворум/mandate-change/довіра)** —
+//! `phase_a` лінкує `delta-core` напряму: Rust РОБИТЬ деривацію/квіз-
+//! оркестрацію/крипто (та сама логіка, що `delta-cli`), а не лише читає
+//! сирі байти. Команди нижче в цьому файлі (`read_mandates_yaml`/
+//! `scan_decisions`/`read_text_file`/`write_text_file`/`read_device_key`/
+//! `write_device_key`/`get_llm_config`/`read_knowledge`/`write_knowledge`)
+//! лишаються тонким fs-шаром для tools **фази B** (drift/watcher/
+//! delegation/candor/kill-switch/report/review/directory/org, знайомий
+//! читачу коментар нижче й далі описує саме їхній підхід — JS-шар
+//! `delta/src/*.js`, той самий, що CLI `bin/delta.mjs`).
 
 use std::fs;
 use std::path::PathBuf;
@@ -16,6 +17,7 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 mod config;
+mod phase_a;
 
 /// Один файл у `decisions/`-директорії run-а — сирий вміст, парсинг робить
 /// `src/decisions.js`/`src/quiz.js` (той самий JS-шар, що читає decision-request).
@@ -72,7 +74,9 @@ fn set_mandates_dir(dir: String) -> Result<(), String> {
 /// файл відсутній: доброзичливий empty state деривує JS-шар, не Rust-помилка).
 #[tauri::command]
 fn read_mandates_yaml(mandates_dir: String) -> String {
-    let path = PathBuf::from(&mandates_dir).join(".mt").join("mandates.yaml");
+    let path = PathBuf::from(&mandates_dir)
+        .join(".mt")
+        .join("mandates.yaml");
     fs::read_to_string(path).unwrap_or_default()
 }
 
@@ -202,7 +206,20 @@ pub fn run() {
         get_llm_config,
         set_llm_config,
         read_knowledge,
-        write_knowledge
+        write_knowledge,
+        phase_a::mandates_show,
+        phase_a::decisions_show,
+        phase_a::decision_quiz,
+        phase_a::decision_approve,
+        phase_a::device_pubkey,
+        phase_a::trust_show,
+        phase_a::mandate_narrow,
+        phase_a::mandate_widen_propose,
+        phase_a::ai_petition,
+        phase_a::mandate_change_apply,
+        phase_a::quorum_quiz,
+        phase_a::quorum_approve,
+        phase_a::quorum_status
     ]);
 
     #[cfg(desktop)]
@@ -229,7 +246,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let mt_dir = tmp.path().join(".mt");
         fs::create_dir_all(&mt_dir).unwrap();
-        fs::write(mt_dir.join("mandates.yaml"), "mandates:\n  - owner: olena\n").unwrap();
+        fs::write(
+            mt_dir.join("mandates.yaml"),
+            "mandates:\n  - owner: olena\n",
+        )
+        .unwrap();
 
         let text = read_mandates_yaml(tmp.path().to_string_lossy().into_owned());
         assert!(text.contains("owner: olena"));
@@ -249,8 +270,16 @@ mod tests {
         let decisions_b = tmp.path().join("runs/demo-2/decisions");
         fs::create_dir_all(&decisions_a).unwrap();
         fs::create_dir_all(&decisions_b).unwrap();
-        fs::write(decisions_a.join("0001-decision-request.md"), "---\ncomputed_owner: olena\n---\nx").unwrap();
-        fs::write(decisions_b.join("0001-decision-request.md"), "---\ncomputed_owner: vitalii\n---\ny").unwrap();
+        fs::write(
+            decisions_a.join("0001-decision-request.md"),
+            "---\ncomputed_owner: olena\n---\nx",
+        )
+        .unwrap();
+        fs::write(
+            decisions_b.join("0001-decision-request.md"),
+            "---\ncomputed_owner: vitalii\n---\ny",
+        )
+        .unwrap();
         fs::write(decisions_b.join("0001-approval.json"), "{}").unwrap();
 
         let mut dirs = scan_decisions(tmp.path().to_string_lossy().into_owned());
@@ -277,7 +306,11 @@ mod tests {
     fn write_text_file_creates_parent_dirs_and_read_text_file_round_trips() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("runs/demo-1/decisions/0001-quiz.md");
-        write_text_file(path.to_string_lossy().into_owned(), "schema_version: 1".to_string()).unwrap();
+        write_text_file(
+            path.to_string_lossy().into_owned(),
+            "schema_version: 1".to_string(),
+        )
+        .unwrap();
         assert_eq!(
             read_text_file(path.to_string_lossy().into_owned()),
             Some("schema_version: 1".to_string())
