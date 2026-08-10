@@ -281,10 +281,12 @@ pub fn resolve_approvers(dr: &DecisionRequest) -> Vec<String> {
     dr.computed_owner.clone().into_iter().collect()
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct SignedApproval {
     pub handle: String,
+    #[serde(rename = "chosenOption")]
     pub chosen_option: Option<String>,
+    #[serde(rename = "signedAt")]
     pub signed_at: Option<String>,
 }
 
