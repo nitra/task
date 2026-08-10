@@ -33,6 +33,7 @@ pub mod staff;
 pub mod track_record;
 pub mod trust;
 pub mod watcher;
+pub mod what_system_knows;
 
 // Реекспорт mt-mandates типів/парсера — виклик-сайти delta-core не повинні
 // імпортувати `mt_mandates` напряму для базових операцій з картою мандатів.
