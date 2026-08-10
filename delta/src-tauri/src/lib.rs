@@ -18,6 +18,7 @@ use serde::Serialize;
 
 mod config;
 mod phase_a;
+mod phase_b;
 
 /// Один файл у `decisions/`-директорії run-а — сирий вміст, парсинг робить
 /// `src/decisions.js`/`src/quiz.js` (той самий JS-шар, що читає decision-request).
@@ -219,7 +220,28 @@ pub fn run() {
         phase_a::mandate_change_apply,
         phase_a::quorum_quiz,
         phase_a::quorum_approve,
-        phase_a::quorum_status
+        phase_a::quorum_status,
+        phase_b::knowledge_show,
+        phase_b::directory_show,
+        phase_b::directory_set,
+        phase_b::watcher_scan,
+        phase_b::notifications_show,
+        phase_b::get_quiet_hours,
+        phase_b::set_quiet_hours,
+        phase_b::what_system_knows,
+        phase_b::decision_brief,
+        phase_b::ai_candor,
+        phase_b::candor_show,
+        phase_b::candor_mark_read,
+        phase_b::drift_scan,
+        phase_b::drift_show,
+        phase_b::delegation_quiz,
+        phase_b::decision_delegate,
+        phase_b::delta_report,
+        phase_b::kill_switch_on,
+        phase_b::kill_switch_off,
+        phase_b::kill_switch_status,
+        phase_b::review_agenda
     ]);
 
     #[cfg(desktop)]

@@ -149,6 +149,38 @@ pub fn write_knowledge(json_text: String) -> Result<(), String> {
     fs::write(path, json_text).map_err(|e| e.to_string())
 }
 
+/// Конфіг тихої години пристрою (M4, `watcher.js`) — `(None, None)`, коли
+/// не налаштовано (watcher/UI ніколи не притлумлюють).
+pub fn get_quiet_hours() -> (Option<String>, Option<String>) {
+    let config = read_config();
+    (
+        config
+            .get("quiet_hours_start")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+        config
+            .get("quiet_hours_end")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
+    )
+}
+
+/// Зберігає межі тихої години пристрою.
+pub fn set_quiet_hours(start: String, end: String) -> Result<(), String> {
+    let path = own_config_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let mut config = read_config();
+    let obj = config
+        .as_object_mut()
+        .ok_or("config.json: корінь не обʼєкт")?;
+    obj.insert("quiet_hours_start".to_string(), json!(start));
+    obj.insert("quiet_hours_end".to_string(), json!(end));
+    let body = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    fs::write(path, body).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

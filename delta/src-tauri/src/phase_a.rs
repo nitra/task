@@ -19,7 +19,7 @@ use delta_core::track_record::DecisionsDirScan;
 use mt_mandates::MandatesFile;
 use serde_json::{json, Value};
 
-fn own_config_dir() -> PathBuf {
+pub(crate) fn own_config_dir() -> PathBuf {
     if let Some(p) = std::env::var_os("DELTA_CONFIG_PATH") {
         return PathBuf::from(p)
             .parent()
@@ -32,25 +32,25 @@ fn own_config_dir() -> PathBuf {
     home.join("Library/Application Support/com.nitra.delta")
 }
 
-fn device_key_path() -> PathBuf {
+pub(crate) fn device_key_path() -> PathBuf {
     own_config_dir().join("device_key.json")
 }
 
-fn model_key_path(handle: &str) -> PathBuf {
+pub(crate) fn model_key_path(handle: &str) -> PathBuf {
     own_config_dir()
         .join("model_keys")
         .join(format!("{handle}.json"))
 }
 
-fn mandates_yaml_path(mandates_dir: &str) -> String {
+pub(crate) fn mandates_yaml_path(mandates_dir: &str) -> String {
     format!("{mandates_dir}/.mt/mandates.yaml")
 }
 
-fn device_registry_path(mandates_dir: &str) -> String {
+pub(crate) fn device_registry_path(mandates_dir: &str) -> String {
     format!("{mandates_dir}/device-registry.json")
 }
 
-fn load_or_create_key_at(path: &PathBuf) -> DeviceKeypair {
+pub(crate) fn load_or_create_key_at(path: &PathBuf) -> DeviceKeypair {
     let existing = fs::read_to_string(path).ok();
     let key = delta_core::signing::load_or_create_device_key(existing.as_deref());
     if key.created {
@@ -62,7 +62,7 @@ fn load_or_create_key_at(path: &PathBuf) -> DeviceKeypair {
     key.keypair
 }
 
-fn scan_decisions_dirs(mandates_dir: &str) -> Vec<(String, Vec<(String, String)>)> {
+pub(crate) fn scan_decisions_dirs(mandates_dir: &str) -> Vec<(String, Vec<(String, String)>)> {
     let runs_dir = PathBuf::from(mandates_dir).join("runs");
     let Ok(entries) = fs::read_dir(&runs_dir) else {
         return Vec::new();
@@ -89,20 +89,27 @@ fn scan_decisions_dirs(mandates_dir: &str) -> Vec<(String, Vec<(String, String)>
     result
 }
 
-fn build_dir_scans(raw: &[(String, Vec<(String, String)>)]) -> Vec<DecisionsDirScan<'_>> {
+pub(crate) fn build_dir_scans(
+    raw: &[(String, Vec<(String, String)>)],
+) -> Vec<DecisionsDirScan<'_>> {
     raw.iter()
         .map(|(dir, files)| DecisionsDirScan { dir, files })
         .collect()
 }
 
-fn read_device_registry(
+pub(crate) fn read_device_registry(
     mandates_dir: &str,
 ) -> Vec<delta_core::device_registry::DeviceRegistryEntry> {
     let text = fs::read_to_string(device_registry_path(mandates_dir)).ok();
     delta_core::device_registry::parse_device_registry(text.as_deref())
 }
 
-fn ensure_registered(mandates_dir: &str, handle: &str, role: SignerRole, pubkey_base64: &str) {
+pub(crate) fn ensure_registered(
+    mandates_dir: &str,
+    handle: &str,
+    role: SignerRole,
+    pubkey_base64: &str,
+) {
     let entries = read_device_registry(mandates_dir);
     let updated = delta_core::device_registry::upsert_device(
         &entries,
@@ -123,7 +130,7 @@ fn ensure_registered(mandates_dir: &str, handle: &str, role: SignerRole, pubkey_
 
 /// Файл відсутній — доброзичливий empty state (M0-інваріант); файл ІСНУЄ,
 /// але структурно невалідний — пропагує помилку `mt_mandates`.
-fn read_mandates_file_or_empty(mandates_dir: &str) -> Result<MandatesFile, String> {
+pub(crate) fn read_mandates_file_or_empty(mandates_dir: &str) -> Result<MandatesFile, String> {
     let path = mandates_yaml_path(mandates_dir);
     if !std::path::Path::new(&path).exists() {
         return Ok(MandatesFile {
@@ -135,7 +142,7 @@ fn read_mandates_file_or_empty(mandates_dir: &str) -> Result<MandatesFile, Strin
     mt_mandates::parse_mandates_str(&text).map_err(|e| e.to_string())
 }
 
-struct FsIo;
+pub(crate) struct FsIo;
 
 #[async_trait]
 impl Io for FsIo {
@@ -160,7 +167,7 @@ impl Io for FsIo {
     }
 }
 
-struct FsKnowledgeIo;
+pub(crate) struct FsKnowledgeIo;
 
 #[async_trait]
 impl KnowledgeIo for FsKnowledgeIo {
@@ -185,7 +192,7 @@ impl KnowledgeIo for FsKnowledgeIo {
     }
 }
 
-fn read_llm_config() -> delta_core::quiz::LlmConfig {
+pub(crate) fn read_llm_config() -> delta_core::quiz::LlmConfig {
     let (base_url, model) = crate::config::get_llm_config();
     let fallback = delta_core::quiz::default_llm_config();
     delta_core::quiz::LlmConfig {
