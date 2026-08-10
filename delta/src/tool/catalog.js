@@ -80,11 +80,11 @@ export const TOOLS = [
       mandatesDir: MANDATES_DIR,
       handle: { type: 'string', required: false, description: 'Owner handle to slice — omitted skips the slice.' }
     },
-    // Транспорт-специфічний: тіло tauri-команди читає лише сирий текст файлу,
-    // деривацію (parseMandates/mandatesForOwner/escalationChain) робить
-    // спільний мок-парсер src/mandates.js — і в GUI (src/tool/index.js),
-    // і в CLI (bin/delta.mjs), щоб обидві поверхні бачили той самий результат.
-    tauri: 'read_mandates_yaml',
+    // Фаза A: Rust-команда РОБИТЬ парсинг/валідацію (mt_mandates) і
+    // деривацію (mandatesForOwner/escalationChain/modelMandates) через
+    // delta-core — і GUI (Tauri-команда delta/src-tauri/src/phase_a.rs:
+    // mandates_show), і CLI (delta-cli), той самий crate.
+    tauri: 'mandates_show',
     cli: true
   },
   {
@@ -100,10 +100,10 @@ export const TOOLS = [
         description: 'Owner handle to slice — omitted returns an empty queue.'
       }
     },
-    // Той самий патерн, що mandates_show: транспорт читає сирі байти
-    // (scan_decisions/fs-скан), деривацію (deriveQueue) робить спільний
-    // src/decisions.js — і GUI, і CLI бачать той самий результат.
-    tauri: 'scan_decisions',
+    // Фаза A: той самий патерн, що mandates_show — Rust-команда деривує
+    // чергу (delta_core::decisions::derive_queue) напряму, GUI/CLI бачать
+    // той самий результат з того самого crate.
+    tauri: 'decisions_show',
     cli: true
   },
   {
@@ -116,7 +116,7 @@ export const TOOLS = [
       '(irreversible / wide blast_radius, M5) has no question — returns a `prompt` asking the owner to retell the ' +
       'decision in their own words (decision_approve takes `transcript`, not `answer`).',
     input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN, chosenOption: CHOSEN_OPTION },
-    tauri: 'decision_quiz', // немає прямої Rust-команди — GUI-транспорт (tool/index.js) оркеструє через decision-flow.js
+    tauri: 'decision_quiz', // фаза A: пряма Rust-команда (delta-core::decision_flow), той самий crate, що CLI
     cli: true
   },
   {
@@ -146,7 +146,7 @@ export const TOOLS = [
           "Retell of the decision and its consequences in the owner's own words — depth: teach-back only (M5)."
       }
     },
-    tauri: 'decision_approve', // те саме — оркестрація в decision-flow.js, Rust лишається fs-шаром
+    tauri: 'decision_approve', // фаза A: пряма Rust-команда (delta-core::decision_flow), той самий crate, що CLI
     cli: true
   },
   {
@@ -203,7 +203,7 @@ export const TOOLS = [
         description: 'Owner handle to slice — omitted returns an empty item list.'
       }
     },
-    tauri: 'trust_show', // немає прямої Rust-команди — оркеструє src/trust.js + src/track-record.js
+    tauri: 'trust_show', // фаза A: пряма Rust-команда (delta-core::trust + track_record), той самий crate, що CLI
     cli: true
   },
   {
@@ -217,7 +217,7 @@ export const TOOLS = [
       mandatesDir: MANDATES_DIR,
       ownerHandle: { type: 'string', required: true, description: 'Owner handle of the model mandate to narrow.' }
     },
-    tauri: 'mandate_narrow', // оркеструє src/trust.js + src/change-proposal.js: applyMandateNarrow
+    tauri: 'mandate_narrow', // фаза A: пряма Rust-команда (delta-core::change_proposal::apply_mandate_narrow), той самий crate, що CLI
     cli: true
   },
   {

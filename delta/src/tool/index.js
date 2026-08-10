@@ -5,17 +5,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, join as joinPath } from '@tauri-apps/api/path'
 import { createDispatch } from '@7n/tauri-components'
 import { tauriTransport } from '@7n/tauri-components/vue'
-import { aiPetition } from '../ai-petition.js'
 import { aiCandor, candorShow, markCandorRead } from '../candor.js'
-import {
-  applyMandateChangeProposal,
-  applyMandateNarrow,
-  changeProposalDecisionsDir,
-  readChangeProposal,
-  writeChangeProposal
-} from '../change-proposal.js'
-import { decisionApprove, decisionQuiz } from '../decision-flow.js'
-import { deriveQueue, parseDecisionRequest } from '../decisions.js'
+import { parseDecisionRequest } from '../decisions.js'
 import { delegateDecision, delegationQuiz } from '../delegation.js'
 import { formatDeviceRegistry, parseDeviceRegistry, upsertDevice } from '../device-registry.js'
 import { formatDirectory, parseDirectory, setDirectoryEntry } from '../directory.js'
@@ -23,28 +14,41 @@ import { loadDriftCards, runDriftScan } from '../drift.js'
 import { buildKillSwitchRedirect, killSwitchOff, killSwitchOn, killSwitchStatus } from '../kill-switch.js'
 import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../knowledge.js'
 import { parseMandatesFile } from '../mandate-change.js'
-import { deriveMandatesView } from '../mandates.js'
-import { loadQuorumStatus, quorumApprove, quorumQuiz } from '../quorum.js'
 import { defaultLlmConfig } from '../quiz.js'
 import { deltaReport } from '../report.js'
 import { reviewAgenda } from '../review.js'
 import { loadOrCreateDeviceKey } from '../signing.js'
 import { decisionBrief } from '../staff.js'
-import { deriveTrackRecord } from '../track-record.js'
-import { deriveTrustView, narrowMandateOneStep, widenMandateOneStep, withMandateReplaced } from '../trust.js'
 import { buildWhatSystemKnows } from '../what-system-knows.js'
 import { notificationsLogPath, parseNotificationsLog, runWatcherScan } from '../watcher.js'
 import { TOOLS } from './catalog.js'
 
 // In-app вхід у tool-поверхню для прямих (не-агентних) викликів UI:
 // обробники подій делегують сюди, а не тримають inline-логіку (інваріант
-// n-tool-surface). `mandates_show`/`decisions_show`/`decision_quiz`/
-// `decision_approve`/`device_pubkey` мають власну транспортну логіку:
-// Rust-команди лишаються тонким fs-шаром (`read_mandates_yaml`,
-// `scan_decisions`, `read_text_file`/`write_text_file`, `read_device_key`/
-// `write_device_key`), деривацію й квіз-оркестрацію робить спільний JS-шар
-// (src/decisions.js, src/decision-flow.js, src/signing.js) — той самий код,
-// що CLI (bin/delta.mjs).
+// n-tool-surface).
+//
+// **Фаза A (мандати/decisions/квіз-гейт/кворум/mandate-change/довіра)** —
+// `HANDLERS_GUI` НЕ має записів для 13 tools (mandates_show/decisions_show/
+// decision_quiz/decision_approve/device_pubkey/trust_show/mandate_narrow/
+// mandate_widen_propose/ai_petition/mandate_change_apply/quorum_quiz/
+// quorum_approve/quorum_status) — вони падають на generic
+// `tauriTransport(tool, input)` (внизу файлу), що викликає `tool.tauri`
+// (catalog.js) — НОВУ Rust-команду `delta-core` НАПРЯМУ
+// (`delta/src-tauri/src/phase_a.rs`, той самий крейт, що `delta-cli`): Rust
+// РОБИТЬ деривацію/квіз-оркестрацію/крипто, JS лише прокидує `input`
+// (camelCase-поля 1:1 відповідають camelCase-параметрам Tauri-команди).
+//
+// **Фаза B** — решта tools і далі мають власну транспортну логіку тут:
+// Rust-команди лишаються тонким fs-шаром (`scan_decisions`,
+// `read_text_file`/`write_text_file`, `read_device_key`/`write_device_key`,
+// `read_knowledge`/`write_knowledge`), деривацію робить спільний JS-шар
+// (`src/*.js` — той самий код, що CLI `bin/delta.mjs`). JS-модулі, що
+// раніше орудували tools фази A (`ai-petition.js`/`change-proposal.js`/
+// `decision-flow.js`/`mandates.js`/`quorum.js`/`track-record.js`/
+// `trust.js`), лишаються в дереві НЕВИКОРИСТАНИМИ цим файлом — фаза B
+// (`delegation.js`/`drift.js`/`kill-switch.js`/`report.js`/`review.js`/
+// `watcher.js`) досі імпортує їх напряму, видалення без бриджа зламало б
+// їх (задокументоване рішення, `delta/README.md`, «Фаза A Rust-порту»).
 
 /**
  * `io` для `decision-flow.js` над Tauri fs-командами — `read_text_file`
@@ -221,13 +225,6 @@ function decisionsDirPath(mandatesDir, runId) {
   return `${mandatesDir}/runs/${runId}/decisions`
 }
 
-/**
- * @param {string} mandatesDir абсолютний шлях до воркспейсу
- * @returns {string} абсолютний шлях до `.mt/mandates.yaml`
- */
-function mandatesYamlPathGui(mandatesDir) {
-  return `${mandatesDir}/.mt/mandates.yaml`
-}
 
 /**
  * @param {string} mandatesDir абсолютний шлях до воркспейсу
@@ -305,202 +302,6 @@ async function loadOrCreateModelDeviceKeyGui(handle) {
 }
 
 /**
- * Тіло tool `trust_show` — винесено окремою функцією (той самий підхід, що
- * решта `handle*Gui`-хелперів нижче): `transport` лишається плоским
- * диспетчером, не носієм вкладеної логіки — знижує cognitive complexity
- * диспетчера (той самий рефактор, що CLI-дзеркало в `bin/delta.mjs`).
- * @param {object} input вхід тула
- * @returns {Promise<object>} зріз «Довіряю»
- */
-async function handleTrustShowGui(input) {
-  const mandatesFile = await readMandatesFileGui(input.mandatesDir)
-  const deviceRegistry = await readDeviceRegistryGui(input.mandatesDir)
-  const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
-  return deriveTrustView({ mandatesFile, deviceRegistry, decisionsDirs, handle: input.handle ?? null })
-}
-
-/**
- * Тіло tool `mandate_narrow`.
- * @param {object} input вхід тула
- * @returns {Promise<{valid: true}|{valid: false, reason: string}>} вердикт застосування
- */
-async function handleMandateNarrowGui(input) {
-  const old = await readMandatesFileGui(input.mandatesDir)
-  const mandate = old.mandates.find(m => m.owner === input.ownerHandle)
-  if (!mandate) throw new Error(`mandate_narrow: owner '${input.ownerHandle}' не знайдено в mandates.yaml`)
-  const newFile = withMandateReplaced(old, input.ownerHandle, narrowMandateOneStep)
-  // Звуження — самопідпис owner; для kind: model це МОДЕЛЬНИЙ ключ (мок
-  // утримує його локально), не делегатор (той самий вибір, що CLI).
-  const role = mandate.kind === 'model' ? 'model' : 'human'
-  const deviceKey = role === 'model' ? await loadOrCreateModelDeviceKeyGui(input.ownerHandle) : await loadDeviceKeyGui()
-  await ensureRegisteredGui(input.mandatesDir, {
-    handle: input.ownerHandle,
-    role,
-    pubkeyBase64: deviceKey.publicKeyBase64
-  })
-  return applyMandateNarrow({
-    io: tauriIo(),
-    mandatesYamlPath: mandatesYamlPathGui(input.mandatesDir),
-    old,
-    new: newFile,
-    handle: input.ownerHandle,
-    role,
-    deviceKey
-  })
-}
-
-/**
- * Тіло tool `mandate_widen_propose`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} `{changeId, delegatorHandle, decisionRequestPath, changeJsonPath}`
- */
-async function handleMandateWidenProposeGui(input) {
-  const old = await readMandatesFileGui(input.mandatesDir)
-  const mandate = old.mandates.find(m => m.owner === input.ownerHandle)
-  if (!mandate) throw new Error(`mandate_widen_propose: owner '${input.ownerHandle}' не знайдено в mandates.yaml`)
-  if (!mandate.escalatesTo) {
-    throw new Error(`mandate_widen_propose: '${input.ownerHandle}' — кореневий мандат, немає делегатора для підпису`)
-  }
-  const newFile = withMandateReplaced(old, input.ownerHandle, widenMandateOneStep)
-  const changeId = input.changeId ?? `mc-${Date.now()}`
-  const written = await writeChangeProposal({
-    io: tauriIo(),
-    mandatesDir: input.mandatesDir,
-    changeId,
-    old,
-    new: newFile,
-    ownerHandle: input.ownerHandle,
-    delegatorHandle: mandate.escalatesTo,
-    initiatedBy: input.initiatedByHandle,
-    reasonText: `${input.initiatedByHandle} пропонує розширити мандат '${input.ownerHandle}' на один щабель (audacity/budget_eur).`
-  })
-  return { changeId, delegatorHandle: mandate.escalatesTo, ...written }
-}
-
-/**
- * Тіло tool `ai_petition`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} `{changeId, delegatorHandle, petitionPath, decisionRequestPath, ...}`
- */
-async function handleAiPetitionGui(input) {
-  const old = await readMandatesFileGui(input.mandatesDir)
-  const mandate = old.mandates.find(m => m.owner === input.modelHandle)
-  if (!mandate) throw new Error(`ai_petition: model '${input.modelHandle}' не знайдено в mandates.yaml`)
-  if (mandate.kind !== 'model') throw new Error(`ai_petition: owner '${input.modelHandle}' не kind: model`)
-  if (!mandate.escalatesTo) {
-    throw new Error(`ai_petition: '${input.modelHandle}' — кореневий мандат, немає делегатора для петиції`)
-  }
-  const newFile = withMandateReplaced(old, input.modelHandle, widenMandateOneStep)
-  const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
-  const deviceRegistry = await readDeviceRegistryGui(input.mandatesDir)
-  const trackRecord = deriveTrackRecord({ decisionsDirs, deviceRegistry, handle: input.modelHandle })
-  const modelDeviceKey = await loadOrCreateModelDeviceKeyGui(input.modelHandle)
-  await ensureRegisteredGui(input.mandatesDir, {
-    handle: input.modelHandle,
-    role: 'model',
-    pubkeyBase64: modelDeviceKey.publicKeyBase64
-  })
-  const changeId = input.changeId ?? `mc-${Date.now()}`
-  const result = await aiPetition({
-    io: tauriIo(),
-    mandatesDir: input.mandatesDir,
-    changeId,
-    old,
-    new: newFile,
-    modelHandle: input.modelHandle,
-    delegatorHandle: mandate.escalatesTo,
-    trackRecord,
-    modelDeviceKey
-  })
-  return { changeId, delegatorHandle: mandate.escalatesTo, ...result }
-}
-
-/**
- * Тіло tool `mandate_change_apply`.
- * @param {object} input вхід тула
- * @returns {Promise<{valid: true}|{valid: false, reason: string}>} вердикт застосування
- */
-async function handleMandateChangeApplyGui(input) {
-  const proposal = await readChangeProposal(tauriIo(), input.mandatesDir, input.changeId)
-  if (!proposal) throw new Error(`mandate_change_apply: change-proposal '${input.changeId}' не знайдено`)
-  const approvalPath = `${changeProposalDecisionsDir(input.mandatesDir, input.changeId)}/0001-approval.json`
-  const approvalText = await invoke('read_text_file', { path: approvalPath })
-  if (!approvalText) {
-    throw new Error(
-      `mandate_change_apply: decision-request change-proposal '${input.changeId}' ще не підписано ` +
-        '(немає 0001-approval.json) — спершу пройди decision_quiz/decision_approve'
-    )
-  }
-  const approval = JSON.parse(approvalText)
-  const role = input.role ?? 'human'
-  const deviceKey = role === 'model' ? await loadOrCreateModelDeviceKeyGui(input.handle) : await loadDeviceKeyGui()
-  await ensureRegisteredGui(input.mandatesDir, { handle: input.handle, role, pubkeyBase64: deviceKey.publicKeyBase64 })
-  return applyMandateChangeProposal({
-    io: tauriIo(),
-    mandatesYamlPath: mandatesYamlPathGui(input.mandatesDir),
-    old: proposal.old,
-    new: proposal.new,
-    approval,
-    handle: input.handle,
-    role,
-    deviceKey,
-    // Маркер «застосовано» (M6, report.js) — пишеться ЛИШЕ в run-каталозі
-    // цього change-proposal, поруч із decision-request/change.json.
-    appliedMarkerPath: `${changeProposalDecisionsDir(input.mandatesDir, input.changeId)}/0001-applied.json`
-  })
-}
-
-/**
- * Тіло tool `quorum_quiz`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} активне питання власного квізу підписанта
- */
-async function handleQuorumQuizGui(input) {
-  return quorumQuiz({
-    io: tauriIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    nnnn: input.nnnn,
-    signerHandle: input.signerHandle,
-    chosenOption: input.chosenOption,
-    llmConfig: await loadLlmConfigGui()
-  })
-}
-
-/**
- * Тіло tool `quorum_approve`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} результат спроби/підпису цього підписанта
- */
-async function handleQuorumApproveGui(input) {
-  return quorumApprove({
-    io: tauriIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    runId: input.runId,
-    nnnn: input.nnnn,
-    signerHandle: input.signerHandle,
-    chosenOption: input.chosenOption,
-    transcript: input.transcript,
-    deviceKey: await loadDeviceKeyGui(),
-    llmConfig: await loadLlmConfigGui()
-  })
-}
-
-/**
- * Тіло tool `quorum_status` — винесено окремою функцією (той самий підхід,
- * що решта `handle*Gui`-хелперів): знижує cognitive complexity диспетчера
- * `transport`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} `{nnnn, approvers, signed, pending, status}`
- */
-function handleQuorumStatusGui(input) {
-  return loadQuorumStatus({
-    io: tauriIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    nnnn: input.nnnn
-  })
-}
-
-/**
  * Тіло tool `set_quiet_hours`.
  * @param {object} input вхід тула
  * @returns {Promise<null>} завжди `null` (write-tool)
@@ -508,73 +309,6 @@ function handleQuorumStatusGui(input) {
 async function handleSetQuietHoursGui(input) {
   await writeAppConfigGui({ quiet_hours_start: input.start.trim(), quiet_hours_end: input.end.trim() })
   return null
-}
-
-/**
- * Тіло tool `mandates_show`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} дериваційний зріз карти мандатів
- */
-async function handleMandatesShowGui(input) {
-  const yamlText = await invoke('read_mandates_yaml', { mandatesDir: input.mandatesDir })
-  return deriveMandatesView(yamlText, input.handle ?? null)
-}
-
-/**
- * Тіло tool `decisions_show`.
- * @param {object} input вхід тула
- * @returns {Promise<object[]>} черга «Вирішую»
- */
-async function handleDecisionsShowGui(input) {
-  const decisionsDirs = await invoke('scan_decisions', { mandatesDir: input.mandatesDir })
-  const mandatesFile = await readMandatesFileGui(input.mandatesDir)
-  const { redirect } = await killSwitchContextGui(input.mandatesDir, mandatesFile.mandates)
-  return deriveQueue(decisionsDirs, input.handle ?? null, { killSwitchRedirect: redirect })
-}
-
-/**
- * Тіло tool `decision_quiz`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} активне питання квізу
- */
-async function handleDecisionQuizGui(input) {
-  return decisionQuiz({
-    io: tauriIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    nnnn: input.nnnn,
-    chosenOption: input.chosenOption,
-    llmConfig: await loadLlmConfigGui(),
-    knowledgeIo: knowledgeIoGui()
-  })
-}
-
-/**
- * Тіло tool `decision_approve`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} результат спроби/підпису
- */
-async function handleDecisionApproveGui(input) {
-  return decisionApprove({
-    io: tauriIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    runId: input.runId,
-    nnnn: input.nnnn,
-    chosenOption: input.chosenOption,
-    answer: input.answer,
-    transcript: input.transcript,
-    deviceKey: await loadDeviceKeyGui(),
-    llmConfig: await loadLlmConfigGui(),
-    knowledgeIo: knowledgeIoGui()
-  })
-}
-
-/**
- * Тіло tool `device_pubkey`.
- * @returns {Promise<{publicKeyBase64: string}>} публічний ключ пристрою
- */
-async function handleDevicePubkeyGui() {
-  const key = await loadDeviceKeyGui()
-  return { publicKeyBase64: key.publicKeyBase64 }
 }
 
 /**
@@ -810,22 +544,15 @@ async function handleReviewAgendaGui(input) {
 // лишається чистим lookup+виклик). Пропущені tools (без запису тут)
 // падають на generic `tauriTransport` (той самий фолбек, що раніше).
 const HANDLERS_GUI = {
-  mandates_show: handleMandatesShowGui,
-  decisions_show: handleDecisionsShowGui,
-  decision_quiz: handleDecisionQuizGui,
-  decision_approve: handleDecisionApproveGui,
-  device_pubkey: handleDevicePubkeyGui,
+  // mandates_show/decisions_show/decision_quiz/decision_approve/
+  // device_pubkey/trust_show/mandate_narrow/mandate_widen_propose/
+  // ai_petition/mandate_change_apply/quorum_quiz/quorum_approve/
+  // quorum_status — фаза A, немає запису тут: падають на generic
+  // `tauriTransport` нижче (пряма Tauri-команда delta-core, див. коментар
+  // після блоку `import` вище).
   knowledge_show: handleKnowledgeShowGui,
-  trust_show: handleTrustShowGui,
-  mandate_narrow: handleMandateNarrowGui,
-  mandate_widen_propose: handleMandateWidenProposeGui,
-  ai_petition: handleAiPetitionGui,
-  mandate_change_apply: handleMandateChangeApplyGui,
   directory_show: input => readDirectoryGui(input.mandatesDir),
   directory_set: handleDirectorySetGui,
-  quorum_quiz: handleQuorumQuizGui,
-  quorum_approve: handleQuorumApproveGui,
-  quorum_status: handleQuorumStatusGui,
   watcher_scan: handleWatcherScanGui,
   notifications_show: input => readNotificationsGui(input.mandatesDir, input.handle),
   quiet_hours: loadQuietHoursGui,
