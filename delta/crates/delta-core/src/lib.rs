@@ -10,6 +10,7 @@
 //! (`mandatesForOwner`/`escalationChain`/`modelMandates`/`deriveMandatesView`)
 //! поверх його типів.
 
+pub mod ai_petition;
 pub mod approval;
 pub mod change_proposal;
 pub mod decision_flow;
