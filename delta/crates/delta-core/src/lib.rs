@@ -12,7 +12,9 @@
 
 pub mod approval;
 pub mod decisions;
+pub mod knowledge;
 pub mod mandates;
+pub mod quiz;
 pub mod signing;
 
 // Реекспорт mt-mandates типів/парсера — виклик-сайти delta-core не повинні
