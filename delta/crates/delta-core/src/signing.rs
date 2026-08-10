@@ -169,7 +169,7 @@ pub fn load_or_create_device_key(existing_json_text: Option<&str>) -> DeviceKey 
         let keypair = generate_device_keypair();
         return DeviceKey {
             keypair,
-            created_at: chrono::Utc::now().to_rfc3339(),
+            created_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
             created: true,
             migrated_from_web_crypto: true,
         };
@@ -177,7 +177,7 @@ pub fn load_or_create_device_key(existing_json_text: Option<&str>) -> DeviceKey 
     let keypair = generate_device_keypair();
     DeviceKey {
         keypair,
-        created_at: chrono::Utc::now().to_rfc3339(),
+        created_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         created: true,
         migrated_from_web_crypto: false,
     }

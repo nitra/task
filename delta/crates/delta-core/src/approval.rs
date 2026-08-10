@@ -121,7 +121,7 @@ pub fn build_and_sign_approval(
 
     let signed_at = params
         .signed_at
-        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
     let payload = json!({
         "schema_version": 1,
         "request_id": params.request_id,
