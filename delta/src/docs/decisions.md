@@ -3,25 +3,29 @@ type: JS Module
 title: decisions.js
 resource: delta/src/decisions.js
 docgen:
-  crc: 3892d59f
-  model: omlx/gemma-4-26b-a4b-it
-  tier: local-min
-  score: 90
-  issues: internal-name:isOpen,judge-refine:kept-original,judge:inaccurate:0.99
+  crc: eb54c09b
+  model: openai-codex/gpt-5.4-mini
+  tier: cloud-min
+  score: 50
   judgeModel: openai-codex/gpt-5.4-mini
 ---
 
 ## Огляд
 
-Модуль виконує відокремлення метаданих від тексту за допомогою splitFrontmatter та перетворення запитів на рішення через parseDecisionRequest. Він визначає необхідність кворуму через requiresQuorum, розраховує список осіб для затвердження через resolveApprovers та встановлює поточний стан процесу через deriveQuorumStatus. Система визначає рівень складності завдань через depthForFacets та формує черги через deriveQueue.
-
-## Поведінка
-
-Процес починається з розбору сирого тексту файлу за допомогою splitFrontmatter, що дозволяє відокремити YAML-фронтматер від тіла документа. На основі отриманих даних parseDecisionRequest формує нормалізований об'єкт рішення, використовуючи splitFrontmatter для вилучення метаданих та внутрішні механізми для парсингу секцій.
-
-Для визначення маршрутизації використовується requiresQuorum, що перевіряє необхідність кворуму на основі властивостей рішення. Якщо кворум потрібен, resolveApprovers визначає список осіб, чиї підписи необхідні, спираючись на поле approvers або обчисленого власника. Стан кворуму (очікування, закриття або розбіжність) деривується через deriveQuorumStatus, яка аналізує наявність та вміст файлів NNNN-approval.json або approval.json у директорії рішень.
-
-Глибина квіз-гейта визначається через depthForFacets, яка мапить фасети на рівні складності (one-tap, standard, teach-back). Повний зріз черги для конкретного власника формується через deriveQueue, яка збирає відкриті рішення, враховує делегування через NNNN-delegation.json або delegation.json та сортує результати за пріоритетністю фасетів.
+/**
+ * Парсер `decisions/NNNN-decision-request.md` за контрактом mt:
+ * mt/docs/architecture/mandates.md, секція «Артефакт decision-request», і
+ * «Нормативний контракт (M6 фаза 0)» (частина PR #67, злита в origin/main mt
+ * після написання specs/260809-delta-app.md — delta мокає за контрактом,
+ * mt-rust реалізує mandate-crate паралельно, рішення Ж).
+ *
+ * M1 — файловий мок git-refs транспорту: замість читання
+ * `refs/mt/runs/{run-id}/decisions/NNNN-decision-request.md` напряму з git
+ * (це прийде з mt-rust/napi), скануємо ту саму структуру директорій на
+ * диску — `<mandatesDir>/runs/{run-id}/decisions/NNNN-decision-request.md`.
+ * Дерево директорій навмисно дзеркалить контрактний git-шлях (той самий
+ * сегмент `decisions/NNNN-*`), щоб заміна на napi-виклик мандат-крейта
+ * пізніше не міняла форму виходу цього мод
 
 ## Публічний API
 
@@ -70,6 +74,8 @@ leverage-фасетами (спека docs/specs/260809-delta-app.md, п.2 «О�
 п.2 «Обсяг M4»).
   скановані `decisions/`-директорії (кожна — один run), як повертає
   Tauri-команда `scan_decisions`/CLI-скан файлової системи
+  перенаправлення (`kill-switch.js: buildKillSwitchRedirect().redirect`) — опційно, відсутність
+  зберігає точну поведінку до M6 (жодного перенаправлення)
 
 ## Сценарії використання
 

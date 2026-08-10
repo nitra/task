@@ -1,3 +1,6 @@
+/**
+ * GUI tool-dispatch поверхня для Tauri: збирає TOOL-обробники і прокидує їх у спільний transport без зміни поведінки викликів.
+ */
 import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, join as joinPath } from '@tauri-apps/api/path'
 import { createDispatch } from '@7n/tauri-components'
@@ -853,4 +856,7 @@ function transport(tool, input) {
   return handler ? handler(input) : tauriTransport(tool, input)
 }
 
+/**
+ * Експортує dispatch для GUI tool-поверхні на базі TOOLS і transport.
+ */
 export const dispatch = createDispatch(TOOLS, transport)

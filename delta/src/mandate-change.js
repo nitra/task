@@ -139,7 +139,9 @@ function decisionTypesWidened(oldTypes, newTypes) {
  * @returns {boolean} true — scope розширився (по будь-якій з двох осей)
  */
 function scopeWidened(oldScope, newScope) {
-  return setWidened(oldScope.refs, newScope.refs) || decisionTypesWidened(oldScope.decisionTypes, newScope.decisionTypes)
+  return (
+    setWidened(oldScope.refs, newScope.refs) || decisionTypesWidened(oldScope.decisionTypes, newScope.decisionTypes)
+  )
 }
 
 /**
@@ -148,7 +150,9 @@ function scopeWidened(oldScope, newScope) {
  * @returns {boolean} true — scope звузився (по будь-якій з двох осей)
  */
 function scopeNarrowed(oldScope, newScope) {
-  return setWidened(newScope.refs, oldScope.refs) || decisionTypesWidened(newScope.decisionTypes, oldScope.decisionTypes)
+  return (
+    setWidened(newScope.refs, oldScope.refs) || decisionTypesWidened(newScope.decisionTypes, oldScope.decisionTypes)
+  )
 }
 
 /**
@@ -227,9 +231,13 @@ export function classifyMandateChange(oldMandate, newMandate) {
   if (oldMandate.kind !== newMandate.kind) return 'kind-changed'
   if (oldMandate.escalatesTo !== newMandate.escalatesTo) return 'escalates-to-changed'
 
-  const widened = scopeWidened(oldMandate.scope, newMandate.scope) || thresholdsWidened(oldMandate.thresholds, newMandate.thresholds, oldMandate.kind)
+  const widened =
+    scopeWidened(oldMandate.scope, newMandate.scope) ||
+    thresholdsWidened(oldMandate.thresholds, newMandate.thresholds, oldMandate.kind)
   if (widened) return 'widened'
-  const narrowed = scopeNarrowed(oldMandate.scope, newMandate.scope) || thresholdsNarrowed(oldMandate.thresholds, newMandate.thresholds, oldMandate.kind)
+  const narrowed =
+    scopeNarrowed(oldMandate.scope, newMandate.scope) ||
+    thresholdsNarrowed(oldMandate.thresholds, newMandate.thresholds, oldMandate.kind)
   if (narrowed) return 'narrowed'
   return 'unchanged'
 }
@@ -361,7 +369,13 @@ export function validateMandatesFileStructure(file) {
  * @returns {object} canonical payload для підпису/перевірки
  */
 export function buildMandateChangePayload(oldGeneration, newFile) {
-  return { schema_version: 1, type: 'mandate-change', old_generation: oldGeneration, new_generation: newFile.generation, new_file: newFile }
+  return {
+    schema_version: 1,
+    type: 'mandate-change',
+    old_generation: oldGeneration,
+    new_generation: newFile.generation,
+    new_file: newFile
+  }
 }
 
 /**
@@ -377,7 +391,15 @@ export function buildMandateChangePayload(oldGeneration, newFile) {
  * @param {() => Date} [params.now] ін'єкція годинника (тести)
  * @returns {Promise<object>} підписаний `MandateChangeSignature` — `{handle, role, pubkeyBase64, signedAt, signature}`
  */
-export async function signMandateChangeAct({ oldGeneration, newFile, handle, role, privateKeyJwk, publicKeyBase64, now }) {
+export async function signMandateChangeAct({
+  oldGeneration,
+  newFile,
+  handle,
+  role,
+  privateKeyJwk,
+  publicKeyBase64,
+  now
+}) {
   const payload = buildMandateChangePayload(oldGeneration, newFile)
   const signature = await signPayload(privateKeyJwk, payload)
   return { handle, role, pubkeyBase64: publicKeyBase64, signedAt: (now ? now() : new Date()).toISOString(), signature }
@@ -479,7 +501,9 @@ function verdictForWidenedOrAdded(owner, oldMandate, newMandate, verifiedAny, ve
     return invalid(`owner '${owner}': розширення без делегатора рівня вище (немає escalates_to)`)
   }
   if (!verifiedAny.has(delegator)) {
-    return invalid(`owner '${owner}': розширення scope/thresholds вимагає підпису делегатора рівня вище ('${delegator}')`)
+    return invalid(
+      `owner '${owner}': розширення scope/thresholds вимагає підпису делегатора рівня вище ('${delegator}')`
+    )
   }
   return VALID
 }
@@ -507,7 +531,9 @@ function verdictForNarrowedOrRemoved(owner, verifiedAny) {
  */
 function verdictForKindChanged(owner, verifiedHuman) {
   if (verifiedHuman.size === 0 || !verifiedHuman.has(owner)) {
-    return invalid(`owner '${owner}': зміна kind (person↔model) — delete+create, в обох напрямках підписує людина (owner)`)
+    return invalid(
+      `owner '${owner}': зміна kind (person↔model) — delete+create, в обох напрямках підписує людина (owner)`
+    )
   }
   return VALID
 }
@@ -525,7 +551,8 @@ function verdictForKindChanged(owner, verifiedHuman) {
  */
 function verdictForOwnerChange(kind, owner, oldMandate, newMandate, verifiedAny, verifiedHuman) {
   if (kind === 'escalates-to-changed') return verdictForEscalatesToChanged(owner, newMandate, oldMandate, verifiedAny)
-  if (kind === 'widened' || kind === 'added') return verdictForWidenedOrAdded(owner, oldMandate, newMandate, verifiedAny, verifiedHuman)
+  if (kind === 'widened' || kind === 'added')
+    return verdictForWidenedOrAdded(owner, oldMandate, newMandate, verifiedAny, verifiedHuman)
   if (kind === 'narrowed' || kind === 'removed') return verdictForNarrowedOrRemoved(owner, verifiedAny)
   return verdictForKindChanged(owner, verifiedHuman) // kind === 'kind-changed'
 }
@@ -559,7 +586,9 @@ export async function validateMandateChange({ old, new: newFile, signatures = []
   // хоч у якесь правило нижче — fail-closed: непідтверджений підпис
   // ігнорується, а не приймається «за замовчуванням валідний» (той самий
   // інваріант, що change.rs).
-  const verifiedFlags = await Promise.all(signatures.map(sig => verifyMandateChangeSignature(old.generation, newFile, sig)))
+  const verifiedFlags = await Promise.all(
+    signatures.map(sig => verifyMandateChangeSignature(old.generation, newFile, sig))
+  )
   const verifiedAny = new Set()
   const verifiedHuman = new Set()
   for (const [i, sig] of signatures.entries()) {

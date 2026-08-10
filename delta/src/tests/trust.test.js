@@ -53,12 +53,22 @@ describe('deriveTrustView', () => {
   })
 
   it('vitalii не має ШІ-мандатів під собою у фікстурі — порожній список', () => {
-    const view = deriveTrustView({ mandatesFile: MANDATES_FILE, deviceRegistry: DEVICE_REGISTRY, decisionsDirs: [], handle: 'vitalii' })
+    const view = deriveTrustView({
+      mandatesFile: MANDATES_FILE,
+      deviceRegistry: DEVICE_REGISTRY,
+      decisionsDirs: [],
+      handle: 'vitalii'
+    })
     expect(view.items).toEqual([])
   })
 
   it('без handle — порожній список, не помилка', () => {
-    const view = deriveTrustView({ mandatesFile: MANDATES_FILE, deviceRegistry: DEVICE_REGISTRY, decisionsDirs: [], handle: null })
+    const view = deriveTrustView({
+      mandatesFile: MANDATES_FILE,
+      deviceRegistry: DEVICE_REGISTRY,
+      decisionsDirs: [],
+      handle: null
+    })
     expect(view.items).toEqual([])
   })
 })
@@ -75,10 +85,15 @@ describe('audacityOf', () => {
 
 describe('withMandateReplaced', () => {
   it('замінює лише вказаного owner, generation + 1', () => {
-    const updated = withMandateReplaced(MANDATES_FILE, 'fable-5', m => ({ ...m, thresholds: { ...m.thresholds, audacity: 'high' } }))
+    const updated = withMandateReplaced(MANDATES_FILE, 'fable-5', m => ({
+      ...m,
+      thresholds: { ...m.thresholds, audacity: 'high' }
+    }))
     expect(updated.generation).toBe(MANDATES_FILE.generation + 1)
     expect(updated.mandates.find(m => m.owner === 'fable-5').thresholds.audacity).toBe('high')
-    expect(updated.mandates.find(m => m.owner === 'olena')).toEqual(MANDATES_FILE.mandates.find(m => m.owner === 'olena'))
+    expect(updated.mandates.find(m => m.owner === 'olena')).toEqual(
+      MANDATES_FILE.mandates.find(m => m.owner === 'olena')
+    )
   })
 })
 

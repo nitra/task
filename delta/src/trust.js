@@ -105,7 +105,10 @@ export function narrowMandateOneStep(mandate) {
   const down = mandate.kind === 'model' ? audacityDown(audacityOf(mandate)) : null
   if (down) return { ...mandate, thresholds: { ...mandate.thresholds, audacity: down } }
   if (mandate.thresholds.budgetEur !== null && mandate.thresholds.budgetEur > 0) {
-    return { ...mandate, thresholds: { ...mandate.thresholds, budgetEur: Math.max(0, Math.round(mandate.thresholds.budgetEur / 2)) } }
+    return {
+      ...mandate,
+      thresholds: { ...mandate.thresholds, budgetEur: Math.max(0, Math.round(mandate.thresholds.budgetEur / 2)) }
+    }
   }
   return mandate
 }

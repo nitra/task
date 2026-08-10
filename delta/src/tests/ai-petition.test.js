@@ -63,7 +63,12 @@ function baseFile(generation) {
 
 describe('buildEvidenceText — «активність і послідовність», не success rate', () => {
   it('нуль рішень — чесний текст про відсутність evidence', () => {
-    const text = buildEvidenceText({ totalDecisions: 0, byDecisionType: [], overrideFreeCount: 0, overrideFreeRate: null })
+    const text = buildEvidenceText({
+      totalDecisions: 0,
+      byDecisionType: [],
+      overrideFreeCount: 0,
+      overrideFreeRate: null
+    })
     expect(text).toMatch(NO_EVIDENCE_RE)
   })
 
@@ -90,7 +95,12 @@ describe('aiPetition', () => {
 
     const modelDeviceKey = await generateDeviceKeypair()
     const io = memoryIo()
-    const trackRecord = { totalDecisions: 3, byDecisionType: [{ decisionType: 'ops', count: 3 }], overrideFreeCount: 3, overrideFreeRate: 1 }
+    const trackRecord = {
+      totalDecisions: 3,
+      byDecisionType: [{ decisionType: 'ops', count: 3 }],
+      overrideFreeCount: 3,
+      overrideFreeRate: 1
+    }
 
     const result = await aiPetition({
       io,
@@ -113,7 +123,11 @@ describe('aiPetition', () => {
     expect(await verifyPetition(petition)).toBe(true)
 
     const decisionText = io.store.get(result.decisionRequestPath)
-    const parsed = parseDecisionRequest(decisionText, { path: result.decisionRequestPath, runId: changeProposalRunId('mc-petition-1'), nnnn: '0001' })
+    const parsed = parseDecisionRequest(decisionText, {
+      path: result.decisionRequestPath,
+      runId: changeProposalRunId('mc-petition-1'),
+      nnnn: '0001'
+    })
     expect(parsed.computedOwner).toBe('olena') // черга людини-делегатора, не моделі
     expect(parsed.recommendedBy).toBe('ai-petition-fable-5')
     expect(parsed.decisionType).toBe('mandate-change')

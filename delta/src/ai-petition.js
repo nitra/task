@@ -120,9 +120,27 @@ export function formatPetitionFile(petition) {
  * @returns {Promise<{petitionPath: string, decisionRequestPath: string, changeJsonPath: string, evidenceText: string, petition: object}>}
  *   шляхи записаних файлів + evidence-текст + підписана петиція
  */
-export async function aiPetition({ io, mandatesDir, changeId, old, new: newFile, modelHandle, delegatorHandle, trackRecord, modelDeviceKey, now }) {
+export async function aiPetition({
+  io,
+  mandatesDir,
+  changeId,
+  old,
+  new: newFile,
+  modelHandle,
+  delegatorHandle,
+  trackRecord,
+  modelDeviceKey,
+  now
+}) {
   const evidenceText = buildEvidenceText(trackRecord)
-  const petitionPayload = buildPetitionPayload({ modelHandle, ownerHandle: modelHandle, old, new: newFile, evidenceText, now })
+  const petitionPayload = buildPetitionPayload({
+    modelHandle,
+    ownerHandle: modelHandle,
+    old,
+    new: newFile,
+    evidenceText,
+    now
+  })
   const petition = await signPetition({
     payload: petitionPayload,
     privateKeyJwk: modelDeviceKey.privateKeyJwk,

@@ -46,7 +46,13 @@ describe('deriveTrackRecord', () => {
     const result = deriveTrackRecord({ decisionsDirs: [DEMO_3], deviceRegistry: DEVICE_REGISTRY, handle: 'fable-5' })
     expect(result.totalDecisions).toBe(1)
     expect(result.recent).toHaveLength(1)
-    expect(result.recent[0]).toMatchObject({ runId: 'demo-3', nnnn: '0001', decisionType: 'ops', chosenOption: 'A', override: false })
+    expect(result.recent[0]).toMatchObject({
+      runId: 'demo-3',
+      nnnn: '0001',
+      decisionType: 'ops',
+      chosenOption: 'A',
+      override: false
+    })
     expect(result.overrideCount).toBe(0)
     expect(result.overrideFreeRate).toBe(1)
   })
@@ -66,7 +72,11 @@ describe('deriveTrackRecord', () => {
   })
 
   it('обидва run-и разом — 2 рішення, лише одне override', () => {
-    const result = deriveTrackRecord({ decisionsDirs: [DEMO_3, DEMO_4], deviceRegistry: DEVICE_REGISTRY, handle: 'fable-5' })
+    const result = deriveTrackRecord({
+      decisionsDirs: [DEMO_3, DEMO_4],
+      deviceRegistry: DEVICE_REGISTRY,
+      handle: 'fable-5'
+    })
     expect(result.totalDecisions).toBe(2)
     expect(result.overrideCount).toBe(1)
     expect(result.overrideFreeCount).toBe(1)
@@ -75,7 +85,12 @@ describe('deriveTrackRecord', () => {
   })
 
   it('recent сортує за signedAt спадно й обрізає до recentLimit', () => {
-    const result = deriveTrackRecord({ decisionsDirs: [DEMO_3, DEMO_4], deviceRegistry: DEVICE_REGISTRY, handle: 'fable-5', recentLimit: 1 })
+    const result = deriveTrackRecord({
+      decisionsDirs: [DEMO_3, DEMO_4],
+      deviceRegistry: DEVICE_REGISTRY,
+      handle: 'fable-5',
+      recentLimit: 1
+    })
     expect(result.recent).toHaveLength(1)
     expect(result.recent[0].runId).toBe('demo-4') // 2026-08-03 пізніше за 2026-08-02
   })
@@ -87,7 +102,11 @@ describe('deriveTrackRecord', () => {
   })
 
   it('невідомий handle — порожній трек-рекорд, не помилка', () => {
-    const result = deriveTrackRecord({ decisionsDirs: [DEMO_3, DEMO_4], deviceRegistry: DEVICE_REGISTRY, handle: 'ghost-model' })
+    const result = deriveTrackRecord({
+      decisionsDirs: [DEMO_3, DEMO_4],
+      deviceRegistry: DEVICE_REGISTRY,
+      handle: 'ghost-model'
+    })
     expect(result.totalDecisions).toBe(0)
     expect(result.overrideFreeRate).toBeNull()
   })

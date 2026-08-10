@@ -31,13 +31,27 @@ describe('emptyDeviceRegistry', () => {
 
 describe('upsertDevice', () => {
   it('додає новий запис для нового handle', () => {
-    const result = upsertDevice(emptyDeviceRegistry(), { handle: 'olena', role: 'human', pubkeyBase64: 'pk1' }, () => new Date('2026-08-09T00:00:00.000Z'))
-    expect(result).toEqual([{ handle: 'olena', role: 'human', pubkeyBase64: 'pk1', registeredAt: '2026-08-09T00:00:00.000Z' }])
+    const result = upsertDevice(
+      emptyDeviceRegistry(),
+      { handle: 'olena', role: 'human', pubkeyBase64: 'pk1' },
+      () => new Date('2026-08-09T00:00:00.000Z')
+    )
+    expect(result).toEqual([
+      { handle: 'olena', role: 'human', pubkeyBase64: 'pk1', registeredAt: '2026-08-09T00:00:00.000Z' }
+    ])
   })
 
   it('той самий handle — замінює попередній запис (не дублює)', () => {
-    const first = upsertDevice(emptyDeviceRegistry(), { handle: 'olena', role: 'human', pubkeyBase64: 'pk1' }, () => new Date('2026-08-01T00:00:00.000Z'))
-    const second = upsertDevice(first, { handle: 'olena', role: 'human', pubkeyBase64: 'pk2' }, () => new Date('2026-08-09T00:00:00.000Z'))
+    const first = upsertDevice(
+      emptyDeviceRegistry(),
+      { handle: 'olena', role: 'human', pubkeyBase64: 'pk1' },
+      () => new Date('2026-08-01T00:00:00.000Z')
+    )
+    const second = upsertDevice(
+      first,
+      { handle: 'olena', role: 'human', pubkeyBase64: 'pk2' },
+      () => new Date('2026-08-09T00:00:00.000Z')
+    )
     expect(second).toHaveLength(1)
     expect(second[0].pubkeyBase64).toBe('pk2')
     expect(second[0].registeredAt).toBe('2026-08-09T00:00:00.000Z')
@@ -60,7 +74,10 @@ describe('findRegisteredSigner', () => {
   const entries = upsertDevice(emptyDeviceRegistry(), { handle: 'olena', role: 'human', pubkeyBase64: 'pk1' })
 
   it('handle + pubkey обидва збігаються — знаходить запис', () => {
-    expect(findRegisteredSigner(entries, { handle: 'olena', pubkeyBase64: 'pk1' })).toMatchObject({ handle: 'olena', role: 'human' })
+    expect(findRegisteredSigner(entries, { handle: 'olena', pubkeyBase64: 'pk1' })).toMatchObject({
+      handle: 'olena',
+      role: 'human'
+    })
   })
 
   it('handle правильний, pubkey чужий — не знаходить (запобігає підміні ключа)', () => {

@@ -6,8 +6,8 @@
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
     </div>
     <p class="subtitle">
-      Мої ШІ-мандати (<code>escalates_to</code> — я): трек-рекорд, пороги, зухвалість. «Розширити» ЗАВЖДИ
-      веде до звичайного квіз-гейта з людським підписом — тут немає прямого редагування (docs/specs/260809-delta-app.md,
+      Мої ШІ-мандати (<code>escalates_to</code> — я): трек-рекорд, пороги, зухвалість. «Розширити» ЗАВЖДИ веде до
+      звичайного квіз-гейта з людським підписом — тут немає прямого редагування (docs/specs/260809-delta-app.md,
       конституція п.4, «остання константа»).
     </p>
 
@@ -57,12 +57,19 @@
           <div v-if="item.trackRecord.totalDecisions === 0" class="track-empty">Ще жодного підписаного рішення.</div>
           <template v-else>
             <div class="track-summary">
-              {{ item.trackRecord.totalDecisions }} рішень ·
-              {{ item.trackRecord.overrideFreeCount }}/{{ item.trackRecord.totalDecisions }} без наступного
-              людського override ({{ Math.round(item.trackRecord.overrideFreeRate * 100) }}%)
+              {{ item.trackRecord.totalDecisions }} рішень · {{ item.trackRecord.overrideFreeCount }}/{{
+                item.trackRecord.totalDecisions
+              }}
+              без наступного людського override ({{ Math.round(item.trackRecord.overrideFreeRate * 100) }}%)
             </div>
             <div class="track-types">
-              <q-chip v-for="t in item.trackRecord.byDecisionType" :key="t.decisionType" dense square size="sm" class="chip">
+              <q-chip
+                v-for="t in item.trackRecord.byDecisionType"
+                :key="t.decisionType"
+                dense
+                square
+                size="sm"
+                class="chip">
                 {{ t.decisionType }}: {{ t.count }}
               </q-chip>
             </div>
@@ -84,8 +91,7 @@
             no-caps
             size="sm"
             icon="sym_o_arrow_downward"
-            label="звузити"
-          />
+            label="звузити" />
           <q-btn
             @click="onProposeWiden(item.mandate.owner)"
             flat
@@ -93,8 +99,7 @@
             no-caps
             size="sm"
             icon="sym_o_arrow_upward"
-            label="розширити"
-          />
+            label="розширити" />
         </div>
       </div>
     </div>

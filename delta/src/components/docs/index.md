@@ -13,3 +13,4 @@ resource: delta/src/components/
 | [MandatesMap.vue](MandatesMap.md)           | Vue Component |
 | [OnboardingDialog.vue](OnboardingDialog.md) | Vue Component |
 | [TrustView.vue](TrustView.md)               | Vue Component |
+| [WatcherView.vue](WatcherView.md)           | Vue Component |

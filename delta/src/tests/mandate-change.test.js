@@ -140,8 +140,20 @@ describe('validateMandatesFileStructure — мок parse.rs::validate', () => {
     const file = {
       generation: 1,
       mandates: [
-        { owner: 'a', kind: 'person', scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] }, thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null }, escalatesTo: 'b' },
-        { owner: 'b', kind: 'person', scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] }, thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null }, escalatesTo: 'a' }
+        {
+          owner: 'a',
+          kind: 'person',
+          scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] },
+          thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null },
+          escalatesTo: 'b'
+        },
+        {
+          owner: 'b',
+          kind: 'person',
+          scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] },
+          thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null },
+          escalatesTo: 'a'
+        }
       ]
     }
     const result = validateMandatesFileStructure(file)
@@ -153,8 +165,20 @@ describe('validateMandatesFileStructure — мок parse.rs::validate', () => {
     const file = {
       generation: 1,
       mandates: [
-        { owner: 'root', kind: 'person', scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] }, thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null }, escalatesTo: null },
-        { owner: 'a', kind: 'person', scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] }, thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null }, escalatesTo: 'ghost' }
+        {
+          owner: 'root',
+          kind: 'person',
+          scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] },
+          thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null },
+          escalatesTo: null
+        },
+        {
+          owner: 'a',
+          kind: 'person',
+          scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] },
+          thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null },
+          escalatesTo: 'ghost'
+        }
       ]
     }
     const result = validateMandatesFileStructure(file)
@@ -180,7 +204,9 @@ describe('validateMandatesFileStructure — мок parse.rs::validate', () => {
 
   it('audacity на kind: person — невалідно', () => {
     const file = baseFile(1)
-    file.mandates[0] = cloneMandate(file.mandates[0], { thresholds: { ...file.mandates[0].thresholds, audacity: 'low' } })
+    file.mandates[0] = cloneMandate(file.mandates[0], {
+      thresholds: { ...file.mandates[0].thresholds, audacity: 'low' }
+    })
     const result = validateMandatesFileStructure(file)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(AUDACITY_RE)
@@ -190,8 +216,20 @@ describe('validateMandatesFileStructure — мок parse.rs::validate', () => {
     const file = {
       generation: 1,
       mandates: [
-        { owner: 'a', kind: 'person', scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] }, thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null }, escalatesTo: null },
-        { owner: 'a', kind: 'person', scope: { refs: ['refs/mt/other/**'], decisionTypes: ['*'] }, thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null }, escalatesTo: null }
+        {
+          owner: 'a',
+          kind: 'person',
+          scope: { refs: ['refs/mt/**'], decisionTypes: ['*'] },
+          thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null },
+          escalatesTo: null
+        },
+        {
+          owner: 'a',
+          kind: 'person',
+          scope: { refs: ['refs/mt/other/**'], decisionTypes: ['*'] },
+          thresholds: { budgetEur: null, risk: null, irreversible: null, audacity: null },
+          escalatesTo: null
+        }
       ]
     }
     const result = validateMandatesFileStructure(file)
@@ -220,15 +258,21 @@ describe('classifyMandateChange', () => {
   })
 
   it('escalates_to змінився — escalates-to-changed', () => {
-    expect(classifyMandateChange(olena, cloneMandate(olena, { escalatesTo: 'someone-else' }))).toBe('escalates-to-changed')
+    expect(classifyMandateChange(olena, cloneMandate(olena, { escalatesTo: 'someone-else' }))).toBe(
+      'escalates-to-changed'
+    )
   })
 
   it('вищий budgetEur — widened', () => {
-    expect(classifyMandateChange(olena, cloneMandate(olena, { thresholds: { ...olena.thresholds, budgetEur: 3000 } }))).toBe('widened')
+    expect(
+      classifyMandateChange(olena, cloneMandate(olena, { thresholds: { ...olena.thresholds, budgetEur: 3000 } }))
+    ).toBe('widened')
   })
 
   it('нижчий budgetEur — narrowed', () => {
-    expect(classifyMandateChange(olena, cloneMandate(olena, { thresholds: { ...olena.thresholds, budgetEur: 1000 } }))).toBe('narrowed')
+    expect(
+      classifyMandateChange(olena, cloneMandate(olena, { thresholds: { ...olena.thresholds, budgetEur: 1000 } }))
+    ).toBe('narrowed')
   })
 
   it('змішаний diff (budget вгору, risk вниз) — widened (не можна протягнути розширення під виглядом самопідписаного звуження)', () => {
@@ -242,7 +286,9 @@ describe('classifyMandateChange', () => {
 
   it('audacity вгору на kind: model — widened; на kind: person вісь ігнорується', () => {
     const model = cloneMandate(olena, { kind: 'model', thresholds: { ...olena.thresholds, audacity: 'low' } })
-    expect(classifyMandateChange(model, cloneMandate(model, { thresholds: { ...model.thresholds, audacity: 'high' } }))).toBe('widened')
+    expect(
+      classifyMandateChange(model, cloneMandate(model, { thresholds: { ...model.thresholds, audacity: 'high' } }))
+    ).toBe('widened')
   })
 
   it('decision_types "*" — розширити нікуди (уже покриває все)', () => {
@@ -264,7 +310,9 @@ describe('validateMandateChange — мок change.rs::validate_mandate_change (�
   it('звуження без самопідпису — невалідно', async () => {
     const old = baseFile(1)
     const newFile = baseFile(2)
-    newFile.mandates[0] = cloneMandate(newFile.mandates[0], { thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 } })
+    newFile.mandates[0] = cloneMandate(newFile.mandates[0], {
+      thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 }
+    })
     const verdict = await validateMandateChange({ old, new: newFile, signatures: [] })
     expect(verdict.valid).toBe(false)
     expect(verdict.reason).toMatch(SELF_SIGN_RE)
@@ -273,7 +321,9 @@ describe('validateMandateChange — мок change.rs::validate_mandate_change (�
   it('звуження із самопідписом owner — валідно', async () => {
     const old = baseFile(1)
     const newFile = baseFile(2)
-    newFile.mandates[0] = cloneMandate(newFile.mandates[0], { thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 } })
+    newFile.mandates[0] = cloneMandate(newFile.mandates[0], {
+      thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 }
+    })
     const sig = await signAs(newFile, 1, { handle: 'olena', role: 'human' })
     const verdict = await validateMandateChange({ old, new: newFile, signatures: [sig] })
     expect(verdict).toEqual({ valid: true })
@@ -282,7 +332,9 @@ describe('validateMandateChange — мок change.rs::validate_mandate_change (�
   it('розширення без підпису делегатора — невалідно (підписав сам owner, не делегатор)', async () => {
     const old = baseFile(1)
     const newFile = baseFile(2)
-    newFile.mandates[0] = cloneMandate(newFile.mandates[0], { thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 3000 } })
+    newFile.mandates[0] = cloneMandate(newFile.mandates[0], {
+      thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 3000 }
+    })
     const sig = await signAs(newFile, 1, { handle: 'olena', role: 'human' })
     const verdict = await validateMandateChange({ old, new: newFile, signatures: [sig] })
     expect(verdict.valid).toBe(false)
@@ -292,7 +344,9 @@ describe('validateMandateChange — мок change.rs::validate_mandate_change (�
   it('розширення з підписом делегатора (vitalii — делегатор olena) — валідно', async () => {
     const old = baseFile(1)
     const newFile = baseFile(2)
-    newFile.mandates[0] = cloneMandate(newFile.mandates[0], { thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 3000 } })
+    newFile.mandates[0] = cloneMandate(newFile.mandates[0], {
+      thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 3000 }
+    })
     const sig = await signAs(newFile, 1, { handle: 'vitalii', role: 'human' })
     const verdict = await validateMandateChange({ old, new: newFile, signatures: [sig] })
     expect(verdict).toEqual({ valid: true })
@@ -360,7 +414,9 @@ describe('validateMandateChange — мок change.rs::validate_mandate_change (�
   it('невалідні байти підпису не рахуються (fail-closed)', async () => {
     const old = baseFile(1)
     const newFile = baseFile(2)
-    newFile.mandates[0] = cloneMandate(newFile.mandates[0], { thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 } })
+    newFile.mandates[0] = cloneMandate(newFile.mandates[0], {
+      thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 }
+    })
     const { publicKeyBase64 } = await generateDeviceKeypair()
     const verdict = await validateMandateChange({
       old,
@@ -398,12 +454,16 @@ describe('validateMandateChange — мок change.rs::validate_mandate_change (�
 
 describe('parseMandatesFile / formatMandatesFile — round-trip', () => {
   it('відсутнє generation — дефолт 1 (той самий дефолт, що фікстури M0-M2)', () => {
-    const file = parseMandatesFile('mandates:\n  - owner: a\n    scope: { refs: ["refs/mt/**"], decision_types: ["*"] }\n    thresholds: {}\n    escalates_to: null\n')
+    const file = parseMandatesFile(
+      'mandates:\n  - owner: a\n    scope: { refs: ["refs/mt/**"], decision_types: ["*"] }\n    thresholds: {}\n    escalates_to: null\n'
+    )
     expect(file.generation).toBe(1)
   })
 
   it('явне generation розбирається', () => {
-    const file = parseMandatesFile('generation: 7\nmandates:\n  - owner: a\n    scope: { refs: ["refs/mt/**"], decision_types: ["*"] }\n    thresholds: {}\n    escalates_to: null\n')
+    const file = parseMandatesFile(
+      'generation: 7\nmandates:\n  - owner: a\n    scope: { refs: ["refs/mt/**"], decision_types: ["*"] }\n    thresholds: {}\n    escalates_to: null\n'
+    )
     expect(file.generation).toBe(7)
   })
 
@@ -434,10 +494,18 @@ describe('applyMandateChangeIfValid', () => {
   it('Valid-вердикт — пише mandates.yaml', async () => {
     const old = baseFile(1)
     const newFile = baseFile(2)
-    newFile.mandates[0] = cloneMandate(newFile.mandates[0], { thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 } })
+    newFile.mandates[0] = cloneMandate(newFile.mandates[0], {
+      thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 }
+    })
     const sig = await signAs(newFile, 1, { handle: 'olena', role: 'human' })
     const io = memoryIo()
-    const verdict = await applyMandateChangeIfValid({ io, mandatesYamlPath: '/root/.mt/mandates.yaml', old, new: newFile, signatures: [sig] })
+    const verdict = await applyMandateChangeIfValid({
+      io,
+      mandatesYamlPath: '/root/.mt/mandates.yaml',
+      old,
+      new: newFile,
+      signatures: [sig]
+    })
     expect(verdict).toEqual({ valid: true })
     expect(io.store.has('/root/.mt/mandates.yaml')).toBe(true)
     expect(parseMandatesFile(io.store.get('/root/.mt/mandates.yaml'))).toEqual(newFile)
@@ -446,9 +514,17 @@ describe('applyMandateChangeIfValid', () => {
   it('Invalid-вердикт — файл НЕ пишеться', async () => {
     const old = baseFile(1)
     const newFile = baseFile(2)
-    newFile.mandates[0] = cloneMandate(newFile.mandates[0], { thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 } })
+    newFile.mandates[0] = cloneMandate(newFile.mandates[0], {
+      thresholds: { ...newFile.mandates[0].thresholds, budgetEur: 1000 }
+    })
     const io = memoryIo()
-    const verdict = await applyMandateChangeIfValid({ io, mandatesYamlPath: '/root/.mt/mandates.yaml', old, new: newFile, signatures: [] })
+    const verdict = await applyMandateChangeIfValid({
+      io,
+      mandatesYamlPath: '/root/.mt/mandates.yaml',
+      old,
+      new: newFile,
+      signatures: []
+    })
     expect(verdict.valid).toBe(false)
     expect(io.store.has('/root/.mt/mandates.yaml')).toBe(false)
   })
