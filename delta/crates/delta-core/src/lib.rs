@@ -28,6 +28,7 @@ pub mod mandates;
 pub mod org;
 pub mod quiz;
 pub mod quorum;
+pub mod report;
 pub mod signing;
 pub mod staff;
 pub mod track_record;
