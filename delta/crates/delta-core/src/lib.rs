@@ -15,6 +15,7 @@ pub mod approval;
 pub mod change_proposal;
 pub mod decision_flow;
 pub mod decisions;
+pub mod delegation;
 pub mod device_registry;
 pub mod directory;
 pub mod drift;
