@@ -1,13 +1,24 @@
 // Композабл довідника display-імен (M4): диспатчить `directory_show`/
-// `directory_set` — той самий tool, що й CLI (`bin/delta.mjs directory_show`),
+// `directory_set` — той самий tool, що й CLI (`delta directory_show`),
 // тож обидві поверхні бачать один довідник `.mt/directory.json` (PII поза
 // git). Мандати мандатів/черга/«Довіряю» підставляють `displayName(handle)`
 // із фолбеком на сам handle (М4 п.1, «Display-імена підставляються в усі
 // екрани... з фолбеком на handle»).
 
 import { ref } from 'vue'
-import { displayName as displayNameOf } from '../directory.js'
 import { dispatch } from '../tool/index.js'
+
+/**
+ * Display-імʼя для handle — фолбек на сам handle (1:1 з `delta-core::
+ * directory::display_name`, чиста деривація над уже завантаженим довідником).
+ * @param {object} entries довідник handle → {name, email, lang}
+ * @param {string|null|undefined} handle handle для пошуку
+ * @returns {string|null} display-імʼя, або сам handle
+ */
+function displayNameOf(entries, handle) {
+  if (!handle) return null
+  return entries[handle]?.name ?? handle
+}
 
 /**
  * @returns {object} реактивний стан довідника + дії load/setEntry/displayName

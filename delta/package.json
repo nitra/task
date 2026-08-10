@@ -8,10 +8,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "delta": "bun bin/delta.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
+    "test:rust": "cargo test --manifest-path ../Cargo.toml -p delta-core -p delta-cli -p delta"
   },
   "dependencies": {
     "@7n/tauri-components": "^0.12.0",

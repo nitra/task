@@ -186,7 +186,7 @@ export const TOOLS = [
       'signing") and the private time-to-understanding trend (spec metric #3) — "what the system knows about me" ' +
       'screen (M2).',
     input: {},
-    tauri: 'knowledge_show', // немає прямої Rust-команди — GUI-транспорт оркеструє через src/knowledge.js
+    tauri: 'knowledge_show', // фаза B: пряма Rust-команда (delta-core::knowledge), той самий crate, що CLI
     cli: true
   },
   {
@@ -273,7 +273,7 @@ export const TOOLS = [
     summary:
       'Read .mt/directory.json (handle -> {name, email, lang}, PII outside git, M4) — the full admin table for the workspace.',
     input: { mandatesDir: MANDATES_DIR },
-    tauri: 'directory_show', // немає прямої Rust-команди — оркеструє src/directory.js над read_text_file
+    tauri: 'directory_show', // фаза B: пряма Rust-команда (delta-core::directory), той самий crate, що CLI
     cli: true
   },
   {
@@ -346,7 +346,7 @@ export const TOOLS = [
       "the owner above only after grace (transparent copy stays in the executor's own log), respecting quiet hours " +
       '(irreversible decisions with a deadline are the exception — always delivered).',
     input: { mandatesDir: MANDATES_DIR },
-    tauri: 'watcher_scan', // оркеструє src/watcher.js над scan_decisions + read/write_text_file
+    tauri: 'watcher_scan', // фаза B: пряма Rust-команда (delta-core::watcher), той самий crate, що CLI
     cli: true
   },
   {
@@ -426,7 +426,7 @@ export const TOOLS = [
       'recommendation + the STRONGEST objection against it (anti-rubber-stamping, owner-spec «Штаб»), cost of ' +
       'delay. LLM unavailable — honest structural fallback (frontmatter + headings, no compression, no objection).',
     input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN },
-    tauri: 'decision_brief', // немає прямої Rust-команди — GUI-транспорт оркеструє через src/staff.js
+    tauri: 'decision_brief', // фаза B: пряма Rust-команда (delta-core::staff), той самий crate, що CLI
     cli: true
   },
   {
@@ -470,7 +470,7 @@ export const TOOLS = [
     summary:
       'Read my "незручна правда" inbox (.mt/candor/{handle}.jsonl) — separate from the decisions queue, with local (private) read marks.',
     input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
-    tauri: 'candor_show', // немає прямої Rust-команди — оркеструє src/candor.js
+    tauri: 'candor_show', // фаза B: пряма Rust-команда (delta-core::candor), той самий crate, що CLI
     cli: true
   },
   {
@@ -491,7 +491,7 @@ export const TOOLS = [
       'LOCALLY outside git (next to knowledge.json) — NEVER in the shared .mt/notifications log; visible to the ' +
       'owner ONLY. Each scan overwrites the local file with a fresh result.',
     input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
-    tauri: 'drift_scan', // немає прямої Rust-команди — оркеструє src/drift.js над scan_decisions
+    tauri: 'drift_scan', // фаза B: пряма Rust-команда (delta-core::drift), той самий crate, що CLI
     cli: true
   },
   {
@@ -549,7 +549,7 @@ export const TOOLS = [
       mandatesDir: MANDATES_DIR,
       periodDays: { type: 'number', required: false, description: 'Window size in days — defaults to 7.' }
     },
-    tauri: 'delta_report', // немає прямої Rust-команди — оркеструє src/report.js над scan_decisions
+    tauri: 'delta_report', // фаза B: пряма Rust-команда (delta-core::report), той самий crate, що CLI
     cli: true
   },
   {
@@ -594,7 +594,7 @@ export const TOOLS = [
       mandatesDir: MANDATES_DIR,
       periodDays: { type: 'number', required: false, description: 'Window size in days — defaults to 7.' }
     },
-    tauri: 'review_agenda', // немає прямої Rust-команди — оркеструє src/review.js
+    tauri: 'review_agenda', // фаза B: пряма Rust-команда (delta-core::review), той самий crate, що CLI
     cli: true
   }
 ]
