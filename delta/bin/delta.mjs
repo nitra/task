@@ -3,18 +3,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from 'node:path'
 import process from 'node:process'
 import { createDispatch, listTools, toolManifest } from '@7n/tauri-components'
-import { aiPetition } from '../src/ai-petition.js'
 import { aiCandor, candorShow, markCandorRead } from '../src/candor.js'
-import {
-  applyMandateChangeProposal,
-  applyMandateNarrow,
-  changeProposalDecisionsDir,
-  changeProposalRunId,
-  readChangeProposal,
-  writeChangeProposal
-} from '../src/change-proposal.js'
-import { decisionApprove, decisionQuiz } from '../src/decision-flow.js'
-import { deriveQueue, parseDecisionRequest } from '../src/decisions.js'
+import { parseDecisionRequest } from '../src/decisions.js'
 import { delegateDecision, delegationQuiz } from '../src/delegation.js'
 import { formatDeviceRegistry, parseDeviceRegistry, upsertDevice } from '../src/device-registry.js'
 import { formatDirectory, parseDirectory, setDirectoryEntry } from '../src/directory.js'
@@ -22,26 +12,31 @@ import { loadDriftCards, runDriftScan } from '../src/drift.js'
 import { buildKillSwitchRedirect, killSwitchOff, killSwitchOn, killSwitchStatus } from '../src/kill-switch.js'
 import { domainDigest, loadKnowledgeEntries, timeToUnderstandingTrend } from '../src/knowledge.js'
 import { parseMandatesFile } from '../src/mandate-change.js'
-import { deriveMandatesView } from '../src/mandates.js'
-import { loadQuorumStatus, quorumApprove, quorumQuiz } from '../src/quorum.js'
 import { defaultLlmConfig } from '../src/quiz.js'
 import { deltaReport } from '../src/report.js'
 import { reviewAgenda } from '../src/review.js'
 import { loadOrCreateDeviceKey } from '../src/signing.js'
 import { decisionBrief } from '../src/staff.js'
 import { TOOLS } from '../src/tool/catalog.js'
-import { deriveTrackRecord } from '../src/track-record.js'
-import { deriveTrustView, narrowMandateOneStep, widenMandateOneStep, withMandateReplaced } from '../src/trust.js'
 import { buildWhatSystemKnows } from '../src/what-system-knows.js'
 import { notificationsLogPath, parseNotificationsLog, runWatcherScan } from '../src/watcher.js'
 
-// Headless-вхід delta-поверхні (n-tool-surface): `delta <tool> '<json>'`,
-// `delta list`, `delta schema`. Каталог той самий, що в GUI (src/tool/catalog.js).
-// На відміну від owner (spawn mt-scanner), у delta нема Rust-бінарника-читача:
-// CLI читає config.json/.mt/mandates.yaml/runs/*/decisions/ напряму через
-// node:fs і деривує тим самим спільним JS-шаром (src/*.js), що й Tauri-
-// транспорт GUI — обидві поверхні бачать той самий результат з тих самих
-// файлів (демо-критерій M0/M1).
+// Headless-вхід delta-поверхні (n-tool-surface) для tools ФАЗИ B:
+// `delta <tool> '<json>'`, `delta list`, `delta schema`. Каталог той самий,
+// що в GUI (src/tool/catalog.js), але `TOOLS` тут покриває лише ті tools,
+// що `CLI_HANDLERS` нижче реально реалізує — фаза A (мандати/decisions/
+// квіз-гейт/кворум/mandate-change/довіра, 19 tools: whoami/set_identity/
+// mandates_dir/set_mandates_dir/mandates_show/decisions_show/decision_quiz/
+// decision_approve/device_pubkey/llm_config/set_llm_config/trust_show/
+// mandate_narrow/mandate_widen_propose/ai_petition/mandate_change_apply/
+// quorum_quiz/quorum_approve/quorum_status) переїхала в окремий Rust-
+// бінарник `delta-cli` (`delta/crates/delta-cli`, той самий crate
+// `delta-core`, що GUI) — `delta <tool>` на ці 19 імен падає в
+// `cliTransport` нижче з «has no CLI transport», навмисно (README, «Фаза A
+// Rust-порту»). Решта (фаза B) читає config.json/.mt/mandates.yaml/
+// runs/*/decisions/ напряму через node:fs і деривує спільним JS-шаром
+// (src/*.js), що й Tauri-транспорт GUI — обидві поверхні бачать той самий
+// результат з тих самих файлів.
 
 /**
  * @returns {string} абсолютний шлях до `config.json` застосунку (`DELTA_CONFIG_PATH` — тестовий override)
@@ -77,7 +72,10 @@ function writeConfig(patch) {
 /**
  * Скановує `<mandatesDir>/runs/{run-id}/decisions/` для кожного run-а у ту
  * саму форму `{dir, files}[]`, що Rust-команда `scan_decisions` у GUI —
- * `src/decisions.js: deriveQueue` не знає (і не має знати), звідки прийшов знімок.
+ * фаза B (`watcher.js`/`drift.js`/`report.js`/`review.js`) деривує з цього
+ * знімку, не знаючи (і не мусить), звідки він прийшов; `decisions_show`
+ * (фаза A, черга «Вирішую») сканує еквівалентно, але тепер у Rust
+ * (`delta-cli`/`delta-core::decisions`), не цією функцією.
  * @param {string} mandatesDir абсолютний шлях до воркспейсу
  * @returns {{dir: string, files: {name: string, content: string}[]}[]} скановані decisions-директорії
  */
@@ -351,41 +349,6 @@ function handleDirectorySetCli(input) {
 }
 
 /**
- * Тіло case `quorum_quiz`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} активне питання власного квізу підписанта
- */
-function handleQuorumQuizCli(input) {
-  return quorumQuiz({
-    io: fsIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    nnnn: input.nnnn,
-    signerHandle: input.signerHandle,
-    chosenOption: input.chosenOption,
-    llmConfig: readLlmConfig()
-  })
-}
-
-/**
- * Тіло case `quorum_approve`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} результат спроби/підпису цього підписанта
- */
-async function handleQuorumApproveCli(input) {
-  return quorumApprove({
-    io: fsIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    runId: input.runId,
-    nnnn: input.nnnn,
-    signerHandle: input.signerHandle,
-    chosenOption: input.chosenOption,
-    transcript: input.transcript,
-    deviceKey: await loadDeviceKeyCli(),
-    llmConfig: readLlmConfig()
-  })
-}
-
-/**
  * Тіло case `watcher_scan`.
  * @param {object} input вхід тула
  * @returns {Promise<object>} `{notifications, delivered, batched}`
@@ -519,239 +482,12 @@ async function handleDecisionDelegateCli(input) {
 }
 
 /**
- * Тіло case `trust_show` — винесено окремою функцією (той самий підхід, що
- * решта `handle*Cli`-хелперів нижче): switch `cliTransport` лишається
- * плоским диспетчером, а не носієм вкладеної логіки — знижує cognitive
- * complexity диспетчера.
- * @param {object} input вхід тула
- * @returns {object} зріз «Довіряю»
- */
-function handleTrustShowCli(input) {
-  const mandatesFile = readMandatesFileCli(input.mandatesDir)
-  const deviceRegistry = readDeviceRegistryCli(input.mandatesDir)
-  const decisionsDirs = scanDecisionsDirs(input.mandatesDir)
-  return deriveTrustView({ mandatesFile, deviceRegistry, decisionsDirs, handle: input.handle ?? null })
-}
-
-/**
- * Тіло case `mandate_narrow`.
- * @param {object} input вхід тула
- * @returns {Promise<{valid: true}|{valid: false, reason: string}>} вердикт застосування
- */
-async function handleMandateNarrowCli(input) {
-  const mandatesDir = input.mandatesDir
-  const old = readMandatesFileCli(mandatesDir)
-  const mandate = old.mandates.find(m => m.owner === input.ownerHandle)
-  if (!mandate) throw new Error(`mandate_narrow: owner '${input.ownerHandle}' не знайдено в mandates.yaml`)
-  const newFile = withMandateReplaced(old, input.ownerHandle, narrowMandateOneStep)
-  // Звуження — самопідпис owner (mandates.md); для kind: model це МОДЕЛЬНИЙ
-  // ключ (мок утримує його локально — ai-petition.js), не делегатор.
-  const role = mandate.kind === 'model' ? 'model' : 'human'
-  const deviceKey = role === 'model' ? await loadOrCreateModelDeviceKeyCli(input.ownerHandle) : await loadDeviceKeyCli()
-  ensureRegisteredCli(mandatesDir, { handle: input.ownerHandle, role, pubkeyBase64: deviceKey.publicKeyBase64 })
-  return applyMandateNarrow({
-    io: fsIo(),
-    mandatesYamlPath: mandatesYamlPath(mandatesDir),
-    old,
-    new: newFile,
-    handle: input.ownerHandle,
-    role,
-    deviceKey
-  })
-}
-
-/**
- * Тіло case `mandate_widen_propose`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} `{changeId, delegatorHandle, decisionRequestPath, changeJsonPath}`
- */
-async function handleMandateWidenProposeCli(input) {
-  const mandatesDir = input.mandatesDir
-  const old = readMandatesFileCli(mandatesDir)
-  const mandate = old.mandates.find(m => m.owner === input.ownerHandle)
-  if (!mandate) throw new Error(`mandate_widen_propose: owner '${input.ownerHandle}' не знайдено в mandates.yaml`)
-  if (!mandate.escalatesTo) {
-    throw new Error(`mandate_widen_propose: '${input.ownerHandle}' — кореневий мандат, немає делегатора для підпису`)
-  }
-  const newFile = withMandateReplaced(old, input.ownerHandle, widenMandateOneStep)
-  const changeId = input.changeId ?? `mc-${Date.now()}`
-  const written = await writeChangeProposal({
-    io: fsIo(),
-    mandatesDir,
-    changeId,
-    old,
-    new: newFile,
-    ownerHandle: input.ownerHandle,
-    delegatorHandle: mandate.escalatesTo,
-    initiatedBy: input.initiatedByHandle,
-    reasonText: `${input.initiatedByHandle} пропонує розширити мандат '${input.ownerHandle}' на один щабель (audacity/budget_eur).`
-  })
-  return { changeId, delegatorHandle: mandate.escalatesTo, ...written }
-}
-
-/**
- * Тіло case `ai_petition`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} `{changeId, delegatorHandle, petitionPath, decisionRequestPath, ...}`
- */
-async function handleAiPetitionCli(input) {
-  const mandatesDir = input.mandatesDir
-  const old = readMandatesFileCli(mandatesDir)
-  const mandate = old.mandates.find(m => m.owner === input.modelHandle)
-  if (!mandate) throw new Error(`ai_petition: model '${input.modelHandle}' не знайдено в mandates.yaml`)
-  if (mandate.kind !== 'model') throw new Error(`ai_petition: owner '${input.modelHandle}' не kind: model`)
-  if (!mandate.escalatesTo) {
-    throw new Error(`ai_petition: '${input.modelHandle}' — кореневий мандат, немає делегатора для петиції`)
-  }
-  const newFile = withMandateReplaced(old, input.modelHandle, widenMandateOneStep)
-  const decisionsDirs = scanDecisionsDirs(mandatesDir)
-  const deviceRegistry = readDeviceRegistryCli(mandatesDir)
-  const trackRecord = deriveTrackRecord({ decisionsDirs, deviceRegistry, handle: input.modelHandle })
-  const modelDeviceKey = await loadOrCreateModelDeviceKeyCli(input.modelHandle)
-  ensureRegisteredCli(mandatesDir, {
-    handle: input.modelHandle,
-    role: 'model',
-    pubkeyBase64: modelDeviceKey.publicKeyBase64
-  })
-  const changeId = input.changeId ?? `mc-${Date.now()}`
-  const result = await aiPetition({
-    io: fsIo(),
-    mandatesDir,
-    changeId,
-    old,
-    new: newFile,
-    modelHandle: input.modelHandle,
-    delegatorHandle: mandate.escalatesTo,
-    trackRecord,
-    modelDeviceKey
-  })
-  return { changeId, delegatorHandle: mandate.escalatesTo, ...result }
-}
-
-/**
- * Тіло case `mandate_change_apply`.
- * @param {object} input вхід тула
- * @returns {Promise<{valid: true}|{valid: false, reason: string}>} вердикт застосування
- */
-async function handleMandateChangeApplyCli(input) {
-  const mandatesDir = input.mandatesDir
-  const changeId = input.changeId
-  const proposal = await readChangeProposal(fsIo(), mandatesDir, changeId)
-  if (!proposal) throw new Error(`mandate_change_apply: change-proposal '${changeId}' не знайдено`)
-  const approvalPath = `${changeProposalDecisionsDir(mandatesDir, changeId)}/0001-approval.json`
-  if (!existsSync(approvalPath)) {
-    throw new Error(
-      `mandate_change_apply: decision-request change-proposal '${changeId}' ще не підписано ` +
-        '(немає 0001-approval.json) — спершу пройди decision_quiz/decision_approve з runId ' +
-        `'${changeProposalRunId(changeId)}'`
-    )
-  }
-  const approval = JSON.parse(readFileSync(approvalPath, 'utf8'))
-  const role = input.role ?? 'human'
-  const deviceKey = role === 'model' ? await loadOrCreateModelDeviceKeyCli(input.handle) : await loadDeviceKeyCli()
-  ensureRegisteredCli(mandatesDir, { handle: input.handle, role, pubkeyBase64: deviceKey.publicKeyBase64 })
-  return applyMandateChangeProposal({
-    io: fsIo(),
-    mandatesYamlPath: mandatesYamlPath(mandatesDir),
-    old: proposal.old,
-    new: proposal.new,
-    approval,
-    handle: input.handle,
-    role,
-    deviceKey,
-    appliedMarkerPath: `${changeProposalDecisionsDir(mandatesDir, changeId)}/0001-applied.json`
-  })
-}
-
-/**
- * Тіло case `mandates_show`.
- * @param {object} input вхід тула
- * @returns {object} дериваційний зріз карти мандатів
- */
-function handleMandatesShowCli(input) {
-  const path = join(input.mandatesDir, '.mt', 'mandates.yaml')
-  const yamlText = existsSync(path) ? readFileSync(path, 'utf8') : ''
-  return deriveMandatesView(yamlText, input.handle ?? null)
-}
-
-/**
- * Тіло case `decision_quiz`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} активне питання/підказка квізу
- */
-function handleDecisionQuizCli(input) {
-  return decisionQuiz({
-    io: fsIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    nnnn: input.nnnn,
-    chosenOption: input.chosenOption,
-    llmConfig: readLlmConfig(),
-    knowledgeIo: knowledgeIoCli()
-  })
-}
-
-/**
- * Тіло case `decision_approve`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} результат спроби/підпису
- */
-async function handleDecisionApproveCli(input) {
-  return decisionApprove({
-    io: fsIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    runId: input.runId,
-    nnnn: input.nnnn,
-    chosenOption: input.chosenOption,
-    answer: input.answer,
-    transcript: input.transcript,
-    deviceKey: await loadDeviceKeyCli(),
-    llmConfig: readLlmConfig(),
-    knowledgeIo: knowledgeIoCli()
-  })
-}
-
-/**
- * Тіло case `device_pubkey`.
- * @returns {Promise<{publicKeyBase64: string}>} публічний ключ пристрою
- */
-async function handleDevicePubkeyCli() {
-  const key = await loadDeviceKeyCli()
-  return { publicKeyBase64: key.publicKeyBase64 }
-}
-
-/**
- * Тіло case `set_llm_config`.
- * @param {object} input вхід тула
- * @returns {null} завжди `null` (write-tool)
- */
-function handleSetLlmConfigCli(input) {
-  writeConfig({
-    ...(input.baseUrl !== undefined && { llm_base_url: input.baseUrl.trim() }),
-    ...(input.model !== undefined && { llm_model: input.model.trim() })
-  })
-  return null
-}
-
-/**
  * Тіло case `knowledge_show`.
  * @returns {Promise<object>} конспект/тренд особистої бази знань
  */
 async function handleKnowledgeShowCli() {
   const entries = await loadKnowledgeEntries(knowledgeIoCli())
   return { digest: domainDigest(entries), trend: timeToUnderstandingTrend(entries), entryCount: entries.length }
-}
-
-/**
- * Тіло case `quorum_status`.
- * @param {object} input вхід тула
- * @returns {Promise<object>} `{nnnn, approvers, signed, pending, status}`
- */
-function handleQuorumStatusCli(input) {
-  return loadQuorumStatus({
-    io: fsIo(),
-    decisionsDir: decisionsDirPath(input.mandatesDir, input.runId),
-    nnnn: input.nnnn
-  })
 }
 
 /**
@@ -772,18 +508,6 @@ function handleSetQuietHoursCli(input) {
 async function handleCandorMarkReadCli(input) {
   await markCandorRead({ readMarksIo: candorReadMarksIoCli(), id: input.id })
   return null
-}
-
-/**
- * Тіло case `decisions_show` — M6 додає kill-switch перенаправлення
- * (`decisions.js: deriveQueue` третій аргумент).
- * @param {object} input вхід тула
- * @returns {Promise<object[]>} черга «Вирішую»
- */
-async function handleDecisionsShowCli(input) {
-  const mandatesFile = readMandatesFileCli(input.mandatesDir)
-  const { redirect } = await killSwitchContextCli(input.mandatesDir, mandatesFile.mandates)
-  return deriveQueue(scanDecisionsDirs(input.mandatesDir), input.handle ?? null, { killSwitchRedirect: redirect })
 }
 
 /**
@@ -848,35 +572,17 @@ async function handleReviewAgendaCli(input) {
 // Диспетчерська таблиця замість довгого `switch` (sonarjs/max-switch-cases
 // — той самий рефактор, що HANDLERS_GUI у tool/index.js): КОЖЕН tool — один
 // запис, `cliTransport` лишається чистим lookup+виклик.
+// whoami/set_identity/mandates_dir/set_mandates_dir/mandates_show/
+// decisions_show/decision_quiz/decision_approve/device_pubkey/llm_config/
+// set_llm_config/trust_show/mandate_narrow/mandate_widen_propose/
+// ai_petition/mandate_change_apply/quorum_quiz/quorum_approve/
+// quorum_status — фаза A, немає запису тут навмисно: `delta <tool>` на ці
+// 19 імен падає нижче на «has no CLI transport», використовуй `delta-cli`
+// (Rust-бінарник `delta`, `delta/crates/delta-cli`) замість цього скрипта.
 const CLI_HANDLERS = {
-  whoami: () => readConfig().identity ?? null,
-  set_identity: input => {
-    writeConfig({ identity: input.handle.trim() })
-    return null
-  },
-  mandates_dir: () => readConfig().mandates_dir ?? null,
-  set_mandates_dir: input => {
-    writeConfig({ mandates_dir: input.dir.trim() })
-    return null
-  },
-  mandates_show: handleMandatesShowCli,
-  decisions_show: handleDecisionsShowCli,
-  decision_quiz: handleDecisionQuizCli,
-  decision_approve: handleDecisionApproveCli,
-  device_pubkey: handleDevicePubkeyCli,
-  llm_config: readLlmConfig,
-  set_llm_config: handleSetLlmConfigCli,
   knowledge_show: handleKnowledgeShowCli,
-  trust_show: handleTrustShowCli,
-  mandate_narrow: handleMandateNarrowCli,
-  mandate_widen_propose: handleMandateWidenProposeCli,
-  ai_petition: handleAiPetitionCli,
-  mandate_change_apply: handleMandateChangeApplyCli,
   directory_show: input => readDirectoryCli(input.mandatesDir),
   directory_set: handleDirectorySetCli,
-  quorum_quiz: handleQuorumQuizCli,
-  quorum_approve: handleQuorumApproveCli,
-  quorum_status: handleQuorumStatusCli,
   watcher_scan: handleWatcherScanCli,
   notifications_show: input => readNotificationsCli(input.mandatesDir, input.handle),
   quiet_hours: readQuietHours,
@@ -936,24 +642,16 @@ async function main() {
       return 2
     }
   }
-  // mandates_show/decisions_show/decision_quiz/decision_approve/trust_show
-  // без явного mandatesDir/handle падають на конфіг — зручність для
-  // інтерактивного CLI-використання (GUI завжди передає явно).
+  // Фаза B tools без явного mandatesDir/handle падають на конфіг —
+  // зручність для інтерактивного CLI-використання (GUI завжди передає
+  // явно). Фаза A tools (mandates_show/decisions_show/decision_quiz/
+  // decision_approve/trust_show/mandate_narrow/mandate_widen_propose/
+  // ai_petition/mandate_change_apply/quorum_quiz/quorum_approve/
+  // quorum_status) мають той самий дефолтинг у `delta-cli`
+  // (`delta/crates/delta-cli/src/main.rs`), не тут.
   const MANDATES_DIR_DEFAULT_TOOLS = [
-    'mandates_show',
-    'decisions_show',
-    'decision_quiz',
-    'decision_approve',
-    'trust_show',
-    'mandate_narrow',
-    'mandate_widen_propose',
-    'ai_petition',
-    'mandate_change_apply',
     'directory_show',
     'directory_set',
-    'quorum_quiz',
-    'quorum_approve',
-    'quorum_status',
     'watcher_scan',
     'notifications_show',
     'what_system_knows',
@@ -970,9 +668,6 @@ async function main() {
     'review_agenda'
   ]
   const HANDLE_DEFAULT_TOOLS = [
-    'mandates_show',
-    'decisions_show',
-    'trust_show',
     'notifications_show',
     'what_system_knows',
     'candor_show',
