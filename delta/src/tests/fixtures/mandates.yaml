@@ -1,6 +1,8 @@
 # Тестова/демо-фікстура M0 (docs/specs/260809-delta-app.md, п.6): 2 людини +
 # 1 модель — демонструє зрізи двох користувачів і ланцюг ескалації з моделлю
-# посередині. Схема — mt/docs/architecture/mandates.md, «Карта мандатів».
+# посередині. Схема — mt/docs/architecture/mandates.md, «Карта мандатів»
+# і «Нормативний контракт (M6 фаза 0)»: top-level generation обов'язковий.
+generation: 1
 mandates:
   - owner: olena
     scope:
