@@ -17,6 +17,7 @@ pub mod decision_flow;
 pub mod decisions;
 pub mod device_registry;
 pub mod directory;
+pub mod drift;
 pub mod io;
 pub mod kill_switch;
 pub mod knowledge;
