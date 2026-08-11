@@ -1,7 +1,10 @@
 // Онбординг першого запуску: показуємо вступний діалог, поки користувач явно
 // не закрив його кнопкою «почати». Прапорець — у localStorage (переживає
 // перезапуски) з in-memory дублем: без сховища діалог не докучає повторно
-// хоча б у межах сесії. Той самий патерн, що owner/src/onboarding.js.
+// хоча б у межах сесії. Той самий патерн, що owner/src/onboarding.js —
+// окремі Tauri-пакети без спільного JS-пакета, різняться лише ключем
+// localStorage; jscpd-дублювання навмисне, не копіпаста.
+// jscpd:ignore-start
 
 const ONBOARDED_KEY = 'delta:onboarded'
 
@@ -31,3 +34,4 @@ export function markOnboarded() {
     // без localStorage — лишається сесійний прапорець
   }
 }
+// jscpd:ignore-end

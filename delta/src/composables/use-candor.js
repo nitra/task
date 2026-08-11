@@ -3,7 +3,6 @@
 // `candor_mark_read` — той самий inbox `.mt/candor/{handle}.jsonl`, що CLI
 // (`bin/delta.mjs`), ВІДДІЛЕНИЙ від черги «Вирішую» (конституція п.6).
 
-import { computed, ref } from 'vue'
 import { dispatch } from '../tool/index.js'
 
 /**

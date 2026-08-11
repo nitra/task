@@ -1,4 +1,8 @@
 // @ts-nocheck
+// jscpd:ignore-start
+// Канонічний Tauri+Vue+Quasar vite.config.js-скафолд (.cursor/rules/n-vue.mdc
+// «Еталонний vite.config.js») — той самий шаблон, що delta/vite.config.js,
+// різниться лише dev-server-портом. Дублювання навмисне (канон), не копіпаста.
 import { fileURLToPath } from 'node:url'
 import { quasar, transformAssetUrls } from '@quasar/vite-plugin'
 import Vue from '@vitejs/plugin-vue'
@@ -27,6 +31,10 @@ export default defineConfig(() => ({
     })
   ],
 
+  css: {
+    transformer: 'lightningcss'
+  },
+
   clearScreen: false,
   server: {
     // Окремий порт від app (1420), щоб обидва dev-сервери жили поруч.
@@ -45,3 +53,4 @@ export default defineConfig(() => ({
     }
   }
 }))
+// jscpd:ignore-end

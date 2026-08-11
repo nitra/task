@@ -3,13 +3,21 @@
     <div class="toolbar">
       <div class="headline">Стежу</div>
       <q-space />
-      <q-btn @click="runScan" flat dense no-caps size="sm" icon="sym_o_visibility" label="прогнати watcher" :loading="scanning" />
+      <q-btn
+        @click="runScan"
+        flat
+        dense
+        no-caps
+        size="sm"
+        icon="sym_o_visibility"
+        label="прогнати watcher"
+        :loading="scanning" />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
     </div>
     <p class="subtitle">
       Watcher — актор ПРОЦЕСУ, не людей: перший пінг завжди виконавцю («допомогти?»), лише після grace-періоду —
-      власнику вище, прозоро для обох (mandates.md, «Process watcher»). Тиха година батчить некритичні
-      нотифікації; irreversible-рішення з дедлайном — виняток.
+      власнику вище, прозоро для обох (mandates.md, «Process watcher»). Тиха година батчить некритичні нотифікації;
+      irreversible-рішення з дедлайном — виняток.
     </p>
 
     <div v-if="error" class="banner banner-error">{{ error }}</div>
@@ -23,7 +31,11 @@
         <q-btn @click="onSaveQuietHours" unelevated dense no-caps size="sm" color="primary" label="зберегти" />
       </div>
       <p class="quiet-hint">
-        {{ quietHours ? `Активна: ${quietHours.start}–${quietHours.end}` : 'Не налаштовано — нотифікації ніколи не притлумлюються.' }}
+        {{
+          quietHours
+            ? `Активна: ${quietHours.start}–${quietHours.end}`
+            : 'Не налаштовано — нотифікації ніколи не притлумлюються.'
+        }}
       </p>
     </section>
 
@@ -43,9 +55,7 @@
     </section>
 
     <section class="union-section">
-      <div class="section-label">
-        Що про мене знає система — профспілковий режим (конституція п.9)
-      </div>
+      <div class="section-label">Що про мене знає система — профспілковий режим (конституція п.9)</div>
       <div v-if="whatSystemKnows" class="union-grid">
         <div class="union-card">
           <div class="union-card-title">База знань</div>
@@ -72,7 +82,15 @@
           Дрейф — приватне дзеркало «мета vs комфорт» (конституція п.6, лише мені)
         </div>
         <q-space />
-        <q-btn @click="runDriftScan" flat dense no-caps size="sm" icon="sym_o_query_stats" label="прогнати скан" :loading="driftScanning" />
+        <q-btn
+          @click="runDriftScan"
+          flat
+          dense
+          no-caps
+          size="sm"
+          icon="sym_o_query_stats"
+          label="прогнати скан"
+          :loading="driftScanning" />
       </div>
       <div v-if="driftError" class="banner banner-error">{{ driftError }}</div>
       <div v-if="!driftHasCards" class="empty-state">
@@ -88,7 +106,11 @@
           </div>
           <div v-for="item in card.items" :key="`${item.runId}/${item.nnnn}`" class="drift-item">
             <span class="drift-item-ref">{{ item.runId }}/{{ item.nnnn }}</span>
-            <q-badge :color="item.signal === 'both' ? 'negative' : 'warning'" :label="signalLabel(item.signal)" dense outline />
+            <q-badge
+              :color="item.signal === 'both' ? 'negative' : 'warning'"
+              :label="signalLabel(item.signal)"
+              dense
+              outline />
             <q-space />
             <template v-if="delegateState[`${item.runId}/${item.nnnn}`]?.delegated">
               <q-badge color="positive" label="делеговано" dense />
@@ -105,8 +127,7 @@
                   no-caps
                   size="sm"
                   :label="option"
-                  class="delegate-option"
-                />
+                  class="delegate-option" />
               </div>
             </template>
             <q-btn
@@ -117,8 +138,7 @@
               no-caps
               size="sm"
               icon="sym_o_smart_toy"
-              :label="`делегувати ${eligibleModel(card.decisionType).owner}`"
-            />
+              :label="`делегувати ${eligibleModel(card.decisionType).owner}`" />
             <span v-else class="no-model-hint">немає моделі під мій мандат для «{{ card.decisionType }}»</span>
           </div>
         </div>
@@ -128,7 +148,6 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
 import { useDrift } from '../composables/use-drift.js'
 import { useWatcher } from '../composables/use-watcher.js'
 
@@ -139,8 +158,20 @@ import { useWatcher } from '../composables/use-watcher.js'
 // «що про мене знає система» (п.9) — чистий рендер уже наявних даних, без
 // нових зборів. Самодостатній компонент — той самий патерн, що решта вкладок.
 
-const { identity, mandatesDir, notifications, quietHours, whatSystemKnows, loading, scanning, error, refreshConfig, rescan, runScan, saveQuietHours } =
-  useWatcher()
+const {
+  identity,
+  mandatesDir,
+  notifications,
+  quietHours,
+  whatSystemKnows,
+  loading,
+  scanning,
+  error,
+  refreshConfig,
+  rescan,
+  runScan,
+  saveQuietHours
+} = useWatcher()
 
 const {
   cards: driftCards,
@@ -222,6 +253,8 @@ onMounted(async () => {
 defineExpose({ rescan, rescanDrift })
 </script>
 
+<style scoped src="../styles/view-toolbar.css"></style>
+<style scoped src="../styles/empty-state-compact.css"></style>
 <style scoped>
 .watcher-view {
   max-width: 760px;
@@ -230,34 +263,6 @@ defineExpose({ rescan, rescanDrift })
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headline {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.subtitle {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: -8px 0 0;
-}
-
-.banner {
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.banner-error {
-  background: color-mix(in srgb, #ff453a 12%, transparent);
-  color: #ff453a;
 }
 
 .section-label {
@@ -294,26 +299,6 @@ defineExpose({ rescan, rescanDrift })
   font-size: 11.5px;
   opacity: 0.6;
   margin: 6px 0 0;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-  padding: 24px 16px;
-  opacity: 0.85;
-}
-
-.empty-icon {
-  opacity: 0.5;
-}
-
-.empty-hint {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: 0;
 }
 
 .notification-list {

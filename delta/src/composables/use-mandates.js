@@ -3,7 +3,6 @@
 // (bin/delta.mjs), тож обидві поверхні бачать однаковий результат з
 // однакового `.mt/mandates.yaml`.
 
-import { computed, ref } from 'vue'
 import { dispatch } from '../tool/index.js'
 
 /**
@@ -58,5 +57,17 @@ export function useMandates() {
     models.value = res.output.models
   }
 
-  return { identity, mandatesDir, mandates, mine, escalationChain, models, loading, error, configured, refreshConfig, rescan }
+  return {
+    identity,
+    mandatesDir,
+    mandates,
+    mine,
+    escalationChain,
+    models,
+    loading,
+    error,
+    configured,
+    refreshConfig,
+    rescan
+  }
 }

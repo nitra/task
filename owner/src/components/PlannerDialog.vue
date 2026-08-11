@@ -92,7 +92,6 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { serializeAutonomy } from '../autonomy.js'
 import { useForest } from '../composables/use-forest.js'

@@ -5,7 +5,6 @@
 // із фолбеком на сам handle (М4 п.1, «Display-імена підставляються в усі
 // екрани... з фолбеком на handle»).
 
-import { ref } from 'vue'
 import { dispatch } from '../tool/index.js'
 
 /**

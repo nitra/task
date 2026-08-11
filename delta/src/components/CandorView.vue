@@ -7,9 +7,9 @@
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
     </div>
     <p class="subtitle">
-      Окремий інбокс — те, що агент зобов'язаний сказати за анти-сикофантським контрактом, ВІДДІЛЕНО від черги
-      «Вирішую» (конституція п.6). `audacity_level` кожної заяви обмежений бюджетом зухвалості мандата моделі —
-      той самий ресурс, що «жорсткі переговори сам» на вкладці «Довіряю».
+      Окремий інбокс — те, що агент зобов'язаний сказати за анти-сикофантським контрактом, ВІДДІЛЕНО від черги «Вирішую»
+      (конституція п.6). `audacity_level` кожної заяви обмежений бюджетом зухвалості мандата моделі — той самий ресурс,
+      що «жорсткі переговори сам» на вкладці «Довіряю».
     </p>
 
     <div v-if="error" class="banner banner-error">{{ error }}</div>
@@ -40,8 +40,7 @@
             no-caps
             size="sm"
             icon="sym_o_check"
-            label="позначити прочитаним"
-          />
+            label="позначити прочитаним" />
         </div>
       </div>
     </div>
@@ -49,7 +48,6 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
 import { useCandor } from '../composables/use-candor.js'
 
 // «Незручна правда» — UI-догон M5 (M6, docs/specs/260809-delta-app.md,
@@ -89,6 +87,8 @@ onMounted(async () => {
 defineExpose({ rescan })
 </script>
 
+<style scoped src="../styles/view-toolbar.css"></style>
+<style scoped src="../styles/empty-state-compact.css"></style>
 <style scoped>
 .candor-view {
   max-width: 760px;
@@ -97,54 +97,6 @@ defineExpose({ rescan })
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headline {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.subtitle {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: -8px 0 0;
-}
-
-.banner {
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.banner-error {
-  background: color-mix(in srgb, #ff453a 12%, transparent);
-  color: #ff453a;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-  padding: 24px 16px;
-  opacity: 0.85;
-}
-
-.empty-icon {
-  opacity: 0.5;
-}
-
-.empty-hint {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: 0;
 }
 
 .candor-list {

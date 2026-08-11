@@ -5,7 +5,6 @@
 // `bin/delta-watcher.mjs`, тож усі поверхні бачать той самий
 // `.mt/notifications/{handle}.jsonl`.
 
-import { ref } from 'vue'
 import { dispatch } from '../tool/index.js'
 
 /**

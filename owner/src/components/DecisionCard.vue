@@ -275,7 +275,6 @@ worktree_edit: auto" />
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { effectivePolicyFor } from '../composables/use-autonomy.js'
 import { useStaff } from '../composables/use-staff.js'

@@ -1,0 +1,29 @@
+/*
+ * Спільна "шапка" View-компонентів без subtitle (toolbar/headline/banner).
+ * Підключається через <style scoped src="../styles/view-toolbar-basic.css">
+ * у DecisionsQueue / MandatesMap — єдине джерело правди замість
+ * ідентичних копій (jscpd duplicate-clone). Компоненти з `.subtitle`
+ * використовують натомість `view-toolbar.css`.
+ */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.headline {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.banner {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.banner-error {
+  background: color-mix(in srgb, #ff453a 12%, transparent);
+  color: #ff453a;
+}

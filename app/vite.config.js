@@ -36,6 +36,10 @@ export default defineConfig(() => ({
     })
   ],
 
+  css: {
+    transformer: 'lightningcss'
+  },
+
   clearScreen: false,
   server: {
     port: 1420,

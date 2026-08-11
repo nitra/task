@@ -65,7 +65,6 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
 import { useCritic } from '../composables/use-critic.js'
 import { useForest } from '../composables/use-forest.js'
 import { collectDecisions, collectDelegations, collectEscalatedOut, collectPersonal } from '../decisions.js'

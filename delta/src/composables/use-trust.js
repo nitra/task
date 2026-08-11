@@ -3,7 +3,6 @@
 // обидві поверхні бачать однаковий зріз ШІ-мандатів з тих самих файлів
 // (той самий інваріант, що `use-mandates.js`/`use-decisions.js`).
 
-import { computed, ref } from 'vue'
 import { dispatch } from '../tool/index.js'
 
 /**

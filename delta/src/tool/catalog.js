@@ -559,7 +559,7 @@ export const TOOLS = [
       'M6 panic button — NO quiz, NO confirmation, instant (docs/specs/260809-delta-app.md, «Обсяг M6», п.3). ' +
       'Writes a signed .mt/kill-switch/{handle}.json marker — a SUSPENSION layer, mandates.yaml is never mutated ' +
       '(reversible by construction). While active, decisions_show/watcher_scan redirect every fork delegated to (or ' +
-      'newly routed to) this handle\'s own AI mandates back to this handle, and the watcher stops pinging/escalating ' +
+      "newly routed to) this handle's own AI mandates back to this handle, and the watcher stops pinging/escalating " +
       'on them.',
     input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
     tauri: 'kill_switch_on',
@@ -568,7 +568,8 @@ export const TOOLS = [
   {
     tier: 'write',
     name: 'kill_switch_off',
-    summary: 'M6 — deactivates the kill-switch (empties the marker) with a NEW signature, logged for the delta-report activation count.',
+    summary:
+      'M6 — deactivates the kill-switch (empties the marker) with a NEW signature, logged for the delta-report activation count.',
     input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
     tauri: 'kill_switch_off',
     cli: true

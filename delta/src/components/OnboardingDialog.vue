@@ -9,8 +9,8 @@
       <q-card-section class="ob-intro">
         <p>
           Мандат — межа твоїх повноважень: за яким <code>scope</code> (refs, типи рішень) і до яких порогів
-          (<code>budget_eur</code>, <code>risk</code>, <code>irreversible</code>) ти вирішуєш сам, і кому їдуть
-          рішення, що ці пороги перевищують (<code>escalates_to</code>).
+          (<code>budget_eur</code>, <code>risk</code>, <code>irreversible</code>) ти вирішуєш сам, і кому їдуть рішення,
+          що ці пороги перевищують (<code>escalates_to</code>).
         </p>
         <p class="ob-note">M0 — читання карти й твій зріз; редагування мандатів прийде пізніше (M3–M6).</p>
       </q-card-section>
@@ -26,9 +26,7 @@
 
       <q-card-section class="ob-dir">
         <div class="ob-section">Де шукати мандати</div>
-        <p class="ob-hint">
-          Абсолютний шлях до кореня воркспейсу, що містить <code>.mt/mandates.yaml</code>.
-        </p>
+        <p class="ob-hint">Абсолютний шлях до кореня воркспейсу, що містить <code>.mt/mandates.yaml</code>.</p>
         <q-input v-model="mandatesDir" dense outlined clearable placeholder="/Users/…/task" class="ob-input" />
       </q-card-section>
 
@@ -40,7 +38,6 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
 import { markOnboarded } from '../onboarding.js'
 import { dispatch } from '../tool/index.js'
 

@@ -7,7 +7,8 @@
       Формат — декларативний файл-репо, аналог CODEOWNERS для рішень (mt:
       <code>docs/architecture/mandates.md</code>):
     </p>
-    <pre class="empty-example">mandates:
+    <pre class="empty-example">
+mandates:
   - owner: olena
     scope:
       refs: ["refs/mt/tasks/design/**"]
@@ -29,35 +30,8 @@ defineProps({
 const emit = defineEmits(['setup'])
 </script>
 
+<style scoped src="../styles/empty-state-lg.css"></style>
 <style scoped>
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 40px 16px;
-  opacity: 0.85;
-}
-
-.empty-icon {
-  opacity: 0.5;
-  margin-bottom: 4px;
-}
-
-.empty-title {
-  font-weight: 650;
-  font-size: 14px;
-  margin: 0;
-}
-
-.empty-hint {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: 0;
-  max-width: 480px;
-}
-
 .empty-example {
   text-align: left;
   font-size: 11.5px;

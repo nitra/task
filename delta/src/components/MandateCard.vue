@@ -11,12 +11,12 @@
     </div>
 
     <div v-if="mandate.scope.refs.length > 0 || mandate.scope.decisionTypes.length > 0" class="scope-row">
-      <q-chip v-for="ref in mandate.scope.refs" :key="ref" dense square size="sm" class="chip chip-ref">{{ ref }}</q-chip>
+      <q-chip v-for="ref in mandate.scope.refs" :key="ref" dense square size="sm" class="chip chip-ref">
+        {{ ref }}
+      </q-chip>
       <q-chip v-for="dt in mandate.scope.decisionTypes" :key="dt" dense square size="sm" class="chip chip-dt">
-{{
-        dt
-      }}
-</q-chip>
+        {{ dt }}
+      </q-chip>
     </div>
 
     <div v-if="thresholdChips.length > 0" class="threshold-row">
@@ -32,8 +32,6 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-
 const props = defineProps({
   mandate: { type: Object, required: true },
   mine: { type: Boolean, default: false },

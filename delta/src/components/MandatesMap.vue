@@ -26,7 +26,11 @@
     <EmptyState v-if="!configured || mandates.length === 0" @setup="onboardingOpen = true" :configured="configured" />
 
     <template v-else>
-      <q-expansion-item dense-toggle icon="sym_o_badge" label="Адмінка — display-імена (.mt/directory.json, PII поза git)" class="directory-admin">
+      <q-expansion-item
+        dense-toggle
+        icon="sym_o_badge"
+        label="Адмінка — display-імена (.mt/directory.json, PII поза git)"
+        class="directory-admin">
         <div class="directory-rows">
           <div v-for="handle in ownerHandles" :key="handle" class="directory-row">
             <span class="directory-handle">{{ handle }}</span>
@@ -44,10 +48,15 @@
       <section v-if="identity" class="my-mandate">
         <div class="section-title">Мій мандат — {{ directory.displayName(identity) }}</div>
         <div v-if="mine.length === 0" class="mine-empty">
-          Карта не містить запису для «{{ identity }}» — ти поза деревом мандатів (перевір handle або дочекайся
-          акту делегування).
+          Карта не містить запису для «{{ identity }}» — ти поза деревом мандатів (перевір handle або дочекайся акту
+          делегування).
         </div>
-        <MandateCard v-for="m in mine" :key="m.owner + m.scope.refs.join(',')" :mandate="m" :display-name="directory.displayName(m.owner)" mine />
+        <MandateCard
+          v-for="m in mine"
+          :key="m.owner + m.scope.refs.join(',')"
+          :mandate="m"
+          :display-name="directory.displayName(m.owner)"
+          mine />
         <div v-if="escalationChain.length > 1" class="chain">
           <span class="chain-label">Ланцюг ескалації</span>
           <span v-for="(handle, i) in escalationChain" :key="handle" class="chain-link">
@@ -59,7 +68,11 @@
 
       <section v-if="models.length > 0" class="model-mandates">
         <div class="section-title">ШІ-мандати</div>
-        <MandateCard v-for="m in models" :key="m.owner + m.scope.refs.join(',')" :mandate="m" :display-name="directory.displayName(m.owner)" />
+        <MandateCard
+          v-for="m in models"
+          :key="m.owner + m.scope.refs.join(',')"
+          :mandate="m"
+          :display-name="directory.displayName(m.owner)" />
       </section>
 
       <section class="all-mandates">
@@ -76,7 +89,6 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
 import { useDirectory } from '../composables/use-directory.js'
 import { useMandates } from '../composables/use-mandates.js'
 import { isOnboarded } from '../onboarding.js'
@@ -93,8 +105,19 @@ import OnboardingDialog from './OnboardingDialog.vue'
 // display-імʼям), display-імена підставляються по всій карті з фолбеком на
 // handle (`directory.displayName`).
 
-const { identity, mandatesDir, mandates, mine, escalationChain, models, loading, error, configured, refreshConfig, rescan } =
-  useMandates()
+const {
+  identity,
+  mandatesDir,
+  mandates,
+  mine,
+  escalationChain,
+  models,
+  loading,
+  error,
+  configured,
+  refreshConfig,
+  rescan
+} = useMandates()
 const directory = useDirectory()
 
 const onboardingOpen = ref(false)
@@ -132,6 +155,7 @@ onMounted(async () => {
 })
 </script>
 
+<style scoped src="../styles/view-toolbar-basic.css"></style>
 <style scoped>
 .mandates-map {
   max-width: 760px;
@@ -140,28 +164,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 18px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headline {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.banner {
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.banner-error {
-  background: color-mix(in srgb, #ff453a 12%, transparent);
-  color: #ff453a;
 }
 
 .directory-admin {

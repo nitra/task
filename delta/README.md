@@ -342,6 +342,11 @@ $DELTA_BIN mandate_narrow '{"ownerHandle":"fable-5"}'        # звуження 
 
 ### Demo-послідовність (реально прогнана: кворум 2/2 з двома device-key «пристроями» + watcher)
 
+<!-- jscpd:ignore-start -->
+<!-- Кожна demo-послідовність у цьому README навмисно самодостатня (copy-paste-run без
+     переходів між секціями) — спільний CLI-boilerplate (mandates.yaml, decision-request
+     heredoc, quorum_quiz/approve) між демо є формою, а не дублюванням логіки. -->
+
 ```bash
 cd delta
 cargo build -p delta-cli
@@ -468,9 +473,10 @@ DELTA_CONFIG_PATH=$OLENA_CFG $DELTA_BIN what_system_knows '{}'
 # Headless-вхід (крон/вручну) — той самий tool, окремого бінарника більше немає:
 DELTA_CONFIG_PATH=$OLENA_CFG $DELTA_BIN watcher_scan '{}'
 ```
+<!-- jscpd:ignore-end -->
 
 **Реальний прогін цієї послідовності** (цим агентом, проти живого локального LLM на `127.0.0.1:8080`) підтвердив
-точно цей вивід: обидва teach-back-переكази оцінені локальною моделлю як `understood: true` (`"Власник чітко
+точно цей вивід: обидва teach-back-перекази оцінені локальною моделлю як `understood: true` (`"Власник чітко
 виокремив суть, обраний варіант, наслідок та ризик"`), кожен підписаний ОКРЕМИМ Ed25519-ключем
 (`LM4qnaGz.../pubkey`, `TyxfmjFi.../pubkey` — два різні `DELTA_CONFIG_PATH`), `quorum_status` пройшов
 `1/2 pending → 2/2 closed`, закрита картка зникла з черги ОБОХ підписантів (`decisions_show` олени лишила лише
@@ -536,6 +542,11 @@ teach-back оцінено локально (докладніше — `docs/specs
   незмінним назавжди (audit-trail рекомендації не втрачається).
 
 ### Demo-послідовність (штаб-бриф, кандор, дрейф → делегування)
+
+<!-- jscpd:ignore-start -->
+<!-- Кожна demo-послідовність у цьому README навмисно самодостатня (copy-paste-run без
+     переходів між секціями) — спільний CLI-boilerplate (mandates.yaml, decision-request
+     heredoc, quorum_quiz/approve) між демо є формою, а не дублюванням логіки. -->
 
 ```bash
 cd delta
@@ -630,6 +641,7 @@ $DELTA_BIN decision_delegate '{"runId":"demo-1","nnnn":"0004","modelHandle":"fab
 $DELTA_BIN decisions_show '{}'                          # лише 0003 (teach-back)
 $DELTA_BIN decisions_show '{"handle":"fable-5"}'         # 0004, delegatedTo: fable-5
 ```
+<!-- jscpd:ignore-end -->
 
 ## M6 — Пілот-механіка: дельта-звіт, kill-switch, тижневе рев'ю
 
@@ -690,6 +702,11 @@ $DELTA_BIN decisions_show '{"handle":"fable-5"}'         # 0004, delegatedTo: fa
 фікстури (справжній `delta-core::approval::build_and_sign_approval` + свіжозгенерований ключ, лише не через
 CLI-команду), той самий підхід, що використовував автор оригінального M6-демо. Решта кроків — звичайні
 CLI-виклики `delta`.
+
+<!-- jscpd:ignore-start -->
+<!-- Кожна demo-послідовність у цьому README навмисно самодостатня (copy-paste-run без
+     переходів між секціями) — спільний CLI-boilerplate (mandates.yaml, decision-request
+     heredoc, quorum_quiz/approve) між демо є формою, а не дублюванням логіки. -->
 
 ```bash
 cd delta
@@ -768,6 +785,7 @@ DELTA_CONFIG_PATH=$OLENA_CFG $DELTA_BIN decisions_show '{"handle":"olena"}'     
 DELTA_CONFIG_PATH=$OLENA_CFG $DELTA_BIN watcher_scan '{}'                        # без ескалації по ній
 DELTA_CONFIG_PATH=$OLENA_CFG $DELTA_BIN kill_switch_off '{"handle":"olena"}'     # реверсивність — черга fable-5 відновлюється
 ```
+<!-- jscpd:ignore-end -->
 
 **Реальний прогін цієї послідовності** (цим агентом, проти живого локального LLM) підтвердив точно цей вивід:
 

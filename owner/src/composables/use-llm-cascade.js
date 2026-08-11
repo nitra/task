@@ -1,4 +1,3 @@
-import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { resolveAction } from '../autonomy.js'
 import { effectivePolicyFor } from './use-autonomy.js'

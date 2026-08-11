@@ -44,7 +44,9 @@
       <section class="digest-section">
         <div class="section-label">Конспект по доменах</div>
         <div v-for="d in digest" :key="d.domain" class="digest-domain">
-          <div class="digest-domain-head">{{ d.domain }} <span class="digest-count">· {{ d.count }}</span></div>
+          <div class="digest-domain-head">
+            {{ d.domain }} <span class="digest-count">· {{ d.count }}</span>
+          </div>
           <div v-for="item in d.items" :key="`${item.decisionRef}-${item.completedAt}`" class="digest-item">
             <div class="digest-question">{{ item.question }}</div>
             <p class="digest-microlesson">{{ item.microlesson }}</p>
@@ -56,7 +58,6 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
 import { useKnowledge } from '../composables/use-knowledge.js'
 
 // «Знання» (спека docs/specs/260809-delta-app.md, «Обсяг M2», п.4) —
@@ -71,6 +72,10 @@ onMounted(rescan)
 defineExpose({ rescan })
 </script>
 
+<!-- jscpd:ignore-start -->
+<style scoped src="../styles/view-toolbar.css"></style>
+<style scoped src="../styles/empty-state-lg.css"></style>
+<!-- jscpd:ignore-end -->
 <style scoped>
 .knowledge-view {
   max-width: 760px;
@@ -79,62 +84,6 @@ defineExpose({ rescan })
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headline {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.subtitle {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: -8px 0 0;
-}
-
-.banner {
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.banner-error {
-  background: color-mix(in srgb, #ff453a 12%, transparent);
-  color: #ff453a;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 40px 16px;
-  opacity: 0.85;
-}
-
-.empty-icon {
-  opacity: 0.5;
-  margin-bottom: 4px;
-}
-
-.empty-title {
-  font-weight: 650;
-  font-size: 14px;
-  margin: 0;
-}
-
-.empty-hint {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: 0;
-  max-width: 480px;
 }
 
 .section-label {

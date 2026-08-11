@@ -107,7 +107,6 @@
 </template>
 
 <script setup>
-import { onMounted, watch } from 'vue'
 import { useDirectory } from '../composables/use-directory.js'
 import { useTrust } from '../composables/use-trust.js'
 
@@ -144,6 +143,10 @@ async function onProposeWiden(ownerHandle) {
 defineExpose({ rescan })
 </script>
 
+<!-- jscpd:ignore-start -->
+<style scoped src="../styles/view-toolbar.css"></style>
+<style scoped src="../styles/empty-state-lg.css"></style>
+<!-- jscpd:ignore-end -->
 <style scoped>
 .trust-view {
   max-width: 760px;
@@ -154,65 +157,9 @@ defineExpose({ rescan })
   gap: 16px;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headline {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.subtitle {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: -8px 0 0;
-}
-
-.banner {
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.banner-error {
-  background: color-mix(in srgb, #ff453a 12%, transparent);
-  color: #ff453a;
-}
-
 .banner-info {
   background: color-mix(in srgb, #14b8a6 12%, transparent);
   color: #14b8a6;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 40px 16px;
-  opacity: 0.85;
-}
-
-.empty-icon {
-  opacity: 0.5;
-  margin-bottom: 4px;
-}
-
-.empty-title {
-  font-weight: 650;
-  font-size: 14px;
-  margin: 0;
-}
-
-.empty-hint {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: 0;
-  max-width: 480px;
 }
 
 .trust-list {

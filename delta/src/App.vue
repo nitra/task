@@ -23,8 +23,7 @@
           :color="killSwitchActive ? 'negative' : undefined"
           :icon="killSwitchActive ? 'sym_o_power_off' : 'sym_o_power_settings_new'"
           :label="killSwitchActive ? 'kill-switch: активний' : 'kill-switch'"
-          class="kill-switch-btn"
-        />
+          class="kill-switch-btn" />
       </q-toolbar>
     </q-header>
     <q-page-container>
@@ -58,7 +57,6 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
 import CandorView from './components/CandorView.vue'
 import DecisionsQueue from './components/DecisionsQueue.vue'
 import KnowledgeView from './components/KnowledgeView.vue'

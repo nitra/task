@@ -1,0 +1,26 @@
+/*
+ * Спільний компактний empty-state (icon + hint, без окремого title).
+ * Підключається через <style scoped src="../styles/empty-state-compact.css">
+ * у CandorView / WatcherView / ReportView — єдине джерело правди замість
+ * 3 ідентичних копій (jscpd duplicate-clone).
+ */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 24px 16px;
+  opacity: 0.85;
+}
+
+.empty-icon {
+  opacity: 0.5;
+}
+
+.empty-hint {
+  font-size: 12.5px;
+  opacity: 0.7;
+  margin: 0;
+}

@@ -1,4 +1,3 @@
-import { ref } from 'vue'
 import { criticPrompt, parseCriticReply, runDeterministicCritic } from '../critic.js'
 import { extractMission } from '../mission.js'
 import { dispatch } from '../tool/index.js'

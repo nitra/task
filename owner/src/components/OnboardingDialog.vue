@@ -101,7 +101,6 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { markOnboarded } from '../onboarding.js'

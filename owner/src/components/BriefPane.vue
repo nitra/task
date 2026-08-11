@@ -36,7 +36,6 @@
 // нагадування (M7, snooze лише в мене) → дельта → задачі в кошиках
 // дедлайнів → ескалації вгору → делеговане (двонапрямний бриф M6).
 
-import { computed } from 'vue'
 import { bucketPersonal } from '../reminders.js'
 
 const KIND_VIEW = {

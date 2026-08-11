@@ -2,7 +2,6 @@
 // M6», п.2): диспатчить `delta_report` (`src/report.js`) — детермінований
 // дельта-звіт директору, той самий tool-шар, що CLI (`bin/delta.mjs`).
 
-import { ref } from 'vue'
 import { dispatch } from '../tool/index.js'
 
 /**

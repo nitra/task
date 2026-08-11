@@ -14,7 +14,9 @@
          кожен ВЛАСНИМ квізом — картка показує, хто підписав/лишився і статус
          (pending/diverged), «не вигадуй авторезолюцію» (mandates.md). -->
     <div v-if="isQuorum" class="quorum-panel">
-      <div class="section-label">Кворум — {{ decision.quorum.signed.length }}/{{ decision.quorum.approvers.length }}</div>
+      <div class="section-label">
+        Кворум — {{ decision.quorum.signed.length }}/{{ decision.quorum.approvers.length }}
+      </div>
       <div class="quorum-signers">
         <q-badge
           v-for="handle in decision.quorum.approvers"
@@ -79,9 +81,7 @@
           Підписано — {{ approvalResult.approval.signed_at }} · pubkey {{ shortPubkey }}
         </div>
         <div v-if="microlesson" class="microlesson-banner">
-          <div class="microlesson-title">
-            <q-icon name="sym_o_lightbulb" size="14px" /> Мікроурок
-          </div>
+          <div class="microlesson-title"><q-icon name="sym_o_lightbulb" size="14px" /> Мікроурок</div>
           <p>{{ microlesson }}</p>
         </div>
       </template>
@@ -92,9 +92,7 @@
       <template v-else-if="quiz && isTeachBack">
         <p class="quiz-question">{{ quiz.prompt }}</p>
         <div v-if="quiz.lastFeedback" class="microlesson-banner">
-          <div class="microlesson-title">
-            <q-icon name="sym_o_smart_toy" size="14px" /> Модель каже
-          </div>
+          <div class="microlesson-title"><q-icon name="sym_o_smart_toy" size="14px" /> Модель каже</div>
           <p>{{ quiz.lastFeedback }}</p>
           <p v-if="quiz.missingAspects && quiz.missingAspects.length > 0" class="missing-aspects">
             Пропущено: {{ quiz.missingAspects.join(', ') }}
@@ -149,9 +147,7 @@
         <!-- Мікроурок — після БУДЬ-якої відповіді (правильної теж), у момент
              максимальної уваги (конституція п.2, М2). -->
         <div v-if="microlesson" class="microlesson-banner">
-          <div class="microlesson-title">
-            <q-icon name="sym_o_lightbulb" size="14px" /> Мікроурок
-          </div>
+          <div class="microlesson-title"><q-icon name="sym_o_lightbulb" size="14px" /> Мікроурок</div>
           <p>{{ microlesson }}</p>
         </div>
 
@@ -171,7 +167,6 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
 import { dispatch } from '../tool/index.js'
 
 const props = defineProps({
@@ -398,7 +393,11 @@ async function submitTeachBack() {
     return
   }
 
-  quiz.value = { prompt: quiz.value.prompt, lastFeedback: res.output.feedback, missingAspects: res.output.missingAspects }
+  quiz.value = {
+    prompt: quiz.value.prompt,
+    lastFeedback: res.output.feedback,
+    missingAspects: res.output.missingAspects
+  }
   explain.value = res.output.explain ?? null
 }
 </script>

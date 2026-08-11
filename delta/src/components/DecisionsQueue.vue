@@ -40,7 +40,6 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
 import { useDecisions } from '../composables/use-decisions.js'
 import DecisionCard from './DecisionCard.vue'
 
@@ -69,6 +68,8 @@ onMounted(async () => {
 defineExpose({ rescan, refreshConfig })
 </script>
 
+<style scoped src="../styles/view-toolbar-basic.css"></style>
+<style scoped src="../styles/empty-state-lg.css"></style>
 <style scoped>
 .decisions-queue {
   max-width: 760px;
@@ -77,55 +78,5 @@ defineExpose({ rescan, refreshConfig })
   display: flex;
   flex-direction: column;
   gap: 14px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headline {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.banner {
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.banner-error {
-  background: color-mix(in srgb, #ff453a 12%, transparent);
-  color: #ff453a;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 40px 16px;
-  opacity: 0.85;
-}
-
-.empty-icon {
-  opacity: 0.5;
-  margin-bottom: 4px;
-}
-
-.empty-title {
-  font-weight: 650;
-  font-size: 14px;
-  margin: 0;
-}
-
-.empty-hint {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: 0;
-  max-width: 480px;
 }
 </style>

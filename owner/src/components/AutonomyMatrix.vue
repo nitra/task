@@ -17,7 +17,6 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
 import { ACTION_CLASSES } from '../autonomy.js'
 
 // Редактор власної (не ефективної) політики вузла: рядок класу дії +

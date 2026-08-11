@@ -4,7 +4,15 @@
       <div class="headline">Звіт</div>
       <q-space />
       <q-input v-model.number="periodDays" dense outlined type="number" min="1" class="period-input" suffix="дн." />
-      <q-btn @click="generate" unelevated dense no-caps size="sm" color="primary" label="згенерувати" :loading="loading" />
+      <q-btn
+        @click="generate"
+        unelevated
+        dense
+        no-caps
+        size="sm"
+        color="primary"
+        label="згенерувати"
+        :loading="loading" />
     </div>
     <p class="subtitle">
       Дельта-звіт — детермінований, БЕЗ LLM (конституція п.4: «щотижневий дельта-звіт директору»). Пишеться у
@@ -21,10 +29,13 @@
     <div v-else class="report-body">
       <section class="report-section">
         <div class="section-label">Рух межі ({{ report.boundaryMoves.length }})</div>
-        <div v-if="report.boundaryMoves.length === 0" class="empty-hint">Жодного застосованого mandate-change за період.</div>
+        <div v-if="report.boundaryMoves.length === 0" class="empty-hint">
+          Жодного застосованого mandate-change за період.
+        </div>
         <div v-else class="move-list">
           <div v-for="(move, i) in report.boundaryMoves" :key="i" class="move-item">
-            <b>{{ move.owner }}</b> — {{ moveLabel(move.kind) }} (делегатор <code>{{ move.delegatorHandle }}</code>)
+            <b>{{ move.owner }}</b> — {{ moveLabel(move.kind) }} (делегатор <code>{{ move.delegatorHandle }}</code
+            >)
             <ul>
               <li v-for="(d, j) in move.diffLines" :key="j">{{ d }}</li>
             </ul>
@@ -116,13 +127,14 @@
         </div>
       </section>
 
-      <p class="report-path">Записано: <code>{{ report.path }}</code></p>
+      <p class="report-path">
+        Записано: <code>{{ report.path }}</code>
+      </p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
 import { useReport } from '../composables/use-report.js'
 
 // «Звіт» (M6, docs/specs/260809-delta-app.md, «Обсяг M6», п.2) — сьома
@@ -155,6 +167,8 @@ onMounted(refreshConfig)
 defineExpose({ generate })
 </script>
 
+<style scoped src="../styles/view-toolbar.css"></style>
+<style scoped src="../styles/empty-state-compact.css"></style>
 <style scoped>
 .report-view {
   max-width: 760px;
@@ -165,56 +179,8 @@ defineExpose({ generate })
   gap: 16px;
 }
 
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.headline {
-  font-size: 15px;
-  font-weight: 650;
-}
-
 .period-input {
   width: 90px;
-}
-
-.subtitle {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: -8px 0 0;
-}
-
-.banner {
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.banner-error {
-  background: color-mix(in srgb, #ff453a 12%, transparent);
-  color: #ff453a;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 6px;
-  padding: 24px 16px;
-  opacity: 0.85;
-}
-
-.empty-icon {
-  opacity: 0.5;
-}
-
-.empty-hint {
-  font-size: 12.5px;
-  opacity: 0.7;
-  margin: 0;
 }
 
 .report-body {

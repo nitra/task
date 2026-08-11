@@ -5,7 +5,6 @@
 // `src/delegation.js`) — та сама модель вибору, що CLI-демо M5, лише з
 // картки дрейфу замість ручного виклику.
 
-import { computed, ref } from 'vue'
 import { dispatch } from '../tool/index.js'
 
 /**
