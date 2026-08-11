@@ -14,6 +14,7 @@ on:
       - '**/*.tsx'
       - '**/*.vue'
       - '**/eslint.config.*'
+      - '**/.oxlintrc.json'
   pull_request:
     branches:
       - dev
@@ -45,11 +46,5 @@ jobs:
 
       - uses: ./.github/actions/setup-bun-deps
 
-      - name: Eslint
-        run: |
-          bunx oxlint
-          bunx eslint .
-          bunx jscpd .
-          bunx knip --no-config-hints
       - name: Eslint
         run: bunx n-rules lint js --no-fix

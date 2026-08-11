@@ -9,6 +9,7 @@
     "rust-lang.rust-analyzer",
     "Vue.volar",
     "tauri-apps.tauri-vscode",
-    "tamasfe.even-better-toml"
+    "tamasfe.even-better-toml",
+    "arr.marksman"
   ]
 }
