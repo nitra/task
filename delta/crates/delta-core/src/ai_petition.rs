@@ -175,8 +175,9 @@ mod tests {
     use super::*;
     use crate::io::MemoryIo;
     use crate::signing::generate_device_keypair;
+    use crate::test_support::base_file;
     use crate::track_record::{DecisionTypeCount, TrackRecord};
-    use mt_mandates::{AudacityLevel, Mandate, MandateKind, MandatesFile, Scope, Thresholds};
+    use mt_mandates::AudacityLevel;
 
     fn track_record_with_history() -> TrackRecord {
         TrackRecord {
@@ -232,54 +233,6 @@ mod tests {
         let mut petition = sign_petition(&payload, &keypair).unwrap();
         petition["evidence"] = json!("tampered");
         assert!(!verify_petition(&petition));
-    }
-
-    fn base_file(generation: u64) -> MandatesFile {
-        MandatesFile {
-            generation,
-            mandates: vec![
-                Mandate {
-                    owner: "olena".into(),
-                    kind: MandateKind::Person,
-                    scope: Scope {
-                        refs: vec!["refs/mt/tasks/design/**".into()],
-                        decision_types: vec!["architecture".into()],
-                    },
-                    thresholds: Thresholds {
-                        budget_eur: Some(2000.0),
-                        risk: None,
-                        irreversible: Some(false),
-                        audacity: None,
-                    },
-                    escalates_to: Some("vitalii".into()),
-                },
-                Mandate {
-                    owner: "vitalii".into(),
-                    kind: MandateKind::Person,
-                    scope: Scope {
-                        refs: vec!["refs/mt/**".into()],
-                        decision_types: vec!["*".into()],
-                    },
-                    thresholds: Thresholds::default(),
-                    escalates_to: None,
-                },
-                Mandate {
-                    owner: "fable-5".into(),
-                    kind: MandateKind::Model,
-                    scope: Scope {
-                        refs: vec!["refs/mt/tasks/routine/**".into()],
-                        decision_types: vec!["ops".into()],
-                    },
-                    thresholds: Thresholds {
-                        budget_eur: Some(200.0),
-                        risk: None,
-                        irreversible: Some(false),
-                        audacity: Some(AudacityLevel::Medium),
-                    },
-                    escalates_to: Some("olena".into()),
-                },
-            ],
-        }
     }
 
     #[tokio::test]

@@ -333,55 +333,8 @@ mod tests {
     use super::*;
     use crate::io::MemoryIo;
     use crate::signing::generate_device_keypair;
-    use mt_mandates::{AudacityLevel, MandateKind, Scope, Thresholds};
-
-    fn base_file(generation: u64) -> MandatesFile {
-        MandatesFile {
-            generation,
-            mandates: vec![
-                Mandate {
-                    owner: "olena".into(),
-                    kind: MandateKind::Person,
-                    scope: Scope {
-                        refs: vec!["refs/mt/tasks/design/**".into()],
-                        decision_types: vec!["architecture".into()],
-                    },
-                    thresholds: Thresholds {
-                        budget_eur: Some(2000.0),
-                        risk: None,
-                        irreversible: Some(false),
-                        audacity: None,
-                    },
-                    escalates_to: Some("vitalii".into()),
-                },
-                Mandate {
-                    owner: "vitalii".into(),
-                    kind: MandateKind::Person,
-                    scope: Scope {
-                        refs: vec!["refs/mt/**".into()],
-                        decision_types: vec!["*".into()],
-                    },
-                    thresholds: Thresholds::default(),
-                    escalates_to: None,
-                },
-                Mandate {
-                    owner: "fable-5".into(),
-                    kind: MandateKind::Model,
-                    scope: Scope {
-                        refs: vec!["refs/mt/tasks/routine/**".into()],
-                        decision_types: vec!["ops".into()],
-                    },
-                    thresholds: Thresholds {
-                        budget_eur: Some(200.0),
-                        risk: None,
-                        irreversible: Some(false),
-                        audacity: Some(AudacityLevel::Medium),
-                    },
-                    escalates_to: Some("olena".into()),
-                },
-            ],
-        }
-    }
+    use crate::test_support::base_file;
+    use mt_mandates::AudacityLevel;
 
     #[test]
     fn describe_diff_lines_lists_only_changed_axes() {

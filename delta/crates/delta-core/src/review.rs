@@ -693,62 +693,8 @@ mod tests {
     use super::*;
     use crate::io::MemoryIo;
     use crate::signing::generate_device_keypair;
-    use mt_mandates::{AudacityLevel, MandateKind, RiskLevel, Scope, Thresholds};
+    use crate::test_support::{dt, mandates_fixture};
     use std::sync::Mutex;
-
-    fn dt(s: &str) -> DateTime<Utc> {
-        DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc)
-    }
-
-    fn mandates_fixture() -> Vec<Mandate> {
-        vec![
-            Mandate {
-                owner: "fable-5".into(),
-                kind: MandateKind::Model,
-                scope: Scope {
-                    refs: vec!["refs/mt/tasks/routine/**".into()],
-                    decision_types: vec!["ops".into()],
-                },
-                thresholds: Thresholds {
-                    budget_eur: Some(200.0),
-                    risk: Some(RiskLevel::Low),
-                    irreversible: Some(false),
-                    audacity: Some(AudacityLevel::Medium),
-                },
-                escalates_to: Some("olena".into()),
-            },
-            Mandate {
-                owner: "olena".into(),
-                kind: MandateKind::Person,
-                scope: Scope {
-                    refs: vec!["refs/mt/tasks/design/**".into()],
-                    decision_types: vec!["architecture".into()],
-                },
-                thresholds: Thresholds {
-                    budget_eur: Some(2000.0),
-                    risk: Some(RiskLevel::Medium),
-                    irreversible: Some(false),
-                    audacity: None,
-                },
-                escalates_to: Some("vitalii".into()),
-            },
-            Mandate {
-                owner: "vitalii".into(),
-                kind: MandateKind::Person,
-                scope: Scope {
-                    refs: vec!["refs/mt/**".into()],
-                    decision_types: vec!["*".into()],
-                },
-                thresholds: Thresholds {
-                    budget_eur: None,
-                    risk: None,
-                    irreversible: None,
-                    audacity: None,
-                },
-                escalates_to: None,
-            },
-        ]
-    }
 
     fn model_decisions_dir(count: usize, model_pubkey: &str) -> DecisionsDir {
         let mut files = Vec::new();

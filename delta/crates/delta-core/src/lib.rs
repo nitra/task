@@ -32,6 +32,8 @@ pub mod report;
 pub mod review;
 pub mod signing;
 pub mod staff;
+#[cfg(test)]
+pub(crate) mod test_support;
 pub mod track_record;
 pub mod trust;
 pub mod watcher;

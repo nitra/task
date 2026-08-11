@@ -62,32 +62,10 @@ pub(crate) fn load_or_create_key_at(path: &PathBuf) -> DeviceKeypair {
     key.keypair
 }
 
-pub(crate) fn scan_decisions_dirs(mandates_dir: &str) -> Vec<(String, Vec<(String, String)>)> {
-    let runs_dir = PathBuf::from(mandates_dir).join("runs");
-    let Ok(entries) = fs::read_dir(&runs_dir) else {
-        return Vec::new();
-    };
-    let mut result = Vec::new();
-    for entry in entries.flatten() {
-        if !entry.path().is_dir() {
-            continue;
-        }
-        let decisions_dir = entry.path().join("decisions");
-        let Ok(files) = fs::read_dir(&decisions_dir) else {
-            continue;
-        };
-        let mut file_list = Vec::new();
-        for f in files.flatten() {
-            if f.path().is_file() {
-                if let Ok(content) = fs::read_to_string(f.path()) {
-                    file_list.push((f.file_name().to_string_lossy().to_string(), content));
-                }
-            }
-        }
-        result.push((decisions_dir.to_string_lossy().to_string(), file_list));
-    }
-    result
-}
+/// Re-export спільної (з `delta-cli::config`) `std::fs`-реалізації — раніше
+/// тут була 1:1 копія `scan_decisions_dirs`/`FsIo`, винесена в `delta-fs-io`
+/// (jscpd duplicate-clone).
+pub(crate) use delta_fs_io::{scan_decisions_dirs, FsIo};
 
 pub(crate) fn build_dir_scans(
     raw: &[(String, Vec<(String, String)>)],
@@ -140,31 +118,6 @@ pub(crate) fn read_mandates_file_or_empty(mandates_dir: &str) -> Result<Mandates
     }
     let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     mt_mandates::parse_mandates_str(&text).map_err(|e| e.to_string())
-}
-
-pub(crate) struct FsIo;
-
-#[async_trait]
-impl Io for FsIo {
-    async fn read_file(&self, path: &str) -> Option<String> {
-        let path = path.to_string();
-        tokio::task::spawn_blocking(move || fs::read_to_string(path).ok())
-            .await
-            .ok()
-            .flatten()
-    }
-
-    async fn write_file(&self, path: &str, content: &str) {
-        let path = path.to_string();
-        let content = content.to_string();
-        let _ = tokio::task::spawn_blocking(move || {
-            if let Some(parent) = std::path::Path::new(&path).parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(path, content)
-        })
-        .await;
-    }
 }
 
 pub(crate) struct FsKnowledgeIo;

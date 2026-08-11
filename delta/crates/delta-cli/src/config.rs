@@ -8,8 +8,13 @@ use std::fs;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
-use delta_core::io::{Io, KnowledgeIo};
+use delta_core::io::KnowledgeIo;
 use serde_json::{json, Value};
+
+/// Re-export спільної (з `delta::phase_a`) `std::fs`-реалізації — раніше тут
+/// була 1:1 копія `scan_decisions_dirs`/`FsIo`, винесена в `delta-fs-io`
+/// (jscpd duplicate-clone).
+pub use delta_fs_io::{scan_decisions_dirs, FsIo};
 
 pub fn config_path() -> PathBuf {
     if let Some(p) = std::env::var_os("DELTA_CONFIG_PATH") {
@@ -129,35 +134,6 @@ pub fn read_llm_config() -> delta_core::quiz::LlmConfig {
     }
 }
 
-/// Скановує `<mandatesDir>/runs/{run-id}/decisions/` — та сама форма
-/// `{dir, files}[]`, що `bin/delta.mjs: scanDecisionsDirs`.
-pub fn scan_decisions_dirs(mandates_dir: &str) -> Vec<(String, Vec<(String, String)>)> {
-    let runs_dir = PathBuf::from(mandates_dir).join("runs");
-    let Ok(entries) = fs::read_dir(&runs_dir) else {
-        return Vec::new();
-    };
-    let mut result = Vec::new();
-    for entry in entries.flatten() {
-        if !entry.path().is_dir() {
-            continue;
-        }
-        let decisions_dir = entry.path().join("decisions");
-        let Ok(files) = fs::read_dir(&decisions_dir) else {
-            continue;
-        };
-        let mut file_list = Vec::new();
-        for f in files.flatten() {
-            if f.path().is_file() {
-                if let Ok(content) = fs::read_to_string(f.path()) {
-                    file_list.push((f.file_name().to_string_lossy().to_string(), content));
-                }
-            }
-        }
-        result.push((decisions_dir.to_string_lossy().to_string(), file_list));
-    }
-    result
-}
-
 pub fn read_device_registry(
     mandates_dir: &str,
 ) -> Vec<delta_core::device_registry::DeviceRegistryEntry> {
@@ -194,34 +170,6 @@ pub fn read_mandates_file(mandates_dir: &str) -> Result<mt_mandates::MandatesFil
     let text =
         fs::read_to_string(&path).map_err(|e| format!("не вдалося прочитати {path}: {e}"))?;
     mt_mandates::parse_mandates_str(&text).map_err(|e| e.to_string())
-}
-
-/// `Io`-реалізація над `std::fs` (в `spawn_blocking`, бо `Io` — async trait,
-/// а `std::fs` синхронний — не блокує tokio-реактор async-стеку `reqwest`,
-/// що ЦІ Ж виклики оточують у `decision_flow`/`quorum`).
-pub struct FsIo;
-
-#[async_trait]
-impl Io for FsIo {
-    async fn read_file(&self, path: &str) -> Option<String> {
-        let path = path.to_string();
-        tokio::task::spawn_blocking(move || fs::read_to_string(path).ok())
-            .await
-            .ok()
-            .flatten()
-    }
-
-    async fn write_file(&self, path: &str, content: &str) {
-        let path = path.to_string();
-        let content = content.to_string();
-        let _ = tokio::task::spawn_blocking(move || {
-            if let Some(parent) = std::path::Path::new(&path).parent() {
-                fs::create_dir_all(parent)?;
-            }
-            fs::write(path, content)
-        })
-        .await;
-    }
 }
 
 pub struct FsKnowledgeIo;

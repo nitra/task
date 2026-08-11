@@ -1,0 +1,14 @@
+[package]
+name = "delta-fs-io"
+version = "0.1.0"
+description = "Спільна std::fs/tokio-реалізація delta_core::io::Io та decisions-dir-скан — та сама логіка, що CLI й Tauri досі дублювали 1:1 (jscpd duplicate-clone)"
+edition = "2021"
+publish = false
+
+[lib]
+name = "delta_fs_io"
+
+[dependencies]
+delta-core = { path = "../delta-core" }
+async-trait = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread"] }

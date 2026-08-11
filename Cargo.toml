@@ -6,7 +6,8 @@ members = [
   "owner/owner-llm",
   "delta/src-tauri",
   "delta/crates/delta-core",
-  "delta/crates/delta-cli"
+  "delta/crates/delta-cli",
+  "delta/crates/delta-fs-io"
 ]
 
 [profile.dev]
