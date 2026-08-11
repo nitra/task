@@ -46,6 +46,8 @@
   клікові сценарії перевірялись лише через CLI-паритет (та сама Rust-логіка з обох поверхонь) — тепер це
   стосується й усіх 21 tool-ів фази B, не лише 19 фази A. Перед пілотом — ручний прохід усіх вкладок.
 - **Іконки** — плейсхолдери від owner, потрібна власна айдентика (teal).
+- **Tauri auto-updater delta не підключений** — залежності/capability додані (lint-fix), але немає pubkey/endpoint/`useUpdater()`/реєстрації плагіна — реальна фіча перед дистрибуцією DMG (виявлено CI-прогоном 2026-08-11: правило tauri/release-updater у Lint repo-wide).
+- **CI: Lint repo-wide і StyleLint червоні ще з 2026-07-27** (до Delta App): kubescape-знахідки k8s/manifests (потребують security-рев'ю), cargo-deny відхиляє ліцензію 0BSD пакета adler2 (політичне рішення для deny.toml), bun/licensee-попередження. Поза скоупом delta — оргрівневі рішення.
 - **Голосовий ввід teach-back** — не реалізовано; macOS-диктовка друкує в textarea сама (задокументовано в README M5).
 - **doc-files беклог** — з JS-модулів лишились без доки лише `main.js`/`onboarding.js` (решта JS-модулів
   видалена разом з файловою докою); Rust-сторона (`delta-core`/`delta-cli`/`phase_a.rs`/`phase_b.rs`) взагалі
