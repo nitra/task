@@ -21,6 +21,7 @@ npx @7n/rules lint --no-fix --cwd ../.. js
 ## Inputs
 
 Target-файли:
+
 - `delta/src/ai-petition.js`
 - `delta/src/change-proposal.js`
 - `delta/src/composables/use-trust.js`

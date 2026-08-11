@@ -21,4 +21,5 @@ npx @7n/rules lint --no-fix --cwd ../.. text
 ## Inputs
 
 Target-файли:
+
 - (whole-repo concern)

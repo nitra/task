@@ -18,3 +18,9 @@ owner/src-tauri/gen/
 owner/src-tauri/tauri.conf.json
 owner/src-tauri/tauri.conf.dev.json
 owner/src-tauri/capabilities/
+delta/src-tauri/target/
+delta/src-tauri/gen/
+delta/src-tauri/tauri.conf.json
+delta/src-tauri/tauri.conf.dev.json
+delta/src-tauri/capabilities/
+delta/crates/delta-core/tests/fixtures/

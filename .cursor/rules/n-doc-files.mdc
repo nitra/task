@@ -201,7 +201,7 @@ architecture documentation; посилайся на owning rule.
 - `package_knowledge` validator володіє deterministic graph, zone, manifest,
   privacy і publication checks. Це policy навмисно не дублює його algorithm.
 
-# File-level CRC documentation
+## File-level CRC documentation
 
 Кожен кодовий файл (`.js .mjs .ts .vue .py .rs`, крім тестів і `.d.ts`) має **актуальну**
 файлову доку поряд: `<dir>/docs/<stem>.md`. Це **обовʼязковий крок кожної задачі**, нарівні
@@ -306,11 +306,11 @@ toc.enable = true             # «Insert/Update TOC» для довгих arc42-
 
 ### Поведінка перевірки
 
-| Стан                          | Результат                                          |
-| ----------------------------- | -------------------------------------------------- |
-| baseline-файл пакета відсутній | `fail` — перевстанови `@7n/rules`              |
-| `.marksman.toml` вже існує    | `pass` — файл не чіпається                        |
-| `.marksman.toml` відсутній    | створює файл з baseline, `pass`                    |
+| Стан                           | Результат                         |
+| ------------------------------ | --------------------------------- |
+| baseline-файл пакета відсутній | `fail` — перевстанови `@7n/rules` |
+| `.marksman.toml` вже існує     | `pass` — файл не чіпається        |
+| `.marksman.toml` відсутній     | створює файл з baseline, `pass`   |
 
 Перевірка запускається як `check`-поверхня; `lint`-поверхні правило не має.
 

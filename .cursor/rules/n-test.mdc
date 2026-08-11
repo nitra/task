@@ -157,7 +157,7 @@ Rego-пакет: `test.package_json`
 Перевіряє substring-відповідність значень у `scripts`:
 
 | Поле | Має містити |
-|---|---|
+| --- | --- |
 | `scripts.coverage` | `@7n/test coverage` |
 | `scripts.test` | `vitest` і `--bun` (напр. `"bun run --bun vitest run"`) |
 
@@ -273,7 +273,7 @@ Recursive globs ловлять файли всередині `tests/` так с�
 **Список FS-функцій, що перевіряються:**
 
 | Функція | Перевірювані аргументи |
-|---|---|
+| --- | --- |
 | `writeFile`, `readFile`, `appendFile`, `mkdir`, `rmdir`, `rm`, `unlink` | 1-й |
 | `access`, `stat`, `lstat`, `chmod`, `chown`, `truncate`, `existsSync`, `readdir` | 1-й |
 | `copyFile`, `rename`, `symlink`, `link`, `cp` | 1-й і 2-й |

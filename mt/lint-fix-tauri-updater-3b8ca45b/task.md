@@ -21,5 +21,6 @@ npx @7n/rules lint --no-fix --cwd ../.. tauri
 ## Inputs
 
 Target-файли:
+
 - `delta/src`
 - `delta/src-tauri/src/lib.rs`
