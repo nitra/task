@@ -726,6 +726,8 @@ async fn dispatch(tool: &str, input: &Value) -> Result<Value, String> {
         "profile_set_growth_edge" => {
             let mandates_dir = require_str(input, "mandatesDir")?;
             let handle = require_str(input, "handle")?;
+            // Явний [] очищує свідомо; ВІДСУТНЄ поле — помилка, інакше одруківка
+            // в імені поля мовчки стирала б зону росту (unwrap_or_default).
             let growth_edge: Vec<String> = input
                 .get("growthEdge")
                 .and_then(|v| v.as_array())
@@ -734,7 +736,7 @@ async fn dispatch(tool: &str, input: &Value) -> Result<Value, String> {
                         .filter_map(|v| v.as_str().map(str::to_string))
                         .collect()
                 })
-                .unwrap_or_default();
+                .ok_or("Missing required field: growthEdge")?;
             let path = delta_core::profiles::profile_path(&mandates_dir, &handle);
             delta_core::io::Io::write_file(
                 &config::FsIo,
