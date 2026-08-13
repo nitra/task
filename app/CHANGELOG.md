@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.4] - 2026-08-13
+
+### Changed
+
+- fix(js): dedupe jscpd clones, drop explicit vue imports, add lightningcss transformer
+
 ## [0.8.3] - 2026-07-31
 
 ### Changed
