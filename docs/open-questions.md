@@ -1,6 +1,6 @@
 # Delta App — відкриті питання і борги
 
-**Оновлено:** 2026-08-10 (після завершення M0–M6).
+**Оновлено:** 2026-08-13 (дистрибуція: updater/іконки/реліз-конвеєр).
 **Зв'язані документи:** [`specs/260809-delta-app.md`](specs/260809-delta-app.md) (спека, конституція, мілстоуни), `../delta/README.md` (demo-послідовності по мілстоунах).
 
 Живий реєстр: що свідомо відкладено, що лишилось боргом реалізації M0–M6, які пункти конституції ще не мають коду. Закрите — видаляти, нове — додавати з датою.
@@ -45,8 +45,21 @@
 - **GUI не тестований інтерактивно** — Tauri-вікно збирається (`vite build`, `cargo check --workspace`), але
   клікові сценарії перевірялись лише через CLI-паритет (та сама Rust-логіка з обох поверхонь) — тепер це
   стосується й усіх 21 tool-ів фази B, не лише 19 фази A. Перед пілотом — ручний прохід усіх вкладок.
-- **Іконки** — плейсхолдери від owner, потрібна власна айдентика (teal).
-- **Tauri auto-updater delta не підключений** — залежності/capability додані (lint-fix), але немає pubkey/endpoint/`useUpdater()`/реєстрації плагіна — реальна фіча перед дистрибуцією DMG (виявлено CI-прогоном 2026-08-11: правило tauri/release-updater у Lint repo-wide).
+- **Дистрибуція (іконки, updater, реліз-конвеєр) — ЗАКРИТО (2026-08-13).** Іконки: власний дизайн замість
+  owner-плейсхолдерів (`delta/src-tauri/icons/icon.svg` — Δ білим на teal-градієнті `#14b8a6→#0d9488`,
+  закруглений квадрат macOS-стилю), повний набір (`icns`/`ico`/PNG/Windows Square-логотипи) згенеровано
+  `bunx tauri icon`. Updater: `pubkey`/`endpoints` у `delta/src-tauri/tauri.conf.json`
+  (`createUpdaterArtifacts: true`, endpoints `delta-latest` + спільний `/latest/`, той самий СПІЛЬНИЙ ключ,
+  що `app`/`owner` — обґрунтування рішення в `delta/README.md`, розділ «Дистрибуція»), плагіни
+  `tauri_plugin_updater`/`tauri_plugin_process` зареєстровано в `delta/src-tauri/src/lib.rs`, `useUpdater()`
+  підключено в `delta/src/App.vue` (capability-файли для `updater:default`/`process:allow-restart` вже
+  існували з lint-fix). Реліз-конвеєр: `.github/workflows/release-delta.yml` (за зразком
+  `release-owner.yml`, тег `delta@X.Y.Z`, DMG + updater-артефакти, підпис Apple + updater через ті самі
+  Infisical-секрети `/apple`/`/updater`), `changelog-release.yml` знає про `delta/.changes/**` (paths
+  тригера + detect/tag/dispatch кроки). Перевірено локально: `cargo check --workspace`, `vite build`,
+  повний `bun run tauri build --target aarch64-apple-darwin` з ефемерним (не закомiченим) updater-ключем —
+  `.app`/DMG/`.app.tar.gz.sig` зібрались коректно. Нічого нового не потрібно від людини — усі секрети
+  перевикористані з наявного Infisical-проєкту.
 - **CI: Lint repo-wide і StyleLint червоні ще з 2026-07-27** (до Delta App): kubescape-знахідки k8s/manifests (потребують security-рев'ю), cargo-deny відхиляє ліцензію 0BSD пакета adler2 (політичне рішення для deny.toml), bun/licensee-попередження. Поза скоупом delta — оргрівневі рішення.
 - **Голосовий ввід teach-back** — не реалізовано; macOS-диктовка друкує в textarea сама (задокументовано в README M5).
 - **doc-files беклог** — з JS-модулів лишились без доки лише `main.js`/`onboarding.js` (решта JS-модулів

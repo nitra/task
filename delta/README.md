@@ -820,6 +820,87 @@ bun run --cwd=delta test             # vitest (лишився лише онбо�
 cd delta && npm run test:rust        # cargo test по delta-core/delta-cli/delta (280+ тестів)
 ```
 
+## Дистрибуція
+
+Реліз-конвеєр — той самий патерн, що `app`/`owner` (канон `.cursor/rules/n-tauri.mdc`, розділ «Реліз-flow»):
+change-файли → `changelog-release.yml` → тег `delta@X.Y.Z` → `release-delta.yml` → підписаний DMG +
+updater-артефакти на GitHub Releases.
+
+### Потік релізу
+
+1. Кожна PR-задача, що чіпає код `delta/`, несе власний change-файл (`delta/.changes/<ts>.md`,
+   `npx @7n/n ch --path delta --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed>`).
+2. Мердж у `main` з непорожнім `delta/.changes/` тригерить `.github/workflows/changelog-release.yml` —
+   `npx @7n/rules release` бампає `delta/package.json` і `delta/CHANGELOG.md`, комітить
+   `release: …, delta@X.Y.Z`, тегує `delta@X.Y.Z` і диспатчить `release-delta.yml --ref delta@X.Y.Z`.
+3. `release-delta.yml` (macOS-раннер): синхронізує версію з тегу в `delta/src-tauri/tauri.conf.json`,
+   збирає `universal-apple-darwin` через `tauri-apps/tauri-action`, підписує Apple-сертифікатом і
+   updater-ключем (обидва — з Infisical через OIDC, той самий проєкт/identity, що `app`/`owner`), публікує
+   GitHub Release `delta delta@X.Y.Z` з DMG + `latest.json` + `.sig`, і пересуває службовий тег
+   `delta-latest` на свіжий `latest.json`.
+
+### Автооновлення (`useUpdater()`)
+
+`src/App.vue` викликає спільний хук `useUpdater()` з `@7n/tauri-components/vue` (без аргументів, без
+локальної логіки — той самий код, що `owner`) — перевірка через 3с після старту, далі щогодини; знаходить
+оновлення → діалог → завантаження з прогресом → пропозиція `relaunch()`. No-op у dev-збірці
+(`import.meta.env.DEV`), тому `tauri.conf.dev.json` окремого вимкнення не потребує.
+
+`src-tauri/tauri.conf.json`:
+
+```json
+"bundle": { "createUpdaterArtifacts": true },
+"plugins": {
+  "updater": {
+    "pubkey": "…",
+    "endpoints": [
+      "https://github.com/nitra/task/releases/download/delta-latest/latest.json",
+      "https://github.com/nitra/task/releases/latest/download/latest.json"
+    ]
+  }
+}
+```
+
+`src-tauri/src/lib.rs` реєструє `tauri_plugin_updater` (лише `#[cfg(desktop)]`) і `tauri_plugin_process`
+(без cfg-guard, потрібен для `relaunch()` на будь-якій платформі) — дзеркалить `owner/src-tauri/src/lib.rs`.
+Capability — `capabilities/updater.json` (`updater:default`, `platforms: [macOS, windows, linux]`) +
+`capabilities/default.json` (`process:allow-restart`).
+
+**Ключ підпису updater-артефактів — СПІЛЬНИЙ з `app`/`owner`.** `plugins.updater.pubkey` у
+`delta/src-tauri/tauri.conf.json` — той самий публічний ключ (не секрет, живе в git), що в
+`app/src-tauri/tauri.conf.json` і `owner/src-tauri/tauri.conf.json`; приватна половина — той самий
+Infisical-секрет `TAURI_SIGNING_PRIVATE_KEY` (`secret-path: /updater`, проєкт `vitaliytv-kfse`,
+`identity-id: 53691c96-17d9-4389-b078-0f77073809ab`), який `release.yml`/`release-owner.yml` вже тягнуть
+для своїх продуктів. Рішення свідоме, не за замовчуванням канону (`n-tauri.mdc` описує один ключ на
+застосунок): усі три Tauri-продукти цього репозиторію вже фактично діляли один keypair до появи delta —
+переприв'язка на новий ключ для delta зламала б цей наявний факт без користі (три ключі в Infisical замість
+одного не додають ізоляції, поки всі три продукти випускає та сама команда з того самого репо) і вимагала б
+ручного кроку від людини (додати секрет), якого конвеєр `app`/`owner` не потребує. Якщо delta колись
+відокремиться в інший репозиторій чи іншу команду випуску — тоді й ротація на власний ключ (`bunx tauri
+signer generate`), не раніше.
+
+### Іконки
+
+`src-tauri/icons/icon.svg` — власний дизайн (не плейсхолдер `owner`): грецька літера Δ білим на teal-
+градієнті (`#14b8a6` → `#0d9488`, той самий акцент, що бренд-крапка в шапці), закруглений квадрат
+macOS-стилю (`rx: 224` на canvas 1024). Повний набір (`icns`/`ico`/PNG-розміри, Windows Square-логотипи)
+згенеровано з нього:
+
+```bash
+rsvg-convert -w 1024 -h 1024 -o /tmp/delta-icon-1024.png delta/src-tauri/icons/icon.svg
+cd delta && bunx tauri icon /tmp/delta-icon-1024.png --output src-tauri/icons
+```
+
+(команда також генерує `icons/android/` і `icons/ios/` — видалені: delta ще не має ініціалізованих
+мобільних Tauri-таргетів, той самий набір файлів, що `owner`.)
+
+### Що потрібно від людини перед першим релізом
+
+**Нічого нового.** Delta перевикористовує наявні Infisical-секрети (`/apple`, `/updater`) і OIDC-identity,
+якими вже користуються `release.yml`/`release-owner.yml` — жодного нового секрету GitHub/Infisical додавати
+не треба. Перший `delta@X.Y.Z`-реліз піде автоматично з наявних `delta/.changes/*.md` при наступному мерджі
+в `main`.
+
 ## CLI
 
 ```bash
@@ -954,7 +1035,6 @@ Rust-тестів + 1 vitest (онбординг — єдине, що лишил
 - **Doc-files беклог** — `delta/src/main.js`/`onboarding.js` досі без файлової доки `src/docs/<stem>.md`
   (доку веде окремий таймбоксований прогін `/n-doc-files`, не кожна задача); аналогічний беклог існує й на
   Rust-стороні (жоден `delta-core`/`delta-cli` модуль не має окремого doc-файлу — інша тулінг-конвенція).
-- **Іконки застосунку** — відсутні (той самий дефолт Tauri-скаффолда, що з M0).
 - **Голосовий ввід teach-back** — не реалізовано; macOS-диктовка друкує в ту саму textarea сама,
   окремого механізму намірено не додавали (задокументовано в M5).
 - **Relay для живих нотифікацій** — досі файловий полінг (`delta watcher_scan`, той самий tool що й GUI —
