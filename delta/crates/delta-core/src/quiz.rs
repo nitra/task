@@ -543,6 +543,13 @@ pub struct QuizDraft {
     pub resolved_count: Option<u64>,
     pub repetition_source: Option<String>,
     pub questions: Vec<QuestionState>,
+    /// Квіз-гейт `standard`-класу спрощено до one-tap (1 питання замість 2)
+    /// довірою-стріком (`knowledge::trust_simplified_for_domain`, п.3
+    /// конституції) — видима користувачу позначка в самому квіз-файлі
+    /// (docs/open-questions.md розділ 3). НІКОЛИ не встановлюється для
+    /// `depth: teach-back` — інваріант reversible перевіряє викликач
+    /// (`decision_flow::decision_quiz`), не цей формат.
+    pub trust_simplified: bool,
 }
 
 fn format_heading(question_index: usize, attempt_index: usize, repetition: bool) -> String {
@@ -571,6 +578,9 @@ pub fn format_quiz_file(quiz: &QuizDraft) -> String {
         format!("depth: {}", quiz.depth),
         format!("generated_by: {}", quiz.generated_by),
     ];
+    if quiz.trust_simplified {
+        lines.push("trust_simplified: true".to_string());
+    }
     if let Some(shown_at) = &quiz.shown_at {
         lines.push(format!("shown_at: {shown_at}"));
     }
@@ -644,6 +654,7 @@ pub struct ParsedQuizFile {
     pub iterations: Option<u64>,
     pub attempts: Vec<QuestionAttempt>,
     pub questions: Vec<QuestionState>,
+    pub trust_simplified: bool,
 }
 
 fn split_frontmatter_fields(text: &str) -> (std::collections::HashMap<String, String>, String) {
@@ -814,6 +825,10 @@ pub fn parse_quiz_file(text: &str) -> ParsedQuizFile {
         iterations: fields.get("iterations").and_then(|v| v.parse().ok()),
         attempts,
         questions,
+        trust_simplified: fields
+            .get("trust_simplified")
+            .map(|v| v == "true")
+            .unwrap_or(false),
     }
 }
 
@@ -1204,6 +1219,37 @@ mod tests {
             parsed.attempts[0].correct_answer,
             "Логіка мігрує в composable"
         );
+    }
+
+    #[test]
+    fn format_quiz_file_trust_simplified_flag_round_trips() {
+        let base = QuizDraft {
+            decision_ref: "0002-decision-request.md".into(),
+            depth: "standard".into(),
+            generated_by: "quiz-gen-fallback".into(),
+            iterations: 1,
+            questions: vec![QuestionState {
+                repetition: false,
+                attempts: vec![QuestionAttempt {
+                    question: "q".into(),
+                    options: vec!["a".into(), "b".into()],
+                    correct_answer: "a".into(),
+                    microlesson: "m".into(),
+                }],
+            }],
+            ..Default::default()
+        };
+        let plain_text = format_quiz_file(&base);
+        assert!(!plain_text.contains("trust_simplified"));
+        assert!(!parse_quiz_file(&plain_text).trust_simplified);
+
+        let simplified = QuizDraft {
+            trust_simplified: true,
+            ..base
+        };
+        let text = format_quiz_file(&simplified);
+        assert!(text.contains("trust_simplified: true"));
+        assert!(parse_quiz_file(&text).trust_simplified);
     }
 
     #[test]

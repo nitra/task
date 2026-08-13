@@ -27,7 +27,7 @@ use crate::decisions::{
 use crate::io::{Io, KnowledgeIo};
 use crate::knowledge::{
     append_knowledge_entry, due_repetition, format_knowledge_file, parse_knowledge_file,
-    record_repetition_answer, CompletedQuiz,
+    record_repetition_answer, trust_simplified_for_domain, CompletedQuiz,
 };
 use crate::quiz::{
     format_quiz_file, format_teach_back_file, generate_quiz, generate_standard_quiz,
@@ -235,27 +235,50 @@ pub async fn decision_quiz(
             "questionCount": quiz.questions.len(),
             "repetition": active_question.repetition,
             "domain": domain,
+            "trustSimplified": quiz.trust_simplified,
         }));
     }
 
-    let shown_at = now_iso(now);
-    let (generated_by, mut questions): (String, Vec<QuestionState>) = if depth == "standard" {
-        let generated = generate_standard_quiz(client, llm_config, &dr, chosen_option).await?;
-        (
-            generated.generated_by,
-            generated
-                .questions
-                .iter()
-                .map(|q| to_question_state(q, false))
-                .collect(),
-        )
+    // Спрощення квізів з довірою (конституція п.3, docs/open-questions.md
+    // розділ 3): серія N=5 поспіль успішних квізів ЦЬОГО домену (`iterations
+    // == 1`, та сама mandate_generation, останній ≤14 днів тому) стискає
+    // наступний `standard`-квіз до одного питання (one-tap-досвід), позначка
+    // `trust_simplified: true` лишається видимою в квіз-файлі. Інваріант
+    // reversible: цей блок узагалі не виконується для `depth ==
+    // "teach-back"` (гілка вище `return`-ить раніше) — irreversible/
+    // teach-back довіра НІКОЛИ не спрощує.
+    let trust_simplified = if depth == "standard" {
+        match knowledge_io {
+            Some(kio) => {
+                let entries = parse_knowledge_file(kio.read().await.as_deref());
+                let now_date = now.unwrap_or_else(chrono::Utc::now);
+                trust_simplified_for_domain(&entries, &domain, dr.mandate_generation, now_date)
+            }
+            None => false,
+        }
     } else {
-        let generated = generate_quiz(client, llm_config, &dr, chosen_option).await?;
-        (
-            generated.generated_by,
-            vec![to_question_state(&generated.question, false)],
-        )
+        false
     };
+
+    let shown_at = now_iso(now);
+    let (generated_by, mut questions): (String, Vec<QuestionState>) =
+        if depth == "standard" && !trust_simplified {
+            let generated = generate_standard_quiz(client, llm_config, &dr, chosen_option).await?;
+            (
+                generated.generated_by,
+                generated
+                    .questions
+                    .iter()
+                    .map(|q| to_question_state(q, false))
+                    .collect(),
+            )
+        } else {
+            let generated = generate_quiz(client, llm_config, &dr, chosen_option).await?;
+            (
+                generated.generated_by,
+                vec![to_question_state(&generated.question, false)],
+            )
+        };
 
     let mut repetition_source: Option<String> = None;
     if REPETITION_ELIGIBLE_DEPTHS.contains(&depth.as_str()) {
@@ -288,6 +311,7 @@ pub async fn decision_quiz(
         repetition_source,
         questions,
         time_to_understanding_sec: None,
+        trust_simplified,
     };
     io.write_file(&path, &format_quiz_file(&draft)).await;
     let active_attempt = &draft.questions[0].attempts[0];
@@ -302,6 +326,7 @@ pub async fn decision_quiz(
         "questionCount": draft.questions.len(),
         "repetition": false,
         "domain": domain,
+        "trustSimplified": trust_simplified,
     }))
 }
 
@@ -401,6 +426,7 @@ async fn submit_teach_back(
                 iterations,
                 time_to_understanding_sec,
                 completed_at: &now_date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                mandate_generation: dr.mandate_generation,
             },
         );
         kio.write(&format_knowledge_file(&with_new)).await;
@@ -519,12 +545,14 @@ pub async fn submit_quiz_answer(
             iterations: total_attempts_so_far + 1,
             questions: questions.clone(),
             time_to_understanding_sec: None,
+            trust_simplified: quiz.trust_simplified,
         };
         io.write_file(&path, &format_quiz_file(&draft)).await;
         return Ok(json!({
             "correct": false, "done": false, "iterations": draft.iterations, "microlesson": last_attempt.microlesson,
             "explain": if active_question.repetition { Value::Null } else { Value::Array(layered_explain(&dr, fail_number)) },
             "domain": domain, "questionIndex": resolved_count + 1, "questionCount": questions.len(), "repetition": active_question.repetition,
+            "trustSimplified": quiz.trust_simplified,
         }));
     }
 
@@ -549,6 +577,7 @@ pub async fn submit_quiz_answer(
             iterations: total_attempts_so_far,
             questions: questions.clone(),
             time_to_understanding_sec: None,
+            trust_simplified: quiz.trust_simplified,
         };
         io.write_file(&path, &format_quiz_file(&draft)).await;
         let next_question = &questions[new_resolved_count];
@@ -556,6 +585,7 @@ pub async fn submit_quiz_answer(
         return Ok(json!({
             "correct": true, "done": false, "iterations": draft.iterations, "microlesson": last_attempt.microlesson, "domain": domain,
             "nextQuestion": {"question": next_attempt.question, "options": next_attempt.options, "questionIndex": new_resolved_count + 1, "questionCount": questions.len(), "repetition": next_question.repetition},
+            "trustSimplified": quiz.trust_simplified,
         }));
     }
 
@@ -578,6 +608,7 @@ pub async fn submit_quiz_answer(
         repetition_source: None,
         resolved_count: None,
         questions: questions.clone(),
+        trust_simplified: quiz.trust_simplified,
     };
     io.write_file(&path, &format_quiz_file(&final_quiz)).await;
 
@@ -596,6 +627,7 @@ pub async fn submit_quiz_answer(
                 iterations: final_quiz.iterations,
                 time_to_understanding_sec,
                 completed_at: &now_date.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+                mandate_generation: dr.mandate_generation,
             },
         );
         kio.write(&format_knowledge_file(&with_new)).await;
@@ -604,7 +636,7 @@ pub async fn submit_quiz_answer(
     Ok(json!({
         "correct": true, "done": true, "iterations": final_quiz.iterations,
         "quizDecisionRef": final_quiz.decision_ref, "quizIterations": final_quiz.iterations, "quizTimeToUnderstandingSec": time_to_understanding_sec,
-        "microlesson": last_attempt.microlesson, "domain": domain,
+        "microlesson": last_attempt.microlesson, "domain": domain, "trustSimplified": quiz.trust_simplified,
     }))
 }
 
@@ -700,6 +732,8 @@ mod tests {
     const DECISIONS_DIR: &str = "/root/runs/demo-1/decisions";
     const DR_0001: &str =
         include_str!("../tests/fixtures/runs/demo-1/decisions/0001-decision-request.md");
+    const DR_0002: &str =
+        include_str!("../tests/fixtures/runs/demo-1/decisions/0002-decision-request.md");
 
     fn client() -> reqwest::Client {
         reqwest::Client::new()
@@ -713,6 +747,37 @@ mod tests {
 
     fn dr_path() -> String {
         format!("{DECISIONS_DIR}/0001-decision-request.md")
+    }
+    fn dr2_path() -> String {
+        format!("{DECISIONS_DIR}/0002-decision-request.md")
+    }
+
+    /// Заповнює `knowledge.json` серією з [`crate::knowledge::TRUST_STREAK_LEN`]
+    /// чистих (iterations=1) записів домену `domain`/генерації
+    /// `generation` — той сам стан, який `trust_simplified_for_domain`
+    /// вимагає для спрощення наступного `standard`-квізу (п.3
+    /// конституції).
+    async fn seed_trust_streak(kio: &crate::io::MemoryKnowledgeIo, domain: &str, generation: i64) {
+        let mut entries: Vec<crate::knowledge::KnowledgeEntry> = Vec::new();
+        for day in 1..=(crate::knowledge::TRUST_STREAK_LEN as u32) {
+            entries = crate::knowledge::append_knowledge_entry(
+                &entries,
+                crate::knowledge::CompletedQuiz {
+                    decision_ref: "9990-decision-request.md",
+                    domain: Some(domain),
+                    question: "Питання попереднього квізу?",
+                    options: Some(vec!["a".into(), "b".into(), "c".into()]),
+                    correct_answer: Some("a".into()),
+                    microlesson: "m",
+                    iterations: 1,
+                    time_to_understanding_sec: 20.0,
+                    completed_at: &format!("2026-08-{day:02}T10:00:00.000Z"),
+                    mandate_generation: Some(generation),
+                },
+            );
+        }
+        kio.write(&crate::knowledge::format_knowledge_file(&entries))
+            .await;
     }
 
     #[tokio::test]
@@ -1107,5 +1172,133 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].decision_ref, "0001-decision-request.md");
         assert_eq!(entries[0].domain, "architecture");
+    }
+
+    #[tokio::test]
+    async fn standard_quiz_without_trust_streak_stays_two_questions() {
+        let io = MemoryIo::new([(dr2_path(), DR_0002.to_string())]);
+        let result = decision_quiz(
+            &io,
+            &client(),
+            &unreachable_llm(),
+            DECISIONS_DIR,
+            "0002",
+            "A",
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["depth"], "standard");
+        assert_eq!(result["trustSimplified"], false);
+        assert_eq!(result["questionCount"], 2);
+    }
+
+    #[tokio::test]
+    async fn standard_quiz_simplified_to_one_tap_after_trust_streak() {
+        let io = MemoryIo::new([(dr2_path(), DR_0002.to_string())]);
+        let kio = crate::io::MemoryKnowledgeIo::default();
+        seed_trust_streak(&kio, "process", 3).await; // DR_0002: mandate_generation 3, decision_type process
+        let now = chrono::DateTime::parse_from_rfc3339("2026-08-09T10:00:00.000Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let result = decision_quiz(
+            &io,
+            &client(),
+            &unreachable_llm(),
+            DECISIONS_DIR,
+            "0002",
+            "A",
+            Some(&kio),
+            Some(now),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["depth"], "standard");
+        assert_eq!(result["trustSimplified"], true);
+        assert_eq!(result["questionCount"], 1);
+        let quiz_text = io.get(&format!("{DECISIONS_DIR}/0002-quiz.md")).unwrap();
+        assert!(quiz_text.contains("trust_simplified: true"));
+    }
+
+    #[tokio::test]
+    async fn standard_quiz_streak_older_than_fourteen_days_does_not_simplify() {
+        let io = MemoryIo::new([(dr2_path(), DR_0002.to_string())]);
+        let kio = crate::io::MemoryKnowledgeIo::default();
+        seed_trust_streak(&kio, "process", 3).await; // останній запис — 2026-08-05
+        let now = chrono::DateTime::parse_from_rfc3339("2026-08-25T10:00:00.000Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let result = decision_quiz(
+            &io,
+            &client(),
+            &unreachable_llm(),
+            DECISIONS_DIR,
+            "0002",
+            "A",
+            Some(&kio),
+            Some(now),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["trustSimplified"], false);
+        assert_eq!(result["questionCount"], 2);
+    }
+
+    #[tokio::test]
+    async fn standard_quiz_streak_from_stale_mandate_generation_does_not_simplify() {
+        let io = MemoryIo::new([(dr2_path(), DR_0002.to_string())]);
+        let kio = crate::io::MemoryKnowledgeIo::default();
+        seed_trust_streak(&kio, "process", 2).await; // DR_0002 несе generation 3 — стрік іншої генерації не рахується
+        let now = chrono::DateTime::parse_from_rfc3339("2026-08-09T10:00:00.000Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let result = decision_quiz(
+            &io,
+            &client(),
+            &unreachable_llm(),
+            DECISIONS_DIR,
+            "0002",
+            "A",
+            Some(&kio),
+            Some(now),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["trustSimplified"], false);
+        assert_eq!(result["questionCount"], 2);
+    }
+
+    #[tokio::test]
+    async fn irreversible_teach_back_never_trust_simplified_even_with_streak() {
+        // Інваріант reversible: irreversible-рішення завжди teach-back,
+        // незалежно від довіри-стріку — decision_quiz для teach-back-глибини
+        // взагалі не рахує/не читає trust_simplified_for_domain.
+        const DR_IRREVERSIBLE: &str =
+            include_str!("../tests/fixtures/runs/demo-5/decisions/0001-decision-request.md");
+        let dir = "/root/runs/demo-5/decisions";
+        let io = MemoryIo::new([(
+            format!("{dir}/0001-decision-request.md"),
+            DR_IRREVERSIBLE.to_string(),
+        )]);
+        let kio = crate::io::MemoryKnowledgeIo::default();
+        seed_trust_streak(&kio, "architecture", 3).await;
+        let now = chrono::DateTime::parse_from_rfc3339("2026-08-09T10:00:00.000Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let result = decision_quiz(
+            &io,
+            &client(),
+            &unreachable_llm(),
+            dir,
+            "0001",
+            "A",
+            Some(&kio),
+            Some(now),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["depth"], "teach-back");
+        assert!(result.get("trustSimplified").is_none());
     }
 }

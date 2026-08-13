@@ -85,6 +85,7 @@ mod tests {
                 completed_at: "2026-08-01T00:00:00.000Z".into(),
                 interval_days: 1,
                 last_repeated_at: None,
+                mandate_generation: None,
             },
             KnowledgeEntry {
                 id: "2".into(),
@@ -99,6 +100,7 @@ mod tests {
                 completed_at: "2026-08-05T00:00:00.000Z".into(),
                 interval_days: 1,
                 last_repeated_at: None,
+                mandate_generation: None,
             },
         ]
     }

@@ -14,6 +14,14 @@ use serde_json::Value;
 const INTERVAL_LADDER_DAYS: [i64; 4] = [1, 3, 7, 21];
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
+/// Довжина серії поспіль-успішних квізів домену, що обґрунтовує спрощення
+/// (docs/specs/260809-delta-app.md, конституція п.3: «Серія пройдених
+/// квізів класу спрощує наступні до one-tap»).
+pub const TRUST_STREAK_LEN: usize = 5;
+/// Максимальна давність останнього квізу серії, днів — довша перерва
+/// повертає глибину (та сама п.3).
+pub const TRUST_RECENCY_DAYS: i64 = 14;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct KnowledgeEntry {
     pub id: String,
@@ -35,6 +43,18 @@ pub struct KnowledgeEntry {
     pub interval_days: i64,
     #[serde(rename = "lastRepeatedAt")]
     pub last_repeated_at: Option<String>,
+    /// `mandate_generation` decision-request, з якого вийшов цей квіз —
+    /// відсутнє в записах, зроблених до п.3 (спрощення квізів з довірою,
+    /// `docs/open-questions.md` розділ 3), `default` тримає старі записи
+    /// парсовними. Зміна генерації мандатів фенсить довіру-стрік
+    /// ([`trust_simplified_for_domain`]) так само, як і mt-mandates фенсить
+    /// застарілі decision-request (mandates.md: «Generation fencing»).
+    #[serde(
+        rename = "mandateGeneration",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub mandate_generation: Option<i64>,
 }
 
 /// Розбирає сирий текст `knowledge.json` — відсутній/битий файл повертає
@@ -79,6 +99,7 @@ pub struct CompletedQuiz<'a> {
     pub iterations: u64,
     pub time_to_understanding_sec: f64,
     pub completed_at: &'a str,
+    pub mandate_generation: Option<i64>,
 }
 
 /// Додає запис завершеного квізу до бази знань — pure-функція (повертає
@@ -101,6 +122,7 @@ pub fn append_knowledge_entry(
         completed_at: completed.completed_at.to_string(),
         interval_days: INTERVAL_LADDER_DAYS[0],
         last_repeated_at: None,
+        mandate_generation: completed.mandate_generation,
     });
     next
 }
@@ -165,6 +187,63 @@ pub fn record_repetition_answer(
             updated
         })
         .collect()
+}
+
+/// Чи обґрунтована серія останніх завершених квізів домену для спрощення
+/// НАСТУПНОГО `standard`-квізу до one-tap (п.3 конституції: «Спрощення
+/// квізів з довірою», `docs/open-questions.md` розділ 3). Умови (усі разом):
+/// (1) щонайменше [`TRUST_STREAK_LEN`] завершених квізів цього домену,
+/// (2) останні [`TRUST_STREAK_LEN`] усі з `iterations == 1` (жодного фейлу —
+/// перша спроба щоразу правильна), (3) усі з тим самим `mandate_generation`,
+/// що дав викликач (зміна генерації карти мандатів фенсить довіру-стрік,
+/// той самий принцип, що generation fencing decision-request у
+/// mandates.md), (4) давність останнього квізу серії ≤ [`TRUST_RECENCY_DAYS`]
+/// від `now` (ін'єктований годинник — детерміновані тести).
+///
+/// **Інваріант, який ЦЯ функція не перевіряє сама (відповідальність
+/// викликача):** irreversible/teach-back НІКОЛИ не спрощується — викликач
+/// (`decision_flow::decision_quiz`) застосовує результат лише коли
+/// `depth_for_facets` уже повернув `"standard"`, глибина `"teach-back"`
+/// сюди взагалі не доходить (mandates.md: «Інваріант reversible» — довіра
+/// ніколи не знімає гейт, лише полегшує reversible-клас).
+pub fn trust_simplified_for_domain(
+    entries: &[KnowledgeEntry],
+    domain: &str,
+    mandate_generation: Option<i64>,
+    now: DateTime<Utc>,
+) -> bool {
+    // teach-back-завершення пишуть `options: None`/`correct_answer: None`
+    // (немає варіантів вибору — вільний переказ) — свідомо виключені з
+    // серії: інваріант reversible забороняє довірі-стріку впливати на
+    // irreversible/teach-back клас навіть опосередковано, через змішування
+    // його статистики в стрік сусіднього `standard`-квізу того самого
+    // домену.
+    let mut domain_entries: Vec<&KnowledgeEntry> = entries
+        .iter()
+        .filter(|e| e.domain == domain && e.options.is_some())
+        .collect();
+    if domain_entries.len() < TRUST_STREAK_LEN {
+        return false;
+    }
+    domain_entries.sort_by(|a, b| a.completed_at.cmp(&b.completed_at));
+    let recent = &domain_entries[domain_entries.len() - TRUST_STREAK_LEN..];
+    if !recent.iter().all(|e| e.iterations == 1) {
+        return false;
+    }
+    if !recent
+        .iter()
+        .all(|e| e.mandate_generation == mandate_generation)
+    {
+        return false;
+    }
+    let Some(last) = recent.last() else {
+        return false;
+    };
+    let Ok(last_at) = DateTime::parse_from_rfc3339(&last.completed_at) else {
+        return false;
+    };
+    let age_days = (now.timestamp_millis() - last_at.timestamp_millis()) / DAY_MS;
+    age_days <= TRUST_RECENCY_DAYS
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -324,6 +403,7 @@ mod tests {
                 iterations: 1,
                 time_to_understanding_sec: 47.0,
                 completed_at: "2026-08-09T10:05:00.000Z",
+                mandate_generation: None,
             },
         );
         assert_eq!(entries.len(), 1);
@@ -349,6 +429,7 @@ mod tests {
                 iterations: 1,
                 time_to_understanding_sec: 1.0,
                 completed_at: "2026-08-09T10:05:00.000Z",
+                mandate_generation: None,
             },
         );
         assert_eq!(entries[0].domain, "general");
@@ -368,6 +449,7 @@ mod tests {
             completed_at: "2026-08-01T10:00:00.000Z".into(),
             interval_days: 1,
             last_repeated_at: None,
+            mandate_generation: None,
         }
     }
 
@@ -423,6 +505,7 @@ mod tests {
                     iterations: 1,
                     time_to_understanding_sec: 1.0,
                     completed_at: "2026-01-01T00:00:00.000Z",
+                    mandate_generation: None,
                 },
             )[0]
             .clone(),
@@ -438,6 +521,7 @@ mod tests {
                     iterations: 1,
                     time_to_understanding_sec: 1.0,
                     completed_at: "2026-01-02T00:00:00.000Z",
+                    mandate_generation: None,
                 },
             )[0]
             .clone(),
@@ -462,6 +546,7 @@ mod tests {
                 iterations: 1,
                 time_to_understanding_sec: 40.0,
                 completed_at: "2026-01-01T00:00:00.000Z",
+                mandate_generation: None,
             },
         )[0]
         .clone()];
@@ -484,6 +569,7 @@ mod tests {
                 iterations: 1,
                 time_to_understanding_sec: 100.0,
                 completed_at: "2026-01-01T00:00:00.000Z",
+                mandate_generation: None,
             },
         )[0]
         .clone();
@@ -494,5 +580,116 @@ mod tests {
         e1.id = "a".into();
         let trend = time_to_understanding_trend(&[e1, e2]);
         assert_eq!(trend[0].trend, TrendDirection::Down);
+    }
+
+    fn streak_entry(day: u32, iterations: u64, generation: Option<i64>) -> KnowledgeEntry {
+        let completed_at = format!("2026-07-{day:02}T10:00:00.000Z");
+        append_knowledge_entry(
+            &[],
+            CompletedQuiz {
+                decision_ref: "0001-decision-request.md",
+                domain: Some("architecture"),
+                question: "q",
+                options: Some(vec!["a".into(), "b".into(), "c".into()]),
+                correct_answer: Some("a".into()),
+                microlesson: "m",
+                iterations,
+                time_to_understanding_sec: 20.0,
+                completed_at: &completed_at,
+                mandate_generation: generation,
+            },
+        )
+        .remove(0)
+    }
+
+    #[test]
+    fn trust_simplified_true_after_five_clean_quizzes_within_recency() {
+        let entries: Vec<KnowledgeEntry> = (21..=25).map(|d| streak_entry(d, 1, Some(3))).collect();
+        let now = dt("2026-07-30T10:00:00.000Z"); // 5 days after last (25th)
+        assert!(trust_simplified_for_domain(
+            &entries,
+            "architecture",
+            Some(3),
+            now
+        ));
+    }
+
+    #[test]
+    fn trust_simplified_false_below_streak_length() {
+        let entries: Vec<KnowledgeEntry> = (22..=25).map(|d| streak_entry(d, 1, Some(3))).collect();
+        let now = dt("2026-07-30T10:00:00.000Z");
+        assert!(!trust_simplified_for_domain(
+            &entries,
+            "architecture",
+            Some(3),
+            now
+        ));
+    }
+
+    #[test]
+    fn trust_simplified_false_when_any_recent_had_a_failed_attempt() {
+        let mut entries: Vec<KnowledgeEntry> =
+            (21..=25).map(|d| streak_entry(d, 1, Some(3))).collect();
+        entries[4].iterations = 2; // остання спроба у серії — не з першого разу
+        let now = dt("2026-07-30T10:00:00.000Z");
+        assert!(!trust_simplified_for_domain(
+            &entries,
+            "architecture",
+            Some(3),
+            now
+        ));
+    }
+
+    #[test]
+    fn trust_simplified_false_when_recency_exceeds_fourteen_days() {
+        let entries: Vec<KnowledgeEntry> = (1..=5).map(|d| streak_entry(d, 1, Some(3))).collect();
+        let now = dt("2026-07-30T10:00:00.000Z"); // > 14 днів після 5-го (25 днів)
+        assert!(!trust_simplified_for_domain(
+            &entries,
+            "architecture",
+            Some(3),
+            now
+        ));
+    }
+
+    #[test]
+    fn trust_simplified_false_exactly_at_recency_boundary_still_true() {
+        let entries: Vec<KnowledgeEntry> = (21..=25).map(|d| streak_entry(d, 1, Some(3))).collect();
+        let now = dt("2026-08-08T10:00:00.000Z"); // рівно 14 днів після 25 липня
+        assert!(trust_simplified_for_domain(
+            &entries,
+            "architecture",
+            Some(3),
+            now
+        ));
+    }
+
+    #[test]
+    fn trust_simplified_false_on_mandate_generation_change() {
+        let entries: Vec<KnowledgeEntry> = (21..=25).map(|d| streak_entry(d, 1, Some(3))).collect();
+        let now = dt("2026-07-30T10:00:00.000Z");
+        // делегатор підписав нову генерацію мандатів — довіра-стрік старої генерації не рахується
+        assert!(!trust_simplified_for_domain(
+            &entries,
+            "architecture",
+            Some(4),
+            now
+        ));
+    }
+
+    #[test]
+    fn trust_simplified_ignores_other_domains() {
+        let mut entries: Vec<KnowledgeEntry> =
+            (21..=25).map(|d| streak_entry(d, 1, Some(3))).collect();
+        for e in &mut entries {
+            e.domain = "architecture".into();
+        }
+        let now = dt("2026-07-30T10:00:00.000Z");
+        assert!(!trust_simplified_for_domain(
+            &entries,
+            "process",
+            Some(3),
+            now
+        ));
     }
 }

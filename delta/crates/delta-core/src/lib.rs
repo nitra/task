@@ -25,12 +25,15 @@ pub mod kill_switch;
 pub mod knowledge;
 pub mod mandate_change;
 pub mod mandates;
+pub mod onboarding;
 pub mod org;
+pub mod profiles;
 pub mod quiz;
 pub mod quorum;
 pub mod report;
 pub mod review;
 pub mod signing;
+pub mod simulation;
 pub mod staff;
 #[cfg(test)]
 pub(crate) mod test_support;
