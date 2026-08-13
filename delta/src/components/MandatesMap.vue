@@ -2,6 +2,7 @@
   <div class="mandates-map">
     <div class="toolbar">
       <div class="headline">Карта мандатів</div>
+      <WhyThisWorks topic="mandatesMap" />
       <q-space />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
       <q-btn
@@ -95,6 +96,7 @@ import { isOnboarded } from '../onboarding.js'
 import EmptyState from './EmptyState.vue'
 import MandateCard from './MandateCard.vue'
 import OnboardingDialog from './OnboardingDialog.vue'
+import WhyThisWorks from './WhyThisWorks.vue'
 
 // M0: read-only карта мандатів + зріз «мій мандат» за handle (спека
 // docs/specs/260809-delta-app.md, п.4). Дерево з mandates.yaml деривується

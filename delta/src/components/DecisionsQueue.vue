@@ -2,6 +2,7 @@
   <div class="decisions-queue">
     <div class="toolbar">
       <div class="headline">Вирішую</div>
+      <WhyThisWorks topic="decisions" />
       <q-space />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
     </div>
@@ -42,6 +43,7 @@
 <script setup>
 import { useDecisions } from '../composables/use-decisions.js'
 import DecisionCard from './DecisionCard.vue'
+import WhyThisWorks from './WhyThisWorks.vue'
 
 // «Вирішую» (спека docs/specs/260809-delta-app.md, п.2 конституції): черга
 // відкритих decision-request-ів мого мандата, з квіз-гейтом one-tap

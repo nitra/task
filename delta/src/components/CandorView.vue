@@ -2,6 +2,7 @@
   <div class="candor-view">
     <div class="toolbar">
       <div class="headline">Незручна правда</div>
+      <WhyThisWorks topic="candor" />
       <q-badge v-if="unreadCount > 0" color="negative" :label="unreadCount" rounded />
       <q-space />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
@@ -49,6 +50,7 @@
 
 <script setup>
 import { useCandor } from '../composables/use-candor.js'
+import WhyThisWorks from './WhyThisWorks.vue'
 
 // «Незручна правда» — UI-догон M5 (M6, docs/specs/260809-delta-app.md,
 // «Обсяг M6», п.1): чистий рендер `candor_show`/`candor_mark_read`, той

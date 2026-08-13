@@ -2,6 +2,7 @@
   <div class="knowledge-view">
     <div class="toolbar">
       <div class="headline">Знання</div>
+      <WhyThisWorks topic="knowledge" />
       <q-space />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
     </div>
@@ -59,6 +60,7 @@
 
 <script setup>
 import { useKnowledge } from '../composables/use-knowledge.js'
+import WhyThisWorks from './WhyThisWorks.vue'
 
 // «Знання» (спека docs/specs/260809-delta-app.md, «Обсяг M2», п.4) —
 // конспект по доменах + приватний тренд «час до розуміння», простим

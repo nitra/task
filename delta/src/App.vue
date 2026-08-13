@@ -24,6 +24,7 @@
           :icon="killSwitchActive ? 'sym_o_power_off' : 'sym_o_power_settings_new'"
           :label="killSwitchActive ? 'kill-switch: активний' : 'kill-switch'"
           class="kill-switch-btn" />
+        <WhyThisWorks topic="killSwitch" />
       </q-toolbar>
     </q-header>
     <q-page-container>
@@ -65,6 +66,7 @@ import MandatesMap from './components/MandatesMap.vue'
 import ReportView from './components/ReportView.vue'
 import TrustView from './components/TrustView.vue'
 import WatcherView from './components/WatcherView.vue'
+import WhyThisWorks from './components/WhyThisWorks.vue'
 import { dispatch } from './tool/index.js'
 
 useUpdater()

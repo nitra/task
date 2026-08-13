@@ -2,6 +2,7 @@
   <div class="report-view">
     <div class="toolbar">
       <div class="headline">Звіт</div>
+      <WhyThisWorks topic="report" />
       <q-space />
       <q-input v-model.number="periodDays" dense outlined type="number" min="1" class="period-input" suffix="дн." />
       <q-btn
@@ -136,6 +137,7 @@
 
 <script setup>
 import { useReport } from '../composables/use-report.js'
+import WhyThisWorks from './WhyThisWorks.vue'
 
 // «Звіт» (M6, docs/specs/260809-delta-app.md, «Обсяг M6», п.2) — сьома
 // площина конституції: чистий рендер `delta_report` простим списком/
