@@ -6,6 +6,7 @@
       <q-badge v-if="decision.leverageFacets.irreversible" color="negative" label="незворотне" class="facet-badge" />
       <q-badge color="grey-7" :label="`blast: ${decision.leverageFacets.blastRadius}`" class="facet-badge" />
       <q-badge color="secondary" :label="decision.depth" class="facet-badge" />
+      <WhyThisWorks topic="decisionCard" />
       <q-space />
       <span v-if="decision.deadlineCost" class="deadline">{{ decision.deadlineCost }}</span>
     </div>
@@ -16,6 +17,7 @@
     <div v-if="isQuorum" class="quorum-panel">
       <div class="section-label">
         Кворум — {{ decision.quorum.signed.length }}/{{ decision.quorum.approvers.length }}
+        <WhyThisWorks topic="quorum" />
       </div>
       <div class="quorum-signers">
         <q-badge
@@ -62,6 +64,8 @@
     <div v-else class="quiz">
       <div class="section-label">
         Квіз-гейт — обрано «{{ chosenOption }}»
+        <WhyThisWorks topic="quiz" />
+        <q-badge v-if="trustSimplified" color="positive" label="спрощено довірою" class="facet-badge" />
         <q-btn
           v-if="!approved"
           @click="reset"
@@ -160,6 +164,16 @@
           </div>
         </div>
 
+        <!-- Зона росту (п.2г) — ЛИШЕ інформаційна картка: немає власної
+             кнопки відповіді/підтвердження, ніколи не гейтує підпис. -->
+        <div v-if="growthEdge" class="growth-edge-card">
+          <div class="growth-edge-title">
+            <q-icon name="sym_o_trending_up" size="14px" /> На виріст (твоя зона росту)
+          </div>
+          <p class="growth-edge-question">{{ growthEdge.question }}</p>
+          <p class="growth-edge-microlesson">{{ growthEdge.microlesson }}</p>
+        </div>
+
         <div v-if="error" class="banner banner-error">{{ error }}</div>
       </template>
     </div>
@@ -168,6 +182,7 @@
 
 <script setup>
 import { dispatch } from '../tool/index.js'
+import WhyThisWorks from './WhyThisWorks.vue'
 
 const props = defineProps({
   decision: { type: Object, required: true },
@@ -201,6 +216,15 @@ const explain = ref(null)
 const iterations = ref(0)
 const error = ref(null)
 const transcript = ref('')
+// Довіра-стрік (п.3 конституції, delta-core::knowledge::trust_simplified_for_domain)
+// стиснула цей standard-квіз до одного питання — бекенд повертає прапорець
+// у кожній відповіді decision_quiz/decision_approve, картка лише показує
+// його як бейдж поруч із «чому так».
+const trustSimplified = ref(false)
+// Зона росту (п.2г) — окреме, НЕГЕЙТУЮЧЕ поле відповіді decision_quiz
+// (`delta_core::profiles::build_growth_edge_field`); null, якщо домен
+// розвилки не в growth_edge власника.
+const growthEdge = ref(null)
 
 const shortPubkey = computed(() => {
   const key = approvalResult.value?.approval?.pubkey ?? ''
@@ -248,6 +272,8 @@ async function chooseOption(label) {
         repetition: res.output.repetition
       }
   iterations.value = res.output.iterations
+  trustSimplified.value = Boolean(res.output.trustSimplified)
+  growthEdge.value = res.output.growthEdge ?? null
 }
 
 /**
@@ -262,6 +288,8 @@ function reset() {
   explain.value = null
   error.value = null
   transcript.value = ''
+  trustSimplified.value = false
+  growthEdge.value = null
 }
 
 /**
@@ -593,6 +621,34 @@ async function submitTeachBack() {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   font-size: 10px;
+}
+
+.growth-edge-card {
+  background: color-mix(in srgb, #14b8a6 8%, transparent);
+  border: 1px solid color-mix(in srgb, #14b8a6 20%, transparent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.growth-edge-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 650;
+  margin-bottom: 4px;
+  color: #14b8a6;
+}
+
+.growth-edge-question {
+  margin: 0 0 4px;
+  opacity: 0.9;
+}
+
+.growth-edge-microlesson {
+  margin: 0;
+  opacity: 0.7;
+  font-size: 11px;
 }
 
 .explain-panel {

@@ -2,6 +2,7 @@
   <div class="watcher-view">
     <div class="toolbar">
       <div class="headline">Стежу</div>
+      <WhyThisWorks topic="watcher" />
       <q-space />
       <q-btn
         @click="runScan"
@@ -72,6 +73,27 @@
         <div class="union-card">
           <div class="union-card-title">Реєстр pubkey</div>
           <div class="union-card-value pubkey">{{ shortPubkey }}</div>
+        </div>
+      </div>
+
+      <!-- growth_edge (п.2(г), мок профілю people-profiles.git/{handle}.yaml,
+           mandates.md: «ЄДИНА секція, яку пише сама людина») — генератор
+           квізу читає це поле й додає ОДНЕ навчальне «на виріст» питання до
+           картки рішень цього домену, НІКОЛИ не гейтуючи підпис. -->
+      <div class="growth-edge-editor">
+        <div class="growth-edge-label">
+          Зона росту (growth_edge) <WhyThisWorks topic="knowledge" />
+        </div>
+        <p class="growth-edge-hint">
+          Домени, у яких ти хочеш рости — квіз-гейт цього домену додасть одне ДОДАТКОВЕ навчальне питання ширшого
+          контексту («на виріст»), ніколи не жорсткіший підпис.
+        </p>
+        <div class="growth-edge-chips">
+          <q-chip v-for="d in growthEdge" :key="d" @remove="removeGrowthEdgeDomain(d)" removable dense>{{ d }}</q-chip>
+        </div>
+        <div class="growth-edge-add">
+          <q-input v-model="newGrowthEdgeDomain" @keyup.enter="addGrowthEdgeDomain" dense outlined placeholder="rust" />
+          <q-btn @click="addGrowthEdgeDomain" flat dense no-caps label="додати" :disable="!newGrowthEdgeDomain.trim()" />
         </div>
       </div>
     </section>
@@ -150,6 +172,8 @@
 <script setup>
 import { useDrift } from '../composables/use-drift.js'
 import { useWatcher } from '../composables/use-watcher.js'
+import { dispatch } from '../tool/index.js'
+import WhyThisWorks from './WhyThisWorks.vue'
 
 // «Стежу» (docs/specs/260809-delta-app.md, «Обсяг M4», п.3/4/5) — четверта
 // площина конституції, раніше позначена як «лишається M4» (App.vue): лог
@@ -189,6 +213,54 @@ const {
 
 const quietStart = ref('')
 const quietEnd = ref('')
+
+const growthEdge = ref([])
+const newGrowthEdgeDomain = ref('')
+
+/**
+ * Завантажує growth_edge мого профілю (`.mt/profiles/{handle}.yaml`, п.2(г)).
+ * @returns {Promise<void>}
+ */
+async function loadGrowthEdge() {
+  if (!mandatesDir.value || !identity.value) return
+  const res = await dispatch('profile_show', { mandatesDir: mandatesDir.value, handle: identity.value })
+  growthEdge.value = res.ok ? (res.output.growthEdge ?? []) : []
+}
+
+/**
+ * Персистить поточний список доменів як growth_edge мого профілю.
+ * @returns {Promise<void>}
+ */
+async function persistGrowthEdge() {
+  if (!mandatesDir.value || !identity.value) return
+  await dispatch('profile_set_growth_edge', {
+    mandatesDir: mandatesDir.value,
+    handle: identity.value,
+    growthEdge: growthEdge.value
+  })
+}
+
+/**
+ * Додає домен у мою зону росту (дублікати ігноруються) і одразу зберігає.
+ * @returns {Promise<void>}
+ */
+async function addGrowthEdgeDomain() {
+  const domain = newGrowthEdgeDomain.value.trim()
+  if (!domain || growthEdge.value.includes(domain)) return
+  growthEdge.value = [...growthEdge.value, domain]
+  newGrowthEdgeDomain.value = ''
+  await persistGrowthEdge()
+}
+
+/**
+ * Прибирає домен із моєї зони росту і одразу зберігає.
+ * @param {string} domain домен, який видаляємо
+ * @returns {Promise<void>}
+ */
+async function removeGrowthEdgeDomain(domain) {
+  growthEdge.value = growthEdge.value.filter(d => d !== domain)
+  await persistGrowthEdge()
+}
 
 /**
  * @param {'stale'|'repeated-iterations'|'both'} signal сигнал дрейф-item-а
@@ -248,6 +320,7 @@ onMounted(async () => {
   if (mandatesDir.value && identity.value) await rescan()
   await refreshDriftConfig()
   if (mandatesDir.value && identity.value) await rescanDrift()
+  await loadGrowthEdge()
 })
 
 defineExpose({ rescan, rescanDrift })
@@ -354,6 +427,43 @@ defineExpose({ rescan, rescanDrift })
   font-family: 'SF Mono', ui-monospace, monospace;
   font-size: 11px;
   font-weight: 500;
+}
+
+.growth-edge-editor {
+  margin-top: 14px;
+  border-top: 1px solid color-mix(in srgb, currentcolor 8%, transparent);
+  padding-top: 12px;
+}
+
+.growth-edge-label {
+  font-size: 11.5px;
+  font-weight: 650;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.growth-edge-hint {
+  font-size: 11.5px;
+  opacity: 0.65;
+  margin: 4px 0 8px;
+}
+
+.growth-edge-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.growth-edge-add {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.growth-edge-add .q-input {
+  flex: 1;
 }
 
 .drift-section {

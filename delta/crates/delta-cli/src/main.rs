@@ -42,6 +42,13 @@ const MANDATES_DIR_DEFAULT_TOOLS: &[&str] = &[
     "mandate_widen_propose",
     "ai_petition",
     "mandate_change_apply",
+    "simulate_mandate_scope",
+    "mandate_request_propose",
+    "onboarding_status",
+    "entry_quiz_start",
+    "entry_quiz_submit",
+    "profile_show",
+    "profile_set_growth_edge",
     "quorum_quiz",
     "quorum_approve",
     "quorum_status",
@@ -92,6 +99,13 @@ const ALL_TOOLS: &[&str] = &[
     "mandate_widen_propose",
     "ai_petition",
     "mandate_change_apply",
+    "simulate_mandate_scope",
+    "mandate_request_propose",
+    "onboarding_status",
+    "entry_quiz_start",
+    "entry_quiz_submit",
+    "profile_show",
+    "profile_set_growth_edge",
     "quorum_quiz",
     "quorum_approve",
     "quorum_status",
@@ -143,6 +157,49 @@ fn build_dir_scans(raw: &[(String, Vec<(String, String)>)]) -> Vec<DecisionsDirS
     raw.iter()
         .map(|(dir, files)| DecisionsDirScan { dir, files })
         .collect()
+}
+
+/// Крок гейт-незалежного «на виріст» (п.2(г)): якщо `decision_quiz`
+/// повернув `domain`, і той домен — заявлена зона росту computed_owner-а
+/// розвилки, вставляє окреме поле `growthEdge` у відповідь ПІСЛЯ звичайного
+/// квіз-гейта (`profiles::build_growth_edge_field` — ніколи не входить у
+/// сам квіз-файл/questions[], фізично не може підняти вимоги до підпису).
+/// Best-effort: будь-яка відсутність (профілю, decision-request-а) мовчки
+/// не додає поля, не зриває сам quiz-виклик.
+async fn attach_growth_edge(
+    mandates_dir: &str,
+    decisions_dir: &str,
+    nnnn: &str,
+    result: &mut Value,
+) {
+    let Some(domain) = result
+        .as_object()
+        .and_then(|o| o.get("domain"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+    else {
+        return;
+    };
+    let dr_path = format!("{decisions_dir}/{nnnn}-decision-request.md");
+    let Some(dr_text) = delta_core::io::Io::read_file(&config::FsIo, &dr_path).await else {
+        return;
+    };
+    let Ok(dr) =
+        delta_core::decisions::parse_decision_request(&dr_text, DecisionRequestMeta::default())
+    else {
+        return;
+    };
+    let Some(owner) = dr.computed_owner.clone() else {
+        return;
+    };
+    let profile_path = delta_core::profiles::profile_path(mandates_dir, &owner);
+    let profile_text = delta_core::io::Io::read_file(&config::FsIo, &profile_path).await;
+    let growth_edge = delta_core::profiles::parse_growth_edge_profile(profile_text.as_deref());
+    if let Some(field) = delta_core::profiles::build_growth_edge_field(&growth_edge, &domain, &dr) {
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert("growthEdge".to_string(), field);
+        }
+    }
 }
 
 /// Читає `.mt/mandates.yaml` — файл відсутній — доброзичливий empty state
@@ -227,7 +284,7 @@ async fn dispatch(tool: &str, input: &Value) -> Result<Value, String> {
             let nnnn = require_str(input, "nnnn")?;
             let chosen_option = require_str(input, "chosenOption")?;
             let decisions_dir = format!("{mandates_dir}/runs/{run_id}/decisions");
-            delta_core::decision_flow::decision_quiz(
+            let mut result = delta_core::decision_flow::decision_quiz(
                 &config::FsIo,
                 &client,
                 &llm_config,
@@ -237,7 +294,9 @@ async fn dispatch(tool: &str, input: &Value) -> Result<Value, String> {
                 Some(&config::FsKnowledgeIo),
                 None,
             )
-            .await
+            .await?;
+            attach_growth_edge(&mandates_dir, &decisions_dir, &nnnn, &mut result).await;
+            Ok(result)
         }
         "decision_approve" => {
             let mandates_dir = require_str(input, "mandatesDir")?;
@@ -440,6 +499,56 @@ async fn dispatch(tool: &str, input: &Value) -> Result<Value, String> {
                 "petition": result.petition,
             }))
         }
+        // Симуляція на історії (конституція п.12, delta_core::simulation
+        // module doc) — детермінований прогноз «за N днів у scope потрапило
+        // б стільки-то рішень», викликається ДО підпису change-proposal-у
+        // (onboarding-майстер, «Довіряю»). Матчить лише вісь decision_types
+        // (свідома межа обсягу — refs немає в мок-схемі decision-request-а).
+        "simulate_mandate_scope" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let decision_types: Vec<String> = input
+                .get("decisionTypes")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let exclude_decision_types: Option<Vec<String>> =
+                input.get("excludeDecisionTypes").and_then(|v| {
+                    v.as_array().map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(str::to_string))
+                            .collect()
+                    })
+                });
+            let period_days = input
+                .get("periodDays")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(90);
+            let raw = config::scan_decisions_dirs(&mandates_dir);
+            let dirs: Vec<delta_core::decisions::DecisionsDir> = raw
+                .into_iter()
+                .map(|(dir, files)| delta_core::decisions::DecisionsDir { dir, files })
+                .collect();
+            let scope = mt_mandates::Scope {
+                refs: vec!["refs/mt/**".into()],
+                decision_types,
+            };
+            let exclude_scope = exclude_decision_types.map(|decision_types| mt_mandates::Scope {
+                refs: vec!["refs/mt/**".into()],
+                decision_types,
+            });
+            let result = delta_core::simulation::simulate_scope(
+                &dirs,
+                &scope,
+                exclude_scope.as_ref(),
+                period_days,
+                chrono::Utc::now(),
+            );
+            Ok(delta_core::simulation::simulation_to_json(&result))
+        }
         "mandate_change_apply" => {
             let mandates_dir = require_str(input, "mandatesDir")?;
             let change_id = require_str(input, "changeId")?;
@@ -493,6 +602,164 @@ async fn dispatch(tool: &str, input: &Value) -> Result<Value, String> {
                 None,
             )
             .await)
+        }
+        // Онбординг = перший мандат (конституція п.10, delta_core::onboarding
+        // module doc): "mandate_request_propose" покриває кроки (а)/(б) —
+        // шаблон мінімального мандата + change-proposal тим самим
+        // `ChangeKind::Added`-шляхом mt_mandates, що розширення ШІ-мандата.
+        // Крок (в) — уже наявні tools decision_quiz/decision_approve
+        // (делегатор) + mandate_change_apply (застосування) — жодного нового
+        // tool-а не потрібно. Крок (г) — "entry_quiz_start"/"entry_quiz_submit".
+        "mandate_request_propose" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let delegator_handle = require_str(input, "delegatorHandle")?;
+            let initiated_by =
+                opt_str(input, "initiatedByHandle").unwrap_or_else(|| handle.clone());
+            let kind = match opt_str(input, "kind").as_deref() {
+                Some("model") => mt_mandates::MandateKind::Model,
+                _ => mt_mandates::MandateKind::Person,
+            };
+            let refs: Vec<String> = input
+                .get("refs")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let decision_types: Vec<String> = input
+                .get("decisionTypes")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let old = read_mandates_file_or_empty(&mandates_dir)?;
+            let scope = mt_mandates::Scope {
+                refs,
+                decision_types,
+            };
+            let new_file = delta_core::onboarding::build_onboarding_mandate_file(
+                &old,
+                &handle,
+                &delegator_handle,
+                kind,
+                scope,
+            )?;
+            let change_id = opt_str(input, "changeId")
+                .unwrap_or_else(|| delta_core::onboarding::onboarding_change_id(&handle));
+            let reason = opt_str(input, "reason").unwrap_or_else(|| {
+                format!(
+                    "Онбординг: '{handle}' запросив(ла) перший мандат під делегатором '{delegator_handle}' (докладніше: docs/specs/260809-delta-app.md, конституція п.10)."
+                )
+            });
+            let written = delta_core::change_proposal::write_change_proposal(
+                &config::FsIo,
+                &mandates_dir,
+                &change_id,
+                &old,
+                &new_file,
+                &handle,
+                &delegator_handle,
+                &initiated_by,
+                &reason,
+                None,
+            )
+            .await;
+            Ok(json!({
+                "changeId": change_id,
+                "runId": delta_core::change_proposal::change_proposal_run_id(&change_id),
+                "delegatorHandle": delegator_handle,
+                "decisionRequestPath": written.decision_request_path,
+                "changeJsonPath": written.change_json_path,
+            }))
+        }
+        "onboarding_status" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let mandates_file = read_mandates_file_or_empty(&mandates_dir)?;
+            let needs_onboarding =
+                delta_core::onboarding::needs_onboarding(&mandates_file, &handle);
+            let entry_quiz_complete =
+                delta_core::onboarding::entry_quiz_completed(&config::FsIo, &mandates_dir, &handle)
+                    .await;
+            Ok(json!({
+                "needsOnboarding": needs_onboarding,
+                "entryQuizComplete": entry_quiz_complete,
+                "onboardingComplete": !needs_onboarding && entry_quiz_complete,
+            }))
+        }
+        "entry_quiz_start" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let mandates_file = read_mandates_file_or_empty(&mandates_dir)?;
+            let mandate = mandates_file
+                .mandates
+                .iter()
+                .find(|m| m.owner == handle)
+                .ok_or_else(|| format!("entry_quiz_start: '{handle}' ще не має мандата в mandates.yaml — спершу mandate_request_propose → decision_quiz/decision_approve делегатора → mandate_change_apply"))?;
+            Ok(delta_core::onboarding::entry_quiz_start(
+                &config::FsIo,
+                &mandates_dir,
+                &handle,
+                mandate,
+                mandates_file.generation,
+                None,
+            )
+            .await)
+        }
+        // Мок профілів компетенцій (п.2(г) конституції, `delta_core::profiles`
+        // module doc) — .mt/profiles/{handle}.yaml, ЛИШЕ growth_edge (mandates.md:
+        // «ЄДИНА секція, яку пише сама людина»).
+        "profile_show" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let path = delta_core::profiles::profile_path(&mandates_dir, &handle);
+            let text = delta_core::io::Io::read_file(&config::FsIo, &path).await;
+            let growth_edge = delta_core::profiles::parse_growth_edge_profile(text.as_deref());
+            Ok(json!({"handle": handle, "growthEdge": growth_edge}))
+        }
+        "profile_set_growth_edge" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let growth_edge: Vec<String> = input
+                .get("growthEdge")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let path = delta_core::profiles::profile_path(&mandates_dir, &handle);
+            delta_core::io::Io::write_file(
+                &config::FsIo,
+                &path,
+                &delta_core::profiles::format_growth_edge_profile(&growth_edge),
+            )
+            .await;
+            Ok(json!({"handle": handle, "growthEdge": growth_edge}))
+        }
+        "entry_quiz_submit" => {
+            let mandates_dir = require_str(input, "mandatesDir")?;
+            let handle = require_str(input, "handle")?;
+            let answers: Vec<i64> = input
+                .get("answers")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|v| v.as_i64()).collect())
+                .ok_or("Missing required field: answers")?;
+            delta_core::onboarding::entry_quiz_submit(
+                &config::FsIo,
+                &mandates_dir,
+                &handle,
+                &answers,
+                None,
+            )
+            .await
         }
         "quorum_quiz" => {
             let mandates_dir = require_str(input, "mandatesDir")?;

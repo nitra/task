@@ -114,7 +114,12 @@ export const TOOLS = [
       'mutable NNNN-quiz.md draft. depth: one-tap may mix in a second spaced-repetition question from the personal ' +
       'knowledge base; depth: standard generates 2 questions about the decision itself (M2); depth: teach-back ' +
       '(irreversible / wide blast_radius, M5) has no question — returns a `prompt` asking the owner to retell the ' +
-      'decision in their own words (decision_approve takes `transcript`, not `answer`).',
+      'decision in their own words (decision_approve takes `transcript`, not `answer`). Trust-simplification (p.3): ' +
+      '5 consecutive clean quizzes (iterations=1) of the same domain, same mandate generation, last ≤14 days ago ' +
+      'collapses a `standard` quiz to one question — `trustSimplified: true` in both the response and the quiz-file ' +
+      'frontmatter. growth_edge (p.2г): if the decision\'s domain is in the owner\'s .mt/profiles/{handle}.yaml ' +
+      'growth_edge, an OPTIONAL, non-blocking `growthEdge` field is attached — a broader-context "stretch" question ' +
+      'that never enters the quiz file and never raises signing requirements.',
     input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN, chosenOption: CHOSEN_OPTION },
     tauri: 'decision_quiz', // фаза A: пряма Rust-команда (delta-core::decision_flow), той самий crate, що CLI
     cli: true
@@ -416,6 +421,133 @@ export const TOOLS = [
       }
     },
     tauri: 'mandate_change_apply',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'simulate_mandate_scope',
+    summary:
+      'Simulation on history (constitution p.12): deterministic, no LLM — scans runs/*/decisions over periodDays ' +
+      '(default 90), counts how many would fall into decisionTypes (bucketed per type, with an irreversible ' +
+      'sub-count). excludeDecisionTypes (the mandate\'s CURRENT scope, if any) subtracts decisions that already ' +
+      'matched before the change — leaving only newly-captured ones. Matches ONLY the decision_types axis — ' +
+      'decision-request mock has no field equivalent to scope.refs (documented scope limit, docs/open-questions.md).',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      decisionTypes: { type: 'array', required: true, description: 'Requested/current scope.decision_types to simulate.' },
+      excludeDecisionTypes: {
+        type: 'array',
+        required: false,
+        description: 'Previous scope.decision_types — omitted counts everything matching decisionTypes.'
+      },
+      periodDays: { type: 'number', required: false, description: 'Lookback window in days — omitted defaults to 90.' }
+    },
+    tauri: 'simulate_mandate_scope',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'mandate_request_propose',
+    summary:
+      'Онбординг = перший мандат (constitution p.10): builds a minimal-mandate template for a NEW handle (absent ' +
+      'from mandates.yaml) and files it as a change-proposal decision-request in the DELEGATOR\'s "Вирішую" queue — ' +
+      'same ChangeKind::Added path mt_mandates::validate_mandate_change uses for widening an AI mandate ' +
+      '(mandate_widen_propose). The delegator then signs via the normal decision_quiz/decision_approve + ' +
+      'mandate_change_apply — no new signing path.',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      handle: { type: 'string', required: true, description: 'The new handle requesting its first mandate.' },
+      delegatorHandle: {
+        type: 'string',
+        required: true,
+        description: 'Existing owner (root or otherwise) who will sign this new entry.'
+      },
+      initiatedByHandle: {
+        type: 'string',
+        required: false,
+        description: 'Handle recorded as recommended_by — omitted defaults to handle (self-request).'
+      },
+      kind: {
+        type: 'string',
+        required: false,
+        description: '"person" (default) | "model".'
+      },
+      refs: { type: 'array', required: true, description: 'Requested scope.refs — non-empty (mt_mandates rejects empty).' },
+      decisionTypes: {
+        type: 'array',
+        required: true,
+        description: 'Requested scope.decision_types — non-empty (mt_mandates rejects empty).'
+      },
+      changeId: {
+        type: 'string',
+        required: false,
+        description: 'Change-proposal id — omitted defaults to "onboarding-{handle}".'
+      },
+      reason: { type: 'string', required: false, description: 'Recommendation text — omitted uses a default onboarding message.' }
+    },
+    tauri: 'mandate_request_propose',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'onboarding_status',
+    summary:
+      'Whether `handle` still needs onboarding (constitution p.10): absent from mandates.yaml (needsOnboarding), and ' +
+      'whether the entry-quiz on the mandate it just received is completed (entryQuizComplete). ' +
+      'onboardingComplete = both steps done.',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'onboarding_status',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'entry_quiz_start',
+    summary:
+      'Онбординг crypto п.10 step (г): generate (first call) or show (repeat call, no regeneration) three ' +
+      'deterministic questions about the mandate `handle` JUST received (budget threshold / escalates_to / ' +
+      'decision_types) — writes runs/onboarding-{handle}/entry-quiz.md. Requires the mandate to already be in ' +
+      'mandates.yaml (mandate_change_apply already ran).',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'entry_quiz_start',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'entry_quiz_submit',
+    summary:
+      'Онбординг п.10 step (г): submit all three entry-quiz answers at once (0-based option index per question, ' +
+      'in order). All correct → writes entry-quiz-complete.json (onboarding fully done). Any wrong → fail ≠ ' +
+      'punishment: same questions stay, iterations grows, results shows which ones missed with a microlesson.',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      handle: HANDLE,
+      answers: { type: 'array', required: true, description: 'One 0-based option index per question, in order.' }
+    },
+    tauri: 'entry_quiz_submit',
+    cli: true
+  },
+  {
+    tier: 'read',
+    name: 'profile_show',
+    summary:
+      'Profile mock (p.2г, mandates.md "growth_edge — the ONE section the person writes themselves"): read ' +
+      '.mt/profiles/{handle}.yaml growth_edge — missing/corrupt file returns an empty list, not an error.',
+    input: { mandatesDir: MANDATES_DIR, handle: HANDLE },
+    tauri: 'profile_show',
+    cli: true
+  },
+  {
+    tier: 'write',
+    name: 'profile_set_growth_edge',
+    summary:
+      "Persist the FULL growth_edge list for `handle` — the person's own self-declared domains to grow into, read " +
+      'by decision_quiz to attach an optional non-blocking "stretch" question of the same domain.',
+    input: {
+      mandatesDir: MANDATES_DIR,
+      handle: HANDLE,
+      growthEdge: { type: 'array', required: true, description: 'Full replacement list of domain strings.' }
+    },
+    tauri: 'profile_set_growth_edge',
     cli: true
   },
   {

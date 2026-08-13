@@ -200,6 +200,47 @@ pub fn decisions_show(mandates_dir: String, handle: Option<String>) -> Value {
     )
 }
 
+/// Крок гейт-незалежного «на виріст» (п.2(г), delta_core::profiles module
+/// doc) — best-effort: якщо `domain` результату — заявлена зона росту
+/// computed_owner-а розвилки, вставляє окреме поле `growthEdge` у відповідь
+/// ПІСЛЯ звичайного квіз-гейта (ніколи не входить у квіз-файл/questions[]).
+async fn attach_growth_edge(
+    mandates_dir: &str,
+    decisions_dir: &str,
+    nnnn: &str,
+    result: &mut Value,
+) {
+    let Some(domain) = result
+        .as_object()
+        .and_then(|o| o.get("domain"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+    else {
+        return;
+    };
+    let dr_path = format!("{decisions_dir}/{nnnn}-decision-request.md");
+    let Some(dr_text) = Io::read_file(&FsIo, &dr_path).await else {
+        return;
+    };
+    let Ok(dr) = delta_core::decisions::parse_decision_request(
+        &dr_text,
+        delta_core::decisions::DecisionRequestMeta::default(),
+    ) else {
+        return;
+    };
+    let Some(owner) = dr.computed_owner.clone() else {
+        return;
+    };
+    let profile_path = delta_core::profiles::profile_path(mandates_dir, &owner);
+    let profile_text = Io::read_file(&FsIo, &profile_path).await;
+    let growth_edge = delta_core::profiles::parse_growth_edge_profile(profile_text.as_deref());
+    if let Some(field) = delta_core::profiles::build_growth_edge_field(&growth_edge, &domain, &dr) {
+        if let Some(obj) = result.as_object_mut() {
+            obj.insert("growthEdge".to_string(), field);
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn decision_quiz(
     mandates_dir: String,
@@ -210,7 +251,7 @@ pub async fn decision_quiz(
     let client = reqwest::Client::new();
     let llm_config = read_llm_config();
     let decisions_dir = format!("{mandates_dir}/runs/{run_id}/decisions");
-    delta_core::decision_flow::decision_quiz(
+    let mut result = delta_core::decision_flow::decision_quiz(
         &FsIo,
         &client,
         &llm_config,
@@ -220,7 +261,33 @@ pub async fn decision_quiz(
         Some(&FsKnowledgeIo),
         None,
     )
-    .await
+    .await?;
+    attach_growth_edge(&mandates_dir, &decisions_dir, &nnnn, &mut result).await;
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn profile_show(mandates_dir: String, handle: String) -> Result<Value, String> {
+    let path = delta_core::profiles::profile_path(&mandates_dir, &handle);
+    let text = Io::read_file(&FsIo, &path).await;
+    let growth_edge = delta_core::profiles::parse_growth_edge_profile(text.as_deref());
+    Ok(json!({"handle": handle, "growthEdge": growth_edge}))
+}
+
+#[tauri::command]
+pub async fn profile_set_growth_edge(
+    mandates_dir: String,
+    handle: String,
+    growth_edge: Vec<String>,
+) -> Result<Value, String> {
+    let path = delta_core::profiles::profile_path(&mandates_dir, &handle);
+    Io::write_file(
+        &FsIo,
+        &path,
+        &delta_core::profiles::format_growth_edge_profile(&growth_edge),
+    )
+    .await;
+    Ok(json!({"handle": handle, "growthEdge": growth_edge}))
 }
 
 #[tauri::command]
@@ -425,6 +492,40 @@ pub async fn ai_petition(
     }))
 }
 
+/// Симуляція на історії (конституція п.12, `delta_core::simulation` module
+/// doc) — детермінований прогноз перед підписом; матчить лише вісь
+/// `decision_types` (свідома межа обсягу, `refs` немає в decision-request
+/// мок-схемі).
+#[tauri::command]
+pub fn simulate_mandate_scope(
+    mandates_dir: String,
+    decision_types: Vec<String>,
+    exclude_decision_types: Option<Vec<String>>,
+    period_days: Option<i64>,
+) -> Value {
+    let raw = scan_decisions_dirs(&mandates_dir);
+    let dirs: Vec<delta_core::decisions::DecisionsDir> = raw
+        .into_iter()
+        .map(|(dir, files)| delta_core::decisions::DecisionsDir { dir, files })
+        .collect();
+    let scope = mt_mandates::Scope {
+        refs: vec!["refs/mt/**".into()],
+        decision_types,
+    };
+    let exclude_scope = exclude_decision_types.map(|decision_types| mt_mandates::Scope {
+        refs: vec!["refs/mt/**".into()],
+        decision_types,
+    });
+    let result = delta_core::simulation::simulate_scope(
+        &dirs,
+        &scope,
+        exclude_scope.as_ref(),
+        period_days.unwrap_or(90),
+        chrono::Utc::now(),
+    );
+    delta_core::simulation::simulation_to_json(&result)
+}
+
 #[tauri::command]
 pub async fn mandate_change_apply(
     mandates_dir: String,
@@ -474,6 +575,112 @@ pub async fn mandate_change_apply(
         None,
     )
     .await)
+}
+
+// Онбординг = перший мандат (конституція п.10, `delta_core::onboarding`
+// module doc). Кроки (а)/(б) — `mandate_request_propose` (тим самим
+// `ChangeKind::Added`-шляхом, що розширення ШІ-мандата); крок (в) —
+// наявні `decision_quiz`/`decision_approve`/`mandate_change_apply` вище,
+// жодного нового tool-а не потрібно; крок (г) — `entry_quiz_start`/
+// `entry_quiz_submit`.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn mandate_request_propose(
+    mandates_dir: String,
+    handle: String,
+    delegator_handle: String,
+    initiated_by_handle: Option<String>,
+    kind: Option<String>,
+    refs: Vec<String>,
+    decision_types: Vec<String>,
+    change_id: Option<String>,
+    reason: Option<String>,
+) -> Result<Value, String> {
+    let old = read_mandates_file_or_empty(&mandates_dir)?;
+    let mandate_kind = match kind.as_deref() {
+        Some("model") => mt_mandates::MandateKind::Model,
+        _ => mt_mandates::MandateKind::Person,
+    };
+    let scope = mt_mandates::Scope {
+        refs,
+        decision_types,
+    };
+    let new_file = delta_core::onboarding::build_onboarding_mandate_file(
+        &old,
+        &handle,
+        &delegator_handle,
+        mandate_kind,
+        scope,
+    )?;
+    let change_id =
+        change_id.unwrap_or_else(|| delta_core::onboarding::onboarding_change_id(&handle));
+    let initiated_by = initiated_by_handle.unwrap_or_else(|| handle.clone());
+    let reason = reason.unwrap_or_else(|| {
+        format!(
+            "Онбординг: '{handle}' запросив(ла) перший мандат під делегатором '{delegator_handle}' (докладніше: docs/specs/260809-delta-app.md, конституція п.10)."
+        )
+    });
+    let written = delta_core::change_proposal::write_change_proposal(
+        &FsIo,
+        &mandates_dir,
+        &change_id,
+        &old,
+        &new_file,
+        &handle,
+        &delegator_handle,
+        &initiated_by,
+        &reason,
+        None,
+    )
+    .await;
+    Ok(json!({
+        "changeId": change_id,
+        "runId": delta_core::change_proposal::change_proposal_run_id(&change_id),
+        "delegatorHandle": delegator_handle,
+        "decisionRequestPath": written.decision_request_path,
+        "changeJsonPath": written.change_json_path,
+    }))
+}
+
+#[tauri::command]
+pub async fn onboarding_status(mandates_dir: String, handle: String) -> Result<Value, String> {
+    let mandates_file = read_mandates_file_or_empty(&mandates_dir)?;
+    let needs_onboarding = delta_core::onboarding::needs_onboarding(&mandates_file, &handle);
+    let entry_quiz_complete =
+        delta_core::onboarding::entry_quiz_completed(&FsIo, &mandates_dir, &handle).await;
+    Ok(json!({
+        "needsOnboarding": needs_onboarding,
+        "entryQuizComplete": entry_quiz_complete,
+        "onboardingComplete": !needs_onboarding && entry_quiz_complete,
+    }))
+}
+
+#[tauri::command]
+pub async fn entry_quiz_start(mandates_dir: String, handle: String) -> Result<Value, String> {
+    let mandates_file = read_mandates_file_or_empty(&mandates_dir)?;
+    let mandate = mandates_file
+        .mandates
+        .iter()
+        .find(|m| m.owner == handle)
+        .ok_or_else(|| format!("entry_quiz_start: '{handle}' ще не має мандата в mandates.yaml — спершу mandate_request_propose → decision_quiz/decision_approve делегатора → mandate_change_apply"))?;
+    Ok(delta_core::onboarding::entry_quiz_start(
+        &FsIo,
+        &mandates_dir,
+        &handle,
+        mandate,
+        mandates_file.generation,
+        None,
+    )
+    .await)
+}
+
+#[tauri::command]
+pub async fn entry_quiz_submit(
+    mandates_dir: String,
+    handle: String,
+    answers: Vec<i64>,
+) -> Result<Value, String> {
+    delta_core::onboarding::entry_quiz_submit(&FsIo, &mandates_dir, &handle, &answers, None).await
 }
 
 #[tauri::command]

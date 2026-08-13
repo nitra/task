@@ -2,6 +2,7 @@
   <div class="trust-view">
     <div class="toolbar">
       <div class="headline">Довіряю</div>
+      <WhyThisWorks topic="trust" />
       <q-space />
       <q-btn @click="rescan" flat dense round icon="sym_o_refresh" :loading="loading" />
     </div>
@@ -83,7 +84,23 @@
           </template>
         </div>
 
+        <!-- Симуляція на історії (конституція п.12) — детермінований
+             прогноз для ПОТОЧНОГО scope цього мандата, без LLM. -->
+        <div v-if="simulationState[item.mandate.owner]" class="simulation-inline">
+          За {{ simulationState[item.mandate.owner].periodDays }} дн.:
+          {{ simulationState[item.mandate.owner].total }} рішень, з них
+          {{ simulationState[item.mandate.owner].irreversibleTotal }} незворотних.
+        </div>
+
         <div class="actions-row">
+          <q-btn
+            @click="onSimulate(item.mandate.owner, item.mandate.scope.decisionTypes)"
+            flat
+            dense
+            no-caps
+            size="sm"
+            icon="sym_o_query_stats"
+            label="прогноз" />
           <q-btn
             @click="onNarrow(item.mandate.owner)"
             flat
@@ -109,6 +126,8 @@
 <script setup>
 import { useDirectory } from '../composables/use-directory.js'
 import { useTrust } from '../composables/use-trust.js'
+import { dispatch } from '../tool/index.js'
+import WhyThisWorks from './WhyThisWorks.vue'
 
 // «Довіряю» (спека docs/specs/260809-delta-app.md, «Обсяг M3», п.3) — третя
 // площина конституції: мої ШІ-мандати з трек-рекордом, audacity-описом
@@ -138,6 +157,21 @@ async function onNarrow(ownerHandle) {
  */
 async function onProposeWiden(ownerHandle) {
   await proposeWiden(ownerHandle)
+}
+
+const simulationState = ref({})
+
+/**
+ * Симуляція на історії (конституція п.12) — детермінований прогноз для
+ * ПОТОЧНОГО scope цього ШІ-мандата (без LLM): «за 90 днів N рішень, з них
+ * M незворотних».
+ * @param {string} ownerHandle owner мандата
+ * @param {string[]} decisionTypes поточний scope.decisionTypes мандата
+ * @returns {Promise<void>}
+ */
+async function onSimulate(ownerHandle, decisionTypes) {
+  const res = await dispatch('simulate_mandate_scope', { mandatesDir: mandatesDir.value, decisionTypes })
+  if (res.ok) simulationState.value = { ...simulationState.value, [ownerHandle]: res.output }
 }
 
 defineExpose({ rescan })
@@ -254,6 +288,11 @@ defineExpose({ rescan })
 
 .track-recent-option {
   opacity: 0.7;
+}
+
+.simulation-inline {
+  font-size: 11.5px;
+  opacity: 0.75;
 }
 
 .actions-row {
