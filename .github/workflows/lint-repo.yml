@@ -27,5 +27,19 @@ jobs:
 
       - uses: ./.github/actions/setup-bun-deps
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Системні залежності Tauri v2 на Linux (glib/gtk/webkit) — без них
+      # clippy у rust/check не збере src-tauri (як у lint-rust.yml).
+      - name: Install Tauri system deps
+        run: >-
+          sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev
+          libgtk-3-dev librsvg2-dev libxdo-dev libssl-dev
+          libayatana-appindicator3-dev
+
       - name: Repo-wide lint
         run: bunx n-rules lint --repo-wide --no-fix

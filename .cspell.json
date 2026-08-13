@@ -21,6 +21,7 @@
     "@nitra/cspell-dict/cspell-ext.json"
   ],
   "words": [
+    "appindicator",
     "autobins",
     "cdylib",
     "chrono",
@@ -35,6 +36,10 @@
     "journaling",
     "keypair",
     "kfse",
+    "libayatana",
+    "librsvg",
+    "libwebkit",
+    "libxdo",
     "lipo",
     "mgmt",
     "microlesson",
