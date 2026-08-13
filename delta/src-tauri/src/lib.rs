@@ -247,6 +247,14 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
 
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+
+    // relaunch() після встановлення оновлення — щоб застосунок сам
+    // перезапустився в нову версію, а не чекав ручного рестарту (та сама
+    // потреба на будь-якій платформі, без cfg-guard, дзеркалить owner).
+    let builder = builder.plugin(tauri_plugin_process::init());
+
     builder
         .setup(|app| {
             #[cfg(desktop)]

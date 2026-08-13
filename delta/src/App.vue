@@ -57,6 +57,7 @@
 </template>
 
 <script setup>
+import { useUpdater } from '@7n/tauri-components/vue'
 import CandorView from './components/CandorView.vue'
 import DecisionsQueue from './components/DecisionsQueue.vue'
 import KnowledgeView from './components/KnowledgeView.vue'
@@ -65,6 +66,8 @@ import ReportView from './components/ReportView.vue'
 import TrustView from './components/TrustView.vue'
 import WatcherView from './components/WatcherView.vue'
 import { dispatch } from './tool/index.js'
+
+useUpdater()
 
 // Сім площин конституції (docs/specs/260809-delta-app.md, п.1): «Карта
 // мандатів» (M0, read-only, + M4 директорія display-імен), «Вирішую» (M1,
