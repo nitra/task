@@ -117,7 +117,7 @@ export const TOOLS = [
       'decision in their own words (decision_approve takes `transcript`, not `answer`). Trust-simplification (p.3): ' +
       '5 consecutive clean quizzes (iterations=1) of the same domain, same mandate generation, last ≤14 days ago ' +
       'collapses a `standard` quiz to one question — `trustSimplified: true` in both the response and the quiz-file ' +
-      'frontmatter. growth_edge (p.2г): if the decision\'s domain is in the owner\'s .mt/profiles/{handle}.yaml ' +
+      "frontmatter. growth_edge (p.2г): if the decision's domain is in the owner's .mt/profiles/{handle}.yaml " +
       'growth_edge, an OPTIONAL, non-blocking `growthEdge` field is attached — a broader-context "stretch" question ' +
       'that never enters the quiz file and never raises signing requirements.',
     input: { mandatesDir: MANDATES_DIR, runId: RUN_ID, nnnn: NNNN, chosenOption: CHOSEN_OPTION },
@@ -429,12 +429,16 @@ export const TOOLS = [
     summary:
       'Simulation on history (constitution p.12): deterministic, no LLM — scans runs/*/decisions over periodDays ' +
       '(default 90), counts how many would fall into decisionTypes (bucketed per type, with an irreversible ' +
-      'sub-count). excludeDecisionTypes (the mandate\'s CURRENT scope, if any) subtracts decisions that already ' +
+      "sub-count). excludeDecisionTypes (the mandate's CURRENT scope, if any) subtracts decisions that already " +
       'matched before the change — leaving only newly-captured ones. Matches ONLY the decision_types axis — ' +
       'decision-request mock has no field equivalent to scope.refs (documented scope limit, docs/open-questions.md).',
     input: {
       mandatesDir: MANDATES_DIR,
-      decisionTypes: { type: 'array', required: true, description: 'Requested/current scope.decision_types to simulate.' },
+      decisionTypes: {
+        type: 'array',
+        required: true,
+        description: 'Requested/current scope.decision_types to simulate.'
+      },
       excludeDecisionTypes: {
         type: 'array',
         required: false,
@@ -472,7 +476,11 @@ export const TOOLS = [
         required: false,
         description: '"person" (default) | "model".'
       },
-      refs: { type: 'array', required: true, description: 'Requested scope.refs — non-empty (mt_mandates rejects empty).' },
+      refs: {
+        type: 'array',
+        required: true,
+        description: 'Requested scope.refs — non-empty (mt_mandates rejects empty).'
+      },
       decisionTypes: {
         type: 'array',
         required: true,
@@ -483,7 +491,11 @@ export const TOOLS = [
         required: false,
         description: 'Change-proposal id — omitted defaults to "onboarding-{handle}".'
       },
-      reason: { type: 'string', required: false, description: 'Recommendation text — omitted uses a default onboarding message.' }
+      reason: {
+        type: 'string',
+        required: false,
+        description: 'Recommendation text — omitted uses a default onboarding message.'
+      }
     },
     tauri: 'mandate_request_propose',
     cli: true

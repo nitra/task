@@ -81,9 +81,7 @@
            квізу читає це поле й додає ОДНЕ навчальне «на виріст» питання до
            картки рішень цього домену, НІКОЛИ не гейтуючи підпис. -->
       <div class="growth-edge-editor">
-        <div class="growth-edge-label">
-          Зона росту (growth_edge) <WhyThisWorks topic="knowledge" />
-        </div>
+        <div class="growth-edge-label">Зона росту (growth_edge) <WhyThisWorks topic="knowledge" /></div>
         <p class="growth-edge-hint">
           Домени, у яких ти хочеш рости — квіз-гейт цього домену додасть одне ДОДАТКОВЕ навчальне питання ширшого
           контексту («на виріст»), ніколи не жорсткіший підпис.
@@ -93,7 +91,13 @@
         </div>
         <div class="growth-edge-add">
           <q-input v-model="newGrowthEdgeDomain" @keyup.enter="addGrowthEdgeDomain" dense outlined placeholder="rust" />
-          <q-btn @click="addGrowthEdgeDomain" flat dense no-caps label="додати" :disable="!newGrowthEdgeDomain.trim()" />
+          <q-btn
+            @click="addGrowthEdgeDomain"
+            flat
+            dense
+            no-caps
+            label="додати"
+            :disable="!newGrowthEdgeDomain.trim()" />
         </div>
       </div>
     </section>

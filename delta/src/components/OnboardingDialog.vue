@@ -37,7 +37,14 @@
         <div v-if="error" class="banner banner-error">{{ error }}</div>
 
         <q-card-actions align="right" class="ob-actions">
-          <q-btn @click="checkAndProceed" unelevated color="primary" no-caps label="почати" :disable="!handle.trim() || checking" :loading="checking" />
+          <q-btn
+            @click="checkAndProceed"
+            unelevated
+            color="primary"
+            no-caps
+            label="почати"
+            :disable="!handle.trim() || checking"
+            :loading="checking" />
         </q-card-actions>
       </template>
 
@@ -49,9 +56,9 @@
       <template v-else-if="step === 'request-mandate'">
         <q-card-section class="ob-intro">
           <p>
-            Handle <b>{{ handle }}</b> ще не має мандата в <code>{{ mandatesDir }}</code>. Сформуй запит — шаблон
-            мінімального мандата (консервативні пороги, тільки для старту): делегатор підпише його звичайним
-            квіз-гейтом у своїй черзі «Вирішую».
+            Handle <b>{{ handle }}</b> ще не має мандата в <code>{{ mandatesDir }}</code
+            >. Сформуй запит — шаблон мінімального мандата (консервативні пороги, тільки для старту): делегатор підпише
+            його звичайним квіз-гейтом у своїй черзі «Вирішую».
           </p>
           <WhyThisWorks topic="decisions" />
         </q-card-section>
@@ -103,7 +110,8 @@
           </p>
           <div v-if="simulation.buckets.length > 0" class="simulation-buckets">
             <q-chip v-for="b in simulation.buckets" :key="b.decisionType" dense outline>
-              {{ b.decisionType }}: {{ b.count }}<span v-if="b.irreversibleCount > 0"> ({{ b.irreversibleCount }} незворотних)</span>
+              {{ b.decisionType }}: {{ b.count
+              }}<span v-if="b.irreversibleCount > 0"> ({{ b.irreversibleCount }} незворотних)</span>
             </q-chip>
           </div>
         </q-card-section>
@@ -127,9 +135,10 @@
         <q-card-section class="ob-intro">
           <p>
             Запит подано — <code>{{ requestResult.runId }}</code> у черзі «Вирішую» власника
-            <b>{{ requestResult.delegatorHandle }}</b>. Делегатор проходить звичайний квіз-гейт і підписує
-            (<code>decision_quiz</code> → <code>decision_approve</code> → <code>mandate_change_apply</code>) — та сама
-            «остання константа», що розширення ШІ-мандата.
+            <b>{{ requestResult.delegatorHandle }}</b
+            >. Делегатор проходить звичайний квіз-гейт і підписує (<code>decision_quiz</code> →
+            <code>decision_approve</code> → <code>mandate_change_apply</code>) — та сама «остання константа», що
+            розширення ШІ-мандата.
           </p>
           <p class="ob-hint">Натисни «перевірити», коли делегатор підпише.</p>
         </q-card-section>
@@ -137,7 +146,7 @@
         <div v-if="error" class="banner banner-error">{{ error }}</div>
 
         <q-card-actions align="right" class="ob-actions">
-          <q-btn @click="markOnboarded(); emit('update:modelValue', false)" flat no-caps dense label="закрити (повернусь пізніше)" />
+          <q-btn @click="closeForLater" flat no-caps dense label="закрити (повернусь пізніше)" />
           <q-btn @click="checkAndProceed" unelevated color="primary" no-caps label="перевірити" :loading="checking" />
         </q-card-actions>
       </template>
@@ -232,6 +241,17 @@ watch(
     mandatesDir.value = d ?? ''
   }
 )
+
+/**
+ * Крок «очікую делегатора» — закрити діалог БЕЗ завершення онбордингу
+ * (мандат ще не підписано): позначає онбординг пройденим локально (не
+ * докучати діалогом повторно), користувач повернеться перевірити пізніше.
+ * @returns {void}
+ */
+function closeForLater() {
+  markOnboarded()
+  emit('update:modelValue', false)
+}
 
 /**
  * Зберігає ідентичність/шлях, тоді перевіряє `onboarding_status` — handle

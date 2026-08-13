@@ -221,7 +221,7 @@ const transcript = ref('')
 // у кожній відповіді decision_quiz/decision_approve, картка лише показує
 // його як бейдж поруч із «чому так».
 const trustSimplified = ref(false)
-// Зона росту (п.2г) — окреме, НЕГЕЙТУЮЧЕ поле відповіді decision_quiz
+// Зона росту (п.2г) — окреме, негейтуюче поле відповіді decision_quiz
 // (`delta_core::profiles::build_growth_edge_field`); null, якщо домен
 // розвилки не в growth_edge власника.
 const growthEdge = ref(null)
