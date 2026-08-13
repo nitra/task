@@ -1,5 +1,5 @@
 <template>
-  <q-dialog @update:model-value="emit('update:modelValue', $event)" :model-value="modelValue" persistent>
+  <q-dialog @update:model-value="emit('update:modelValue', $event)" persistent :model-value="modelValue">
     <q-card class="onboarding">
       <q-card-section class="ob-title">
         <span class="ob-dot" />
