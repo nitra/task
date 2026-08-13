@@ -849,14 +849,16 @@ updater-артефакти на GitHub Releases.
 `src-tauri/tauri.conf.json`:
 
 ```json
-"bundle": { "createUpdaterArtifacts": true },
-"plugins": {
-  "updater": {
-    "pubkey": "…",
-    "endpoints": [
-      "https://github.com/nitra/task/releases/download/delta-latest/latest.json",
-      "https://github.com/nitra/task/releases/latest/download/latest.json"
-    ]
+{
+  "bundle": { "createUpdaterArtifacts": true },
+  "plugins": {
+    "updater": {
+      "pubkey": "…",
+      "endpoints": [
+        "https://github.com/nitra/task/releases/download/delta-latest/latest.json",
+        "https://github.com/nitra/task/releases/latest/download/latest.json"
+      ]
+    }
   }
 }
 ```

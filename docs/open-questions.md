@@ -57,7 +57,7 @@
   `release-owner.yml`, тег `delta@X.Y.Z`, DMG + updater-артефакти, підпис Apple + updater через ті самі
   Infisical-секрети `/apple`/`/updater`), `changelog-release.yml` знає про `delta/.changes/**` (paths
   тригера + detect/tag/dispatch кроки). Перевірено локально: `cargo check --workspace`, `vite build`,
-  повний `bun run tauri build --target aarch64-apple-darwin` з ефемерним (не закомiченим) updater-ключем —
+  повний `bun run tauri build --target aarch64-apple-darwin` з ефемерним (не закоміченим) updater-ключем —
   `.app`/DMG/`.app.tar.gz.sig` зібрались коректно. Нічого нового не потрібно від людини — усі секрети
   перевикористані з наявного Infisical-проєкту.
 - **CI: Lint repo-wide і StyleLint червоні ще з 2026-07-27** (до Delta App): kubescape-знахідки k8s/manifests (потребують security-рев'ю), cargo-deny відхиляє ліцензію 0BSD пакета adler2 (політичне рішення для deny.toml), bun/licensee-попередження. Поза скоупом delta — оргрівневі рішення.

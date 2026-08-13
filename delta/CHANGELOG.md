@@ -119,4 +119,3 @@ Rust-команд). Рефактор `validateMandateChange`/`validateMandatesFi
 `Uint8Array.prototype.toBase64`/`Uint8Array.fromBase64` (Node 24+ API) тепер мають спільний feature-detect
 фолбек — `Buffer` (CLI/Bun) або побайтовий `btoa`/`atob` (WKWebView у Tauri GUI, де нативний метод може бути
 відсутній) — знижує ризик несумісності підпису пристрою в GUI-поверхні. Тести round-trip на обидва фолбек-шляхи.
-
